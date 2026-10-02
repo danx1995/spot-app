@@ -125,6 +125,10 @@
     .detail-actions{display:grid;grid-template-columns:1.25fr .75fr;gap:8px;margin-top:15px}.detail-actions button{min-height:48px;border-radius:16px;font-size:11px;font-weight:900;cursor:pointer}.primary-action{background:var(--green);color:var(--black)}.secondary-action{background:var(--surface);color:white}
     .memory-card{margin-top:11px;padding:15px;border-radius:20px;background:var(--surface)}.memory-label{color:var(--muted);font-size:8px;letter-spacing:.14em;font-weight:950}.memory-time{font-size:10px;color:#9DA7A1;font-weight:800;margin-top:7px}.memory-note{font-size:13px;line-height:1.45;font-weight:650;margin-top:8px}.memory-source{margin-top:9px;color:var(--green);font-size:10px;font-weight:850}
     .collection-tools{display:flex;gap:7px;margin:10px 20px 14px}.collection-tools button{flex:1;min-height:38px;border-radius:14px;background:var(--surface);color:#D1D7D3;font-size:9px;font-weight:850;cursor:pointer}.collection-tools button:first-child{background:#173528;color:var(--green)}
+    .memory-excerpt{margin-top:10px;padding:12px;border-radius:15px;background:#1A211D}.memory-excerpt b{display:block;color:#89948E;font-size:8px;letter-spacing:.13em}.memory-excerpt strong{display:block;margin-top:6px;font-size:11px}.memory-excerpt p{margin:5px 0 0;color:#C9D1CC;font-size:11px;line-height:1.45}
+    .add-intro{padding:4px 20px 2px}.add-intro h3{font-size:28px;line-height:1.02;letter-spacing:-.04em;margin:6px 0 0}.add-intro p{font-size:11px;color:var(--muted);line-height:1.5;margin:7px 0 0}
+    .add-actions{display:grid;gap:8px;margin:14px 18px 0}.add-action{min-height:66px;border-radius:19px;background:var(--surface);padding:12px;display:flex;align-items:center;gap:11px;color:#fff;text-align:left;cursor:pointer}.add-action-icon{width:42px;height:42px;border-radius:15px;background:#173528;color:var(--green);display:grid;place-items:center;font-size:19px;font-weight:950}.add-action-copy{min-width:0;flex:1}.add-action-copy b{display:block;font-size:12px}.add-action-copy span{display:block;margin-top:3px;color:var(--muted);font-size:9px;line-height:1.4}.add-action-arrow{color:#78847D;font-size:19px}
+    .import-card{margin:12px 18px 0;padding:15px;border-radius:22px;background:#101813;border:1px solid rgba(25,195,125,.16)}.import-label{font-size:8px;color:var(--green);font-weight:950;letter-spacing:.13em}.import-card h4{margin:7px 0 0;font-size:14px}.import-card p{margin:5px 0 0;color:var(--muted);font-size:10px;line-height:1.5}.import-url{margin-top:11px;display:flex;gap:7px}.import-url input{min-width:0;flex:1;height:43px;border:0;outline:0;border-radius:14px;background:var(--surface);color:#D9DFDB;padding:0 12px;font-size:10px}.import-url button{min-width:88px;border-radius:14px;background:var(--green);color:var(--black);font-size:9px;font-weight:950;cursor:pointer}.import-result{display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}.import-result.show{display:block}.import-status{display:flex;align-items:center;gap:7px;color:#B9C2BC;font-size:9px}.import-status .badge{background:var(--green);color:var(--black);padding:6px 8px;border-radius:10px;font-weight:950}.import-save{width:100%;min-height:46px;margin-top:9px;border-radius:15px;background:var(--green);color:var(--black);font-size:11px;font-weight:950;cursor:pointer}.privacy-note{margin:12px 18px 0;padding:12px 14px;border-radius:17px;background:rgba(255,255,255,.035);color:#849088;font-size:9px;line-height:1.5}
     @media(max-width:850px){
       body{background:var(--black)}
       .page{display:block;padding:0;max-width:none}.intro{display:none}.device-wrap{display:block}.phone{width:100vw;height:100dvh;min-height:0;max-height:none;border:0;border-radius:0;box-shadow:none}.phone:before{display:none}.preview-ribbon{top:9px}
@@ -177,7 +181,7 @@
             <div class="topbar"><div><div class="eyebrow">ЛИЧНАЯ БИБЛИОТЕКА</div><div class="city">Мои споты</div></div><button class="round" data-toast="Сортировка">↕</button></div>
             <div class="section">
               <div class="section-sub">12 из 12 · Москва и Петербург</div>
-              <div class="search">⌕ <span>Найти в своих спотах</span></div>
+              <div class="search">⌕ <span>Название, заметка или откуда сохранил</span></div>
               <div class="filter-row"><div class="filter active">Все</div><div class="filter">Хочу</div><div class="filter">Был</div><div class="filter">Бронь</div></div>
               <div class="chips" style="padding:10px 0 0"><button class="chip active">Все города</button><button class="chip">СПБ</button><button class="chip">МСК</button><button class="chip">♡ Любимые</button></div>
               <div class="spot-list">
@@ -240,6 +244,7 @@
                     <button class="recent" data-query="Birch">↺ Birch</button>
                     <button class="recent" data-query="кофе">↺ кофе</button>
                     <button class="recent" data-query="отель">↺ отель</button>
+                    <button class="recent" data-query="тартар">↺ тартар</button>
                   </div>
                 </div>
                 <div id="savedSearchBlock">
@@ -291,6 +296,11 @@
                   <div class="memory-label">ПОЧЕМУ СОХРАНЕНО</div>
                   <div class="memory-time">Сохранено 18 дней назад · из Instagram</div>
                   <div class="memory-note">Красивый интерьер, хочу попробовать тартар и десерт.</div>
+                  <div class="memory-excerpt">
+                    <b>ИЗ ИСТОЧНИКА</b>
+                    <strong>Birch on Instagram</strong>
+                    <p>Birch — идеальный ужин в Петербурге. Тартар, интерьер и десерт, ради которого хочется вернуться.</p>
+                  </div>
                   <div class="memory-source">Instagram · открыть источник ↗</div>
                 </div>
                 <div class="memory-card">
@@ -302,10 +312,67 @@
           </div>
         </div>
 
+        <div class="overlay" id="addOverlay">
+          <div class="sheet">
+            <div class="sheet-head">
+              <button class="sheet-close" data-close="addOverlay">×</button>
+              <div><div class="sheet-title">Добавить в СПОТ</div><div class="sheet-sub">Санкт-Петербург</div></div>
+              <div></div>
+            </div>
+            <div class="sheet-scroll">
+              <div class="add-intro">
+                <div class="eyebrow">НОВЫЙ СПОТ</div>
+                <h3>Сохрани место за пару секунд</h3>
+                <p>Найди место, отправь ссылку из соцсети или добавь точку вручную.</p>
+              </div>
+
+              <div class="add-actions">
+                <button class="add-action" id="addSearchAction">
+                  <span class="add-action-icon">⌕</span>
+                  <span class="add-action-copy"><b>Найти место</b><span>По названию или адресу в Москве и Петербурге</span></span>
+                  <span class="add-action-arrow">›</span>
+                </button>
+                <button class="add-action" id="addLinkAction">
+                  <span class="add-action-icon">↗</span>
+                  <span class="add-action-copy"><b>Вставить ссылку</b><span>Instagram, TikTok, Telegram, 2ГИС или сайт</span></span>
+                  <span class="add-action-arrow">›</span>
+                </button>
+                <button class="add-action" data-toast="В приложении откроется ручное добавление с точкой на карте">
+                  <span class="add-action-icon">＋</span>
+                  <span class="add-action-copy"><b>Добавить вручную</b><span>Название, категория и точная метка на карте</span></span>
+                  <span class="add-action-arrow">›</span>
+                </button>
+              </div>
+
+              <div class="import-card" id="demoImportCard">
+                <div class="import-label">ДЕМО · УМНОЕ РАСПОЗНАВАНИЕ</div>
+                <h4>Попробуй ссылку из Instagram</h4>
+                <p>СПОТ сначала читает публичную подпись страницы и пытается сам найти место. Если уверенности мало — попросит уточнить.</p>
+                <div class="import-url">
+                  <input id="demoImportURL" value="https://www.instagram.com/reel/demo/" aria-label="Ссылка на место" />
+                  <button id="demoImportBtn">Найти</button>
+                </div>
+                <div class="import-result" id="demoImportResult">
+                  <div class="import-status"><span class="badge">Instagram</span><span>Подпись страницы распознана</span></div>
+                  <button class="search-result" id="demoImportPlace" style="margin-top:9px">
+                    <div class="thumb">🍽️</div>
+                    <div class="place-copy"><div class="meta">НАЙДЕНО АВТОМАТИЧЕСКИ · СПБ</div><h4>Birch</h4><div class="open">● Открыто до 23:00</div><div class="address">Кирочная улица, 3 · ★ 4.8</div></div>
+                  </button>
+                  <button class="import-save" id="demoSaveImported">♥ Сохранить в СПОТ</button>
+                </div>
+              </div>
+
+              <div class="privacy-note">
+                СПОТ не подключается к приватному аккаунту соцсети. Используется только публичный контекст страницы; если его нет, приложение ничего не угадывает молча.
+              </div>
+            </div>
+          </div>
+        </div>
+
         <nav class="bottom-nav">
           <button class="nav-item active" data-nav="map"><span class="ico">⌖</span><span>Карта</span></button>
           <button class="nav-item" data-nav="spots"><span class="ico">♥</span><span>Споты</span></button>
-          <button class="plus" data-toast="Добавление места: поиск, ссылка или вручную">＋</button>
+          <button class="plus" id="addBtn">＋</button>
           <button class="nav-item" data-nav="collections"><span class="ico">▦</span><span>Подборки</span></button>
           <button class="nav-item" data-nav="profile"><span class="ico">◉</span><span>Профиль</span></button>
         </nav>
@@ -319,6 +386,7 @@
     const toast=document.getElementById('toast');
     const searchOverlay=document.getElementById('searchOverlay');
     const placeOverlay=document.getElementById('placeOverlay');
+    const addOverlay=document.getElementById('addOverlay');
     const searchInput=document.getElementById('previewSearchInput');
     let toastTimer;
 
@@ -339,6 +407,7 @@
 
     document.getElementById('mapSearchBtn').addEventListener('click',()=>openOverlay(searchOverlay));
     document.getElementById('openPlaceBtn').addEventListener('click',()=>openOverlay(placeOverlay));
+    document.getElementById('addBtn').addEventListener('click',()=>openOverlay(addOverlay));
     document.getElementById('savedBirchResult').addEventListener('click',()=>{
       closeOverlay(searchOverlay);
       openOverlay(placeOverlay);
@@ -360,7 +429,8 @@
       const saved=document.getElementById('savedSearchBlock');
       const fresh=document.getElementById('newSearchBlock');
       recent.style.display=value.length<2?'block':'none';
-      saved.style.display=value.length>=2 && ('birch ресторан кирочная'.includes(value)||value.includes('birch'))?'block':'none';
+      const birchMemory='birch ресторан кирочная красивый интерьер тартар десерт instagram инстаграм reel reels петербург';
+      saved.style.display=value.length>=2 && birchMemory.includes(value)?'block':'none';
       fresh.style.display=value.length>=2?'block':'none';
     }
 
@@ -380,6 +450,39 @@
 
     document.getElementById('previewSharePlace').addEventListener('click',()=>{
       showToast('SPOT-ссылка создана · личные заметки не передаются');
+    });
+
+    document.getElementById('addSearchAction').addEventListener('click',()=>{
+      closeOverlay(addOverlay);
+      openOverlay(searchOverlay);
+      searchInput.value='';
+      refreshPreviewSearch();
+      setTimeout(()=>searchInput.focus(),80);
+    });
+
+    document.getElementById('addLinkAction').addEventListener('click',()=>{
+      document.getElementById('demoImportCard').scrollIntoView({behavior:'smooth',block:'center'});
+      showToast('Вставь ссылку — СПОТ попробует определить место');
+    });
+
+    document.getElementById('demoImportBtn').addEventListener('click',()=>{
+      const value=document.getElementById('demoImportURL').value.trim();
+      if(!value){
+        showToast('Сначала вставь ссылку');
+        return;
+      }
+      document.getElementById('demoImportResult').classList.add('show');
+      showToast('Публичная подпись прочитана · найден Birch');
+    });
+
+    document.getElementById('demoImportPlace').addEventListener('click',()=>{
+      closeOverlay(addOverlay);
+      openOverlay(placeOverlay);
+    });
+
+    document.getElementById('demoSaveImported').addEventListener('click',()=>{
+      closeOverlay(addOverlay);
+      showToast('Birch сохранён · источник тоже запомнен');
     });
 
     nav.forEach(button=>button.addEventListener('click',()=>{
