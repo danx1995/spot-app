@@ -43,8 +43,15 @@ func (r *Resolver) SearchPage(
 	}
 
 	remoteQuery := strings.TrimSpace(query)
+	providerPage := page
 	if remoteQuery == "" {
-		remoteQuery = categoryDiscoveryQuery(category)
+		if category == "" {
+			var discoveryCategory string
+			discoveryCategory, providerPage = mixedDiscoveryPage(page)
+			remoteQuery = categoryDiscoveryQuery(discoveryCategory)
+		} else {
+			remoteQuery = categoryDiscoveryQuery(category)
+		}
 	}
 
 	local := catalog.SearchPlaces(query, city, category)
@@ -65,7 +72,7 @@ func (r *Resolver) SearchPage(
 			return cached, nil
 		}
 
-		remote, remoteErr := r.twoGIS.SearchPage(ctx, remoteQuery, city, page)
+		remote, remoteErr := r.twoGIS.SearchPage(ctx, remoteQuery, city, providerPage)
 		if remoteErr != nil {
 			if page > 1 {
 				return []catalog.Place{}, nil
@@ -111,8 +118,15 @@ func (r *Resolver) SearchAtPage(
 	}
 
 	remoteQuery := strings.TrimSpace(query)
+	providerPage := page
 	if remoteQuery == "" {
-		remoteQuery = categoryDiscoveryQuery(category)
+		if category == "" {
+			var discoveryCategory string
+			discoveryCategory, providerPage = mixedDiscoveryPage(page)
+			remoteQuery = categoryDiscoveryQuery(discoveryCategory)
+		} else {
+			remoteQuery = categoryDiscoveryQuery(category)
+		}
 	}
 
 	local := catalog.SearchPlaces(query, city, category)
@@ -133,7 +147,7 @@ func (r *Resolver) SearchAtPage(
 			return cached, nil
 		}
 
-		remote, remoteErr := r.twoGIS.SearchAtPage(ctx, remoteQuery, city, lat, lon, page)
+		remote, remoteErr := r.twoGIS.SearchAtPage(ctx, remoteQuery, city, lat, lon, providerPage)
 		if remoteErr != nil {
 			if page > 1 {
 				return []catalog.Place{}, nil
@@ -157,6 +171,16 @@ func (r *Resolver) SearchAtPage(
 	}
 
 	return clonePlaces(value.([]catalog.Place)), nil
+}
+
+func mixedDiscoveryPage(page int) (string, int) {
+	categories := []string{"restaurant", "coffee", "bar", "hotel", "culture"}
+	if page < 1 {
+		page = 1
+	}
+	index := (page - 1) % len(categories)
+	providerPage := ((page - 1) / len(categories)) + 1
+	return categories[index], providerPage
 }
 
 func categoryDiscoveryQuery(category string) string {
