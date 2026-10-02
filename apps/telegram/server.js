@@ -1,9 +1,12 @@
 import { createReadStream, existsSync, statSync } from 'node:fs';
-import { createServer } from 'node:http';
-import { extname, join, normalize } from 'node:path';
+import { createServer, request as httpRequest } from 'node:http';
+import { fileURLToPath } from 'node:url';
+import { dirname, extname, join, normalize } from 'node:path';
 
 const port = Number(process.env.PORT || 3000);
-const root = join(process.cwd(), 'dist');
+const apiPort = Number(process.env.API_PORT || 8080);
+const here = dirname(fileURLToPath(import.meta.url));
+const root = join(here, 'dist');
 
 const mime = {
   '.html': 'text/html; charset=utf-8',
@@ -17,14 +20,46 @@ const mime = {
   '.webp': 'image/webp'
 };
 
+function proxyToApi(req, res) {
+  const upstream = httpRequest({
+    host: '127.0.0.1',
+    port: apiPort,
+    method: req.method,
+    path: req.url,
+    headers: {
+      ...req.headers,
+      host: `127.0.0.1:${apiPort}`
+    }
+  }, (apiRes) => {
+    res.writeHead(apiRes.statusCode || 502, apiRes.headers);
+    apiRes.pipe(res);
+  });
+
+  upstream.on('error', () => {
+    if (!res.headersSent) {
+      res.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8' });
+    }
+    res.end(JSON.stringify({ error: 'spot api unavailable' }));
+  });
+
+  req.pipe(upstream);
+}
+
 createServer((req, res) => {
-  if (req.url === '/healthz') {
+  const pathname = (req.url || '/').split('?')[0];
+
+  if (pathname === '/healthz') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ status: 'ok', service: 'spot-telegram' }));
     return;
   }
 
-  const rawPath = decodeURIComponent((req.url || '/').split('?')[0]);
+  if (pathname === '/health' || pathname.startsWith('/api/')) {
+    proxyToApi(req, res);
+    return;
+  }
+
+  const rawPath = decodeURIComponent(pathname);
   const safePath = normalize(rawPath).replace(/^(\.\.[/\\])+/, '');
   let filePath = join(root, safePath === '/' ? 'index.html' : safePath);
 
@@ -39,5 +74,5 @@ createServer((req, res) => {
   });
   createReadStream(filePath).pipe(res);
 }).listen(port, '0.0.0.0', () => {
-  console.log(`SPOT Telegram Mini App listening on :${port}`);
+  console.log(`SPOT Telegram Mini App listening on :${port}; proxying API on :${apiPort}`);
 });
