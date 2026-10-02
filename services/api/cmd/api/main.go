@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/danx1995/spot-app/services/api/internal/accounttransfer"
 	"github.com/danx1995/spot-app/services/api/internal/auth"
 	"github.com/danx1995/spot-app/services/api/internal/catalog"
 	"github.com/danx1995/spot-app/services/api/internal/cloud"
@@ -62,6 +63,9 @@ func main() {
 	libraryStore := library.NewStore(ctx, databaseURL)
 	defer libraryStore.Close()
 
+	transferStore := accounttransfer.NewStore(ctx, databaseURL)
+	defer transferStore.Close()
+
 	authSecret := strings.TrimSpace(os.Getenv("AUTH_SECRET"))
 	if len(authSecret) < 16 {
 		authSecret = "spot-development-secret-change-me"
@@ -80,7 +84,8 @@ func main() {
 				"2gis": twoGIS.Enabled(),
 			},
 			"sync_store": syncStore.Mode(),
-			"library_store": libraryStore.Mode(),
+			"library_store":  libraryStore.Mode(),
+			"transfer_store": transferStore.Mode(),
 		})
 	})
 
@@ -209,6 +214,7 @@ func main() {
 	})
 
 	registerProfileRoutes(mux, syncStore, tokens)
+	registerAccountTransferRoutes(mux, transferStore, tokens)
 	registerLibraryRoutes(mux, libraryStore, tokens)
 	registerPublicCollectionRoutes(mux, libraryStore)
 
@@ -261,7 +267,7 @@ func main() {
 		port = "8080"
 	}
 
-	log.Printf("SPOT API listening on :%s (sync=%s, library=%s)", port, syncStore.Mode(), libraryStore.Mode())
+	log.Printf("SPOT API listening on :%s (sync=%s, library=%s, transfer=%s)", port, syncStore.Mode(), libraryStore.Mode(), transferStore.Mode())
 	if err := http.ListenAndServe(":"+port, handler); err != nil {
 		log.Fatal(err)
 	}
