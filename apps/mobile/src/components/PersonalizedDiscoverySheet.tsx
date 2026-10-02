@@ -215,7 +215,7 @@ const styles = StyleSheet.create({
   },
   reasonText: {
     fontSize: 8,
-    fontWeight: '850'
+    fontWeight: '800'
   },
   actions: {
     flexDirection: 'row',
