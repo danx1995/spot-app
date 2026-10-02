@@ -5,12 +5,16 @@ import MapView, { Marker, type Region } from 'react-native-maps';
 
 import { CategoryChip } from '../components/CategoryChip';
 import { MapSearchSheet } from '../components/MapSearchSheet';
+import { NearbySheet } from '../components/NearbySheet';
 import { PlaceDetailModal } from '../components/PlaceDetailModal';
 import { SpotCard } from '../components/SpotCard';
 import { categories } from '../data/mock';
 import { useSpotStore } from '../state/SpotStore';
 import { colors } from '../theme';
 import type { CitySlug, Spot } from '../types';
+import { spotWithDistance, type Coordinates } from '../utils/geo';
+
+const NEARBY_RADIUS_METERS = 2000;
 
 const CITY_REGIONS: Record<CitySlug, Region> = {
   spb: {
@@ -51,47 +55,79 @@ export function MapScreen() {
   const [category, setCategory] = useState<(typeof categories)[number]['id']>('all');
   const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [nearbyOpen, setNearbyOpen] = useState(false);
   const [locationBusy, setLocationBusy] = useState(false);
+  const [locationDenied, setLocationDenied] = useState(false);
+  const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
 
-  const filtered = useMemo(
-    () => savedSpots.filter((spot) => {
-      if (spot.city !== selectedCity) return false;
-      return category === 'all' || spot.category === category;
-    }),
-    [category, savedSpots, selectedCity]
+  const citySpots = useMemo(
+    () => savedSpots
+      .filter((spot) => spot.city === selectedCity)
+      .map((spot) => userLocation ? spotWithDistance(spot, userLocation) : spot),
+    [savedSpots, selectedCity, userLocation]
+  );
+
+  const filtered = useMemo(() => {
+    const visible = citySpots.filter((spot) => category === 'all' || spot.category === category);
+    if (!userLocation) return visible;
+    return [...visible].sort((a, b) => a.distanceMeters - b.distanceMeters);
+  }, [category, citySpots, userLocation]);
+
+  const nearbySpots = useMemo(() => {
+    if (!userLocation) return [];
+    return citySpots
+      .filter((spot) => spot.distanceMeters <= NEARBY_RADIUS_METERS)
+      .sort((a, b) => a.distanceMeters - b.distanceMeters);
+  }, [citySpots, userLocation]);
+
+  const selectedSpotWithDistance = useMemo(
+    () => selectedSpot && userLocation ? spotWithDistance(selectedSpot, userLocation) : selectedSpot,
+    [selectedSpot, userLocation]
   );
 
   const markerSpots = useMemo(() => {
-    if (!selectedSpot || savedSpots.some((spot) => spot.id === selectedSpot.id)) {
+    if (!selectedSpotWithDistance || savedSpots.some((spot) => spot.id === selectedSpotWithDistance.id)) {
       return filtered;
     }
-    return [selectedSpot, ...filtered];
-  }, [filtered, savedSpots, selectedSpot]);
+    return [selectedSpotWithDistance, ...filtered];
+  }, [filtered, savedSpots, selectedSpotWithDistance]);
 
-  const nearby = selectedSpot ?? filtered[0];
+  const nearby = selectedSpotWithDistance ?? filtered[0];
 
   useEffect(() => {
     setSelectedSpot(null);
+    setNearbyOpen(false);
     mapRef.current?.animateToRegion(CITY_REGIONS[selectedCity], 450);
   }, [selectedCity]);
 
   async function moveToUser() {
     if (locationBusy) return;
     setLocationBusy(true);
+    setLocationDenied(false);
+
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
-      if (permission.status !== 'granted') return;
+      if (permission.status !== 'granted') {
+        setLocationDenied(true);
+        return;
+      }
 
       const current = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced
       });
-
-      mapRef.current?.animateToRegion({
+      const coordinate = {
         latitude: current.coords.latitude,
-        longitude: current.coords.longitude,
+        longitude: current.coords.longitude
+      };
+
+      setUserLocation(coordinate);
+      mapRef.current?.animateToRegion({
+        ...coordinate,
         latitudeDelta: 0.025,
         longitudeDelta: 0.025
       }, 450);
+    } catch {
+      setLocationDenied(true);
     } finally {
       setLocationBusy(false);
     }
@@ -101,7 +137,7 @@ export function MapScreen() {
     setSelectedCity(selectedCity === 'spb' ? 'moscow' : 'spb');
   }
 
-  function selectSearchResult(spot: Spot) {
+  function focusSpot(spot: Spot) {
     setSelectedSpot(spot);
     mapRef.current?.animateToRegion({
       latitude: spot.latitude,
@@ -111,6 +147,14 @@ export function MapScreen() {
     }, 450);
   }
 
+  function openNearby() {
+    if (!userLocation) {
+      void moveToUser();
+      return;
+    }
+    setNearbyOpen(true);
+  }
+
   return (
     <View style={[styles.root, { backgroundColor: dark ? colors.black : colors.lightBackground }]}>
       <MapView
@@ -118,7 +162,7 @@ export function MapScreen() {
         style={StyleSheet.absoluteFill}
         initialRegion={CITY_REGIONS[selectedCity]}
         customMapStyle={dark ? darkMapStyle : []}
-        showsUserLocation
+        showsUserLocation={Boolean(userLocation)}
         showsMyLocationButton={false}
         showsCompass={false}
         showsPointsOfInterest={false}
@@ -127,7 +171,7 @@ export function MapScreen() {
       >
         {markerSpots.map((spot) => {
           const saved = savedSpots.some((item) => item.id === spot.id);
-          const selected = selectedSpot?.id === spot.id;
+          const selected = selectedSpotWithDistance?.id === spot.id;
 
           return (
             <Marker
@@ -181,14 +225,26 @@ export function MapScreen() {
         ))}
       </ScrollView>
 
-      <Pressable onPress={moveToUser} style={styles.locationButton}>
+      <Pressable onPress={() => void moveToUser()} style={styles.locationButton}>
         <Text style={styles.locationIcon}>{locationBusy ? '…' : '⌖'}</Text>
       </Pressable>
 
-      <View style={styles.nearbyPill}>
-        <Text style={styles.nearbyStrong}>{filtered.length} сохранённых спотов</Text>
-        <Text style={styles.nearbyMuted}>на карте · {CITY_LABELS[selectedCity]}</Text>
-      </View>
+      <Pressable onPress={openNearby} style={styles.nearbyPill}>
+        <Text style={styles.nearbyStrong}>
+          {userLocation
+            ? `${nearbySpots.length} ${nearbySpots.length === 1 ? 'спот' : 'спота'} рядом`
+            : locationDenied
+              ? 'Геолокация недоступна'
+              : 'Показать споты рядом'}
+        </Text>
+        <Text style={styles.nearbyMuted}>
+          {userLocation
+            ? `до ${NEARBY_RADIUS_METERS / 1000} км · нажми для списка`
+            : locationDenied
+              ? 'разрешение можно изменить в настройках телефона'
+              : 'геолокация включается только по запросу'}
+        </Text>
+      </Pressable>
 
       {nearby ? (
         <View style={styles.bottomCard}>
@@ -205,12 +261,20 @@ export function MapScreen() {
         visible={searchOpen}
         city={selectedCity}
         onClose={() => setSearchOpen(false)}
-        onSelect={selectSearchResult}
+        onSelect={focusSpot}
+      />
+
+      <NearbySheet
+        visible={nearbyOpen}
+        spots={nearbySpots}
+        radiusMeters={NEARBY_RADIUS_METERS}
+        onClose={() => setNearbyOpen(false)}
+        onSelect={focusSpot}
       />
 
       <PlaceDetailModal
-        spot={selectedSpot}
-        visible={Boolean(selectedSpot)}
+        spot={selectedSpotWithDistance}
+        visible={Boolean(selectedSpotWithDistance)}
         onClose={() => setSelectedSpot(null)}
       />
     </View>
