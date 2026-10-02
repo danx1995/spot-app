@@ -295,7 +295,8 @@ function App() {
           ? Array.from(new Map([...current, ...next].map((spot) => [spot.id, spot])).values())
           : next
         );
-        setCanLoadMore(next.length >= 50);
+        const mixedCatalog = query.trim() === '' && !category;
+        setCanLoadMore(next.length > 0 && (mixedCatalog ? page < 25 : next.length >= 50));
         setSearchPage(page);
       }
     } catch {
