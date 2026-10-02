@@ -106,3 +106,82 @@ export async function redeemTransferCode(code: string): Promise<GuestSession> {
 
   return await response.json() as GuestSession;
 }
+
+
+export type AuthProvider = 'google' | 'apple';
+
+export async function getAuthProviders(): Promise<Record<AuthProvider, boolean>> {
+  const response = await fetch(`${appConfig.apiBaseUrl}/api/v1/auth/providers`, {
+    headers: { Accept: 'application/json' }
+  });
+
+  if (!response.ok) {
+    throw new Error(`provider status failed with ${response.status}`);
+  }
+
+  return await response.json() as Record<AuthProvider, boolean>;
+}
+
+export async function linkProviderIdentity(
+  provider: AuthProvider,
+  idToken: string,
+  nonce?: string
+): Promise<AccountProfile> {
+  const session = await ensureGuestSession();
+  const response = await fetch(`${appConfig.apiBaseUrl}/api/v1/me/identity/link`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${session.token}`
+    },
+    body: JSON.stringify({
+      provider,
+      id_token: idToken,
+      nonce: nonce?.trim() || undefined
+    })
+  });
+
+  if (response.status === 401) {
+    throw new Error('Не удалось подтвердить вход');
+  }
+  if (response.status === 409) {
+    throw new Error('Этот вход уже связан с другим профилем СПОТ');
+  }
+  if (!response.ok) {
+    throw new Error(`identity link failed with ${response.status}`);
+  }
+
+  return await response.json() as AccountProfile;
+}
+
+export async function loginWithProvider(
+  provider: AuthProvider,
+  idToken: string,
+  nonce?: string
+): Promise<GuestSession> {
+  const response = await fetch(`${appConfig.apiBaseUrl}/api/v1/auth/provider`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      provider,
+      id_token: idToken,
+      nonce: nonce?.trim() || undefined
+    })
+  });
+
+  if (response.status === 404) {
+    throw new Error('Этот аккаунт ещё не связан с профилем СПОТ');
+  }
+  if (response.status === 401) {
+    throw new Error('Не удалось подтвердить вход');
+  }
+  if (!response.ok) {
+    throw new Error(`provider login failed with ${response.status}`);
+  }
+
+  return await response.json() as GuestSession;
+}
