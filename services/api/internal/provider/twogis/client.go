@@ -376,7 +376,9 @@ func categoryFromRubrics(rubrics []rubric) (string, string) {
 	case strings.Contains(name, "парк"),
 		strings.Contains(name, "сквер"),
 		strings.Contains(name, "сад"),
-		strings.Contains(name, "набережн"):
+		strings.Contains(name, "набережн"),
+		strings.Contains(name, "достопримеч"),
+		strings.Contains(name, "смотров"):
 		return "park", label
 	default:
 		return "other", label
