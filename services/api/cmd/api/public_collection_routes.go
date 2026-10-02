@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/danx1995/spot-app/services/api/internal/library"
@@ -23,6 +24,7 @@ type publicCollectionView struct {
 	Description string
 	CityLabel   string
 	PlaceCount  int
+	AppURL      template.URL
 	Places      []publicPlaceView
 }
 
@@ -45,6 +47,9 @@ var publicCollectionTemplate = template.Must(template.New("collection").Parse(`<
     h1{font-size:clamp(36px,9vw,64px);line-height:.98;letter-spacing:-.045em;margin:10px 0 0}
     .desc{margin:16px 0 0;color:#A8B0AB;font-size:16px;line-height:1.55;max-width:620px}
     .meta{margin-top:18px;display:inline-flex;gap:8px;align-items:center;background:#151B17;border-radius:16px;padding:10px 13px;color:#C9D0CC;font-size:12px;font-weight:700}
+    .ctaWrap{margin-top:22px}
+    .cta{display:flex;align-items:center;justify-content:center;min-height:58px;border-radius:19px;background:#19C37D;color:#0B0F0C;text-decoration:none;font-size:14px;font-weight:900}
+    .ctaHint{margin:9px 4px 0;color:#7E8983;font-size:11px;line-height:1.5}
     .list{display:grid;gap:12px;margin-top:34px}
     .place{background:#151B17;border:1px solid #202823;border-radius:24px;padding:18px;text-decoration:none;color:inherit;display:block}
     .top{display:flex;gap:16px;align-items:flex-start}
@@ -66,6 +71,10 @@ var publicCollectionTemplate = template.Must(template.New("collection").Parse(`<
       <h1>{{.Title}}</h1>
       {{if .Description}}<p class="desc">{{.Description}}</p>{{end}}
       <div class="meta">{{.PlaceCount}} мест · общая подборка</div>
+      <div class="ctaWrap">
+        <a class="cta" href="{{.AppURL}}">♥ Добавить подборку в СПОТ</a>
+        <div class="ctaHint">Если СПОТ установлен, подборка откроется прямо в приложении. Перед добавлением можно проверить все места.</div>
+      </div>
     </section>
 
     {{if .Places}}
@@ -114,11 +123,13 @@ func registerPublicCollectionRoutes(mux *http.ServeMux, store library.Store) {
 			return
 		}
 
+		collectionID := shared.Collection.ID
 		view := publicCollectionView{
 			Title:       shared.Collection.Title,
 			Description: shared.Collection.Description,
 			CityLabel:   shared.Collection.CityLabel,
 			PlaceCount:  len(shared.Places),
+			AppURL:      template.URL("spot://collection?id=" + url.QueryEscape(collectionID)),
 			Places:      make([]publicPlaceView, 0, len(shared.Places)),
 		}
 
