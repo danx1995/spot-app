@@ -292,14 +292,30 @@ func placeQueriesFromText(value string) []string {
 	normalized := strings.NewReplacer(
 		"\r\n", "\n",
 		"\r", "\n",
+	).Replace(value)
+
+	firstMarker := -1
+	if match := listNumberPattern.FindStringIndex(normalized); match != nil {
+		firstMarker = match[0]
+	}
+	if bullet := strings.IndexAny(normalized, "•●▪◦"); bullet >= 0 && (firstMarker < 0 || bullet < firstMarker) {
+		firstMarker = bullet
+	}
+	if firstMarker > 0 {
+		normalized = normalized[firstMarker:]
+	}
+
+	withBullets := strings.NewReplacer(
 		"•", "\n",
 		"●", "\n",
 		"▪", "\n",
 		"◦", "\n",
-	).Replace(value)
+	).Replace(normalized)
 
-	numbered := listNumberPattern.ReplaceAllString(normalized, "\n")
-	hasStrongSeparator := numbered != normalized || strings.Contains(normalized, "\n")
+	numbered := listNumberPattern.ReplaceAllString(withBullets, "\n")
+	hasStrongSeparator := numbered != withBullets ||
+		strings.Contains(withBullets, "\n") ||
+		withBullets != normalized
 
 	if strings.Count(numbered, ";") >= 1 {
 		numbered = strings.ReplaceAll(numbered, ";", "\n")
