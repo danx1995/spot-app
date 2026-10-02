@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"unicode"
 
 	"github.com/danx1995/spot-app/services/api/internal/catalog"
 )
@@ -15,25 +16,36 @@ type TwoGISLookup interface {
 	LookupByID(ctx context.Context, providerID, city string) (catalog.Place, error)
 }
 
+type PlaceSearcher interface {
+	Search(ctx context.Context, query, city, category string) ([]catalog.Place, error)
+}
+
 type Resolver struct {
-	twoGIS TwoGISLookup
+	twoGIS   TwoGISLookup
+	searcher PlaceSearcher
 }
 
 type Result struct {
-	Status   string         `json:"status"`
-	Platform string         `json:"platform"`
-	SourceURL string        `json:"source_url"`
-	Message  string         `json:"message,omitempty"`
-	Place    *catalog.Place `json:"place,omitempty"`
+	Status         string          `json:"status"`
+	Platform       string          `json:"platform"`
+	SourceURL      string          `json:"source_url"`
+	Message        string          `json:"message,omitempty"`
+	SuggestedQuery string          `json:"suggested_query,omitempty"`
+	Place          *catalog.Place  `json:"place,omitempty"`
+	Candidates     []catalog.Place `json:"candidates,omitempty"`
 }
 
-var firmPattern = regexp.MustCompile(`/firm/([0-9A-Za-z_-]+)`)
+var (
+	firmPattern      = regexp.MustCompile(`/firm/([0-9A-Za-z_-]+)`)
+	yandexOrgPattern = regexp.MustCompile(`/org/([^/]+)`)
+	urlPattern       = regexp.MustCompile(`https?://\S+`)
+)
 
-func New(twoGIS TwoGISLookup) *Resolver {
-	return &Resolver{twoGIS: twoGIS}
+func New(twoGIS TwoGISLookup, searcher PlaceSearcher) *Resolver {
+	return &Resolver{twoGIS: twoGIS, searcher: searcher}
 }
 
-func (r *Resolver) Resolve(ctx context.Context, rawURL, city string) (Result, error) {
+func (r *Resolver) Resolve(ctx context.Context, rawURL, city, hint string) (Result, error) {
 	parsed, err := normalizeURL(rawURL)
 	if err != nil {
 		return Result{}, err
@@ -49,31 +61,82 @@ func (r *Resolver) Resolve(ctx context.Context, rawURL, city string) (Result, er
 		SourceURL: parsed.String(),
 	}
 
-	if platform != "2gis" {
+	if platform == "2gis" {
+		match := firmPattern.FindStringSubmatch(parsed.Path)
+		if len(match) == 2 && r.twoGIS != nil && r.twoGIS.Enabled() {
+			place, lookupErr := r.twoGIS.LookupByID(ctx, match[1], city)
+			if lookupErr == nil {
+				result.Status = "resolved"
+				result.Place = &place
+				result.Message = "Место найдено по ссылке 2ГИС."
+				return result, nil
+			}
+		}
+	}
+
+	query := suggestedQuery(parsed, platform, hint)
+	if query != "" {
+		result.SuggestedQuery = query
+		if r.searcher != nil {
+			if places, searchErr := r.searcher.Search(ctx, query, city, ""); searchErr == nil {
+				if len(places) > 5 {
+					places = places[:5]
+				}
+				result.Candidates = places
+			}
+		}
+	}
+
+	switch {
+	case len(result.Candidates) > 0:
+		result.Message = "СПОТ нашёл подходящие места по данным из ссылки. Выбери нужное."
+	case platform == "2gis":
+		result.Message = "Ссылка 2ГИС распознана, но место не удалось определить автоматически."
+	default:
 		result.Message = contextMessage(platform)
-		return result, nil
 	}
 
-	match := firmPattern.FindStringSubmatch(parsed.Path)
-	if len(match) != 2 {
-		result.Message = "Ссылка 2ГИС распознана, но в ней нет прямого ID карточки места."
-		return result, nil
-	}
-	if r.twoGIS == nil || !r.twoGIS.Enabled() {
-		result.Message = "Ссылка 2ГИС распознана. Для автоматического определения нужен ключ Places API."
-		return result, nil
-	}
-
-	place, err := r.twoGIS.LookupByID(ctx, match[1], city)
-	if err != nil {
-		result.Message = "Не удалось автоматически получить карточку места. Можно найти его по названию."
-		return result, nil
-	}
-
-	result.Status = "resolved"
-	result.Place = &place
-	result.Message = "Место найдено по ссылке 2ГИС."
 	return result, nil
+}
+
+func suggestedQuery(parsed *url.URL, platform, hint string) string {
+	if cleaned := cleanHint(hint); cleaned != "" {
+		return cleaned
+	}
+
+	if platform == "yandex_maps" {
+		match := yandexOrgPattern.FindStringSubmatch(parsed.Path)
+		if len(match) == 2 {
+			value, err := url.PathUnescape(match[1])
+			if err == nil {
+				value = strings.NewReplacer("-", " ", "_", " ").Replace(value)
+				return cleanHint(value)
+			}
+		}
+	}
+
+	return ""
+}
+
+func cleanHint(value string) string {
+	value = urlPattern.ReplaceAllString(value, " ")
+	value = strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return ' '
+		}
+		return r
+	}, value)
+	value = strings.Join(strings.Fields(value), " ")
+	value = strings.Trim(value, "—–-|·•:;,.!?()[]{}")
+	if len([]rune(value)) < 2 {
+		return ""
+	}
+
+	runes := []rune(value)
+	if len(runes) > 120 {
+		runes = runes[:120]
+	}
+	return strings.TrimSpace(string(runes))
 }
 
 func normalizeURL(raw string) (*url.URL, error) {
@@ -131,7 +194,7 @@ func contextMessage(platform string) string {
 	case "telegram":
 		return "Ссылка на Telegram сохранена. Добавь название места — СПОТ привяжет источник к карточке."
 	case "yandex_maps":
-		return "Ссылка Яндекс Карт распознана. Пока найди место по названию, источник останется в карточке."
+		return "Ссылка Яндекс Карт распознана. Найди место по названию — источник останется в карточке."
 	default:
 		return "Ссылка принята. Укажи название места, чтобы связать её со спотом."
 	}
