@@ -9,6 +9,8 @@ import React, {
 import { useShareIntentContext } from 'expo-share-intent';
 import { Linking } from 'react-native';
 
+import { appConfig } from '../config';
+
 type InboundImportValue = {
   pendingURL: string | null;
   pendingHint: string | null;
@@ -46,8 +48,38 @@ function validCollectionID(value: string) {
   return /^[A-Za-z0-9_.-]{1,128}$/.test(value);
 }
 
+function extractCollectionFromPublicURL(value: string) {
+  const targets = Array.from(new Set([
+    appConfig.shareBaseUrl,
+    appConfig.apiBaseUrl
+  ]));
+
+  for (const base of targets) {
+    const prefix = `${base.replace(/\/$/, '')}/s/`;
+    if (!value.startsWith(prefix)) continue;
+
+    const encodedID = value.slice(prefix.length).split(/[?#]/, 1)[0];
+    if (!encodedID) return null;
+
+    try {
+      const id = decodeURIComponent(encodedID).trim();
+      return validCollectionID(id) ? id : null;
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+}
+
 function extractInboundDeepLink(appURL: string): InboundDeepLink | null {
   const normalized = appURL.trim();
+
+  const publicCollectionID = extractCollectionFromPublicURL(normalized);
+  if (publicCollectionID) {
+    return { type: 'collection', id: publicCollectionID };
+  }
+
   const queryIndex = normalized.indexOf('?');
   const path = queryIndex === -1 ? normalized : normalized.slice(0, queryIndex);
   const params = new URLSearchParams(queryIndex === -1 ? '' : normalized.slice(queryIndex + 1));
@@ -81,21 +113,23 @@ export function InboundImportProvider({ children }: { children: React.ReactNode 
     resetShareIntent
   } = useShareIntentContext();
 
-  const receive = useCallback((appURL: string | null) => {
-    if (!appURL) return;
+  const receive = useCallback((appURL: string | null, fallbackHint?: string | null) => {
+    if (!appURL) return false;
+
     const incoming = extractInboundDeepLink(appURL);
-    if (!incoming) return;
+    if (!incoming) return false;
 
     if (incoming.type === 'collection') {
       setPendingCollectionID(incoming.id);
       setPendingURL(null);
       setPendingHint(null);
-      return;
+      return true;
     }
 
     setPendingURL(incoming.url);
-    setPendingHint(incoming.hint);
+    setPendingHint(incoming.hint ?? fallbackHint ?? null);
     setPendingCollectionID(null);
+    return true;
   }, []);
 
   useEffect(() => {
@@ -125,13 +159,15 @@ export function InboundImportProvider({ children }: { children: React.ReactNode 
         : null;
       const hint = cleanSharedHint(metaTitle || shareIntent.text, target);
 
-      setPendingURL(target);
-      setPendingHint(hint);
-      setPendingCollectionID(null);
+      if (!receive(target, hint)) {
+        setPendingURL(target);
+        setPendingHint(hint);
+        setPendingCollectionID(null);
+      }
     }
 
     resetShareIntent();
-  }, [hasShareIntent, resetShareIntent, shareIntent]);
+  }, [hasShareIntent, receive, resetShareIntent, shareIntent]);
 
   const consumePendingURL = useCallback(() => {
     setPendingURL(null);
