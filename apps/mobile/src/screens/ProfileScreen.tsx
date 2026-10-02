@@ -11,6 +11,7 @@ import {
   View
 } from 'react-native';
 
+import { ProfileTransferModal } from '../components/ProfileTransferModal';
 import { VisitHistoryModal } from '../components/VisitHistoryModal';
 import {
   getAccountProfile,
@@ -37,6 +38,7 @@ function initials(name: string) {
 export function ProfileScreen() {
   const dark = useColorScheme() === 'dark';
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
   const [profile, setProfile] = useState<AccountProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [editorOpen, setEditorOpen] = useState(false);
@@ -174,6 +176,9 @@ export function ProfileScreen() {
             {profileError ? (
               <Text style={styles.profileError}>{profileError}</Text>
             ) : null}
+            <Pressable onPress={() => setTransferOpen(true)} style={styles.transferButton}>
+              <Text style={styles.transferButtonText}>Перенести профиль</Text>
+            </Pressable>
           </View>
         </View>
 
@@ -221,6 +226,16 @@ export function ProfileScreen() {
       <VisitHistoryModal
         visible={historyOpen}
         onClose={() => setHistoryOpen(false)}
+      />
+
+      <ProfileTransferModal
+        visible={transferOpen}
+        onClose={() => setTransferOpen(false)}
+        onTransferred={(nextProfile) => {
+          setProfile(nextProfile);
+          setDraftName(nextProfile.display_name ?? '');
+          setProfileError(null);
+        }}
       />
 
       <Modal
@@ -390,6 +405,21 @@ const styles = StyleSheet.create({
     color: colors.error,
     fontSize: 10,
     fontWeight: '800'
+  },
+  transferButton: {
+    alignSelf: 'flex-start',
+    minHeight: 38,
+    marginTop: 10,
+    paddingHorizontal: 13,
+    borderRadius: 14,
+    backgroundColor: colors.green,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  transferButtonText: {
+    color: colors.black,
+    fontSize: 11,
+    fontWeight: '900'
   },
   syncCard: {
     width: '100%',

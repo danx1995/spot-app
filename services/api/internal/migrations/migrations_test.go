@@ -8,10 +8,16 @@ func TestEmbeddedVersionsSorted(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(versions) == 0 {
-		t.Fatal("expected at least one runtime migration")
+	expected := []string{
+		"0004_account_profiles.sql",
+		"0005_account_transfer_codes.sql",
 	}
-	if versions[0] != "0004_account_profiles.sql" {
-		t.Fatalf("unexpected first runtime migration: %q", versions[0])
+	if len(versions) != len(expected) {
+		t.Fatalf("unexpected migration count: got %d want %d (%v)", len(versions), len(expected), versions)
+	}
+	for i := range expected {
+		if versions[i] != expected[i] {
+			t.Fatalf("unexpected migration at %d: got %q want %q", i, versions[i], expected[i])
+		}
 	}
 }
