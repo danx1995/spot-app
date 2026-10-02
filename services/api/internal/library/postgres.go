@@ -1001,6 +1001,92 @@ func (s *PostgresStore) SetCollectionPlace(ctx context.Context, userID, collecti
 	return s.GetCollection(ctx, userID, collectionID)
 }
 
+func (s *PostgresStore) SetCollectionPlaceOrder(
+	ctx context.Context,
+	userID, collectionID string,
+	placeIDs []string,
+) (Collection, error) {
+	current, err := s.GetCollection(ctx, userID, collectionID)
+	if err != nil {
+		return Collection{}, err
+	}
+	if len(current.PlaceIDs) != len(placeIDs) {
+		return Collection{}, ErrInvalidInput
+	}
+
+	currentSet := make(map[string]struct{}, len(current.PlaceIDs))
+	for _, placeID := range current.PlaceIDs {
+		currentSet[placeID] = struct{}{}
+	}
+
+	seen := make(map[string]struct{}, len(placeIDs))
+	ordered := make([]string, 0, len(placeIDs))
+	for _, rawID := range placeIDs {
+		placeID := strings.TrimSpace(rawID)
+		if placeID == "" {
+			return Collection{}, ErrInvalidInput
+		}
+		if _, duplicate := seen[placeID]; duplicate {
+			return Collection{}, ErrInvalidInput
+		}
+		if _, exists := currentSet[placeID]; !exists {
+			return Collection{}, ErrInvalidInput
+		}
+		seen[placeID] = struct{}{}
+		ordered = append(ordered, placeID)
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return Collection{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var collectionUUID string
+	err = tx.QueryRow(ctx, `
+		SELECT id::text
+		FROM collections
+		WHERE owner_id = $1::uuid
+		  AND public_id = $2
+	`, userID, collectionID).Scan(&collectionUUID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Collection{}, ErrNotFound
+	}
+	if err != nil {
+		return Collection{}, err
+	}
+
+	for sortOrder, placeID := range ordered {
+		command, updateErr := tx.Exec(ctx, `
+			UPDATE collection_places cp
+			SET sort_order = $3
+			FROM places p
+			WHERE cp.collection_id = $1::uuid
+			  AND cp.place_id = p.id
+			  AND p.public_id = $2
+		`, collectionUUID, placeID, sortOrder)
+		if updateErr != nil {
+			return Collection{}, updateErr
+		}
+		if command.RowsAffected() != 1 {
+			return Collection{}, ErrNotFound
+		}
+	}
+
+	if _, err := tx.Exec(ctx, `
+		UPDATE collections
+		SET updated_at = now()
+		WHERE id = $1::uuid
+	`, collectionUUID); err != nil {
+		return Collection{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return Collection{}, err
+	}
+	return s.GetCollection(ctx, userID, collectionID)
+}
+
 func (s *PostgresStore) getPlace(ctx context.Context, userID, placeID string) (SavedPlace, error) {
 	var place SavedPlace
 	var openingHoursJSON string
