@@ -378,7 +378,11 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
           ...item,
           ...spot,
           status: existing.status,
-          savedAt: existing.savedAt ?? spot.savedAt ?? new Date().toISOString()
+          savedAt: existing.savedAt ?? spot.savedAt ?? new Date().toISOString(),
+          sourceUrl: spot.sourceUrl ?? existing.sourceUrl,
+          sourcePlatform: spot.sourcePlatform ?? existing.sourcePlatform,
+          sourceTitle: spot.sourceTitle ?? existing.sourceTitle,
+          sourceExcerpt: spot.sourceExcerpt ?? existing.sourceExcerpt
         } : item);
       }
 
@@ -503,7 +507,9 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
           favorite: existing.favorite,
           note: existing.note,
           sourceUrl: existing.sourceUrl,
-          sourcePlatform: existing.sourcePlatform
+          sourcePlatform: existing.sourcePlatform,
+          sourceTitle: existing.sourceTitle,
+          sourceExcerpt: existing.sourceExcerpt
         });
       }
 

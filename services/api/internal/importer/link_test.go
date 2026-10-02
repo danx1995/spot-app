@@ -300,6 +300,12 @@ func TestInstagramMetadataFindsCandidatesWithoutManualHint(t *testing.T) {
 	if result.SuggestedQuery == "" {
 		t.Fatal("expected query extracted from page metadata")
 	}
+	if result.SourceTitle != "Birch" {
+		t.Fatalf("expected cleaned source title, got %q", result.SourceTitle)
+	}
+	if result.SourceExcerpt == "" || !strings.Contains(result.SourceExcerpt, "Кирочная") {
+		t.Fatalf("expected source excerpt, got %q", result.SourceExcerpt)
+	}
 	if len(result.Candidates) == 0 || result.Candidates[0].Name != "Birch" {
 		t.Fatalf("expected Birch candidate, got %#v", result.Candidates)
 	}
@@ -331,6 +337,9 @@ func TestManualHintSkipsMetadataFetch(t *testing.T) {
 	}
 	if result.SuggestedQuery != "Birch" {
 		t.Fatalf("unexpected query: %q", result.SuggestedQuery)
+	}
+	if result.SourceExcerpt != "Birch" {
+		t.Fatalf("expected share hint to be remembered as source excerpt, got %q", result.SourceExcerpt)
 	}
 }
 

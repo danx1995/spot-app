@@ -267,6 +267,15 @@ export function PlaceDetailModal({ spot, visible, onClose }: Props) {
               <Text style={[styles.savedContext, { color: muted }]}>{savedContext}</Text>
             ) : null}
 
+            {activeSpot.sourceExcerpt ? (
+              <View style={[styles.sourceMemory, { backgroundColor: dark ? colors.darkSurfaceRaised : colors.lightMuted }]}>
+                <Text style={[styles.sourceMemoryLabel, { color: muted }]}>ИЗ ИСТОЧНИКА</Text>
+                <Text numberOfLines={5} style={[styles.sourceMemoryText, { color: text }]}>
+                  {activeSpot.sourceExcerpt}
+                </Text>
+              </View>
+            ) : null}
+
             {editingNote ? (
               <>
                 <TextInput
@@ -323,6 +332,11 @@ export function PlaceDetailModal({ spot, visible, onClose }: Props) {
               <Text style={[styles.sourceName, { color: text }]}>
                 {sourceLabels[activeSpot.sourcePlatform ?? 'web'] ?? activeSpot.sourcePlatform ?? 'Ссылка'}
               </Text>
+              {activeSpot.sourceTitle ? (
+                <Text numberOfLines={2} style={[styles.sourceTitle, { color: text }]}>
+                  {activeSpot.sourceTitle}
+                </Text>
+              ) : null}
               <Text numberOfLines={1} style={[styles.sourceURL, { color: muted }]}>
                 {activeSpot.sourceUrl}
               </Text>
@@ -556,6 +570,22 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     fontWeight: '800'
   },
+  sourceMemory: {
+    marginTop: 11,
+    borderRadius: 16,
+    padding: 13
+  },
+  sourceMemoryLabel: {
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 1.2
+  },
+  sourceMemoryText: {
+    marginTop: 6,
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: '600'
+  },
   note: {
     marginTop: 9,
     fontSize: 16,
@@ -609,8 +639,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '900'
   },
+  sourceTitle: {
+    marginTop: 5,
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '700'
+  },
   sourceURL: {
-    marginTop: 4,
+    marginTop: 5,
     fontSize: 11
   },
   collectionList: {

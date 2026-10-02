@@ -48,6 +48,8 @@ export type Spot = {
   note?: string;
   sourceUrl?: string;
   sourcePlatform?: string;
+  sourceTitle?: string;
+  sourceExcerpt?: string;
 };
 
 export type Collection = {
