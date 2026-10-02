@@ -74,7 +74,7 @@ export function PlaceDetailModal({ spot, visible, onClose }: Props) {
     if (saved) {
       updateStatus(activeSpot.id, nextStatus);
     } else {
-      saveSpot(current, nextStatus);
+      saveSpot(activeSpot, nextStatus);
     }
   }
 
@@ -85,7 +85,7 @@ export function PlaceDetailModal({ spot, visible, onClose }: Props) {
       updateNote(activeSpot.id, note);
     } else {
       saveSpot({
-        ...current,
+        ...activeSpot,
         note: note || undefined
       }, 'want');
     }
