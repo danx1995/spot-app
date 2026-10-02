@@ -142,6 +142,8 @@ export async function importPlaceLink(url: string, city: CitySlug, hint?: string
     platform: string;
     source_url: string;
     message?: string;
+    source_title?: string;
+    source_excerpt?: string;
     suggested_query?: string;
     suggested_city?: CitySlug;
     place?: ApiPlace;
@@ -151,7 +153,9 @@ export async function importPlaceLink(url: string, city: CitySlug, hint?: string
   const withSource = (place: ApiPlace): Spot => ({
     ...fromApiPlace(place),
     sourceUrl: payload.source_url,
-    sourcePlatform: payload.platform
+    sourcePlatform: payload.platform,
+    sourceTitle: payload.source_title?.trim() || undefined,
+    sourceExcerpt: payload.source_excerpt?.trim() || undefined
   });
 
   return {
