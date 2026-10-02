@@ -42,13 +42,22 @@ type cloudSpot struct {
 	SourceExcerpt  string  `json:"sourceExcerpt"`
 }
 
+type cloudRoutePlan struct {
+	Kind        string `json:"kind"`
+	Transport   string `json:"transport"`
+	StartPreset string `json:"startPreset"`
+	StopMinutes int    `json:"stopMinutes"`
+	StartMode   string `json:"startMode"`
+}
+
 type cloudCollection struct {
 	ID        string   `json:"id"`
 	Title     string   `json:"title"`
 	Subtitle  string   `json:"subtitle"`
 	City      string   `json:"city"`
-	CityLabel string   `json:"cityLabel"`
-	PlaceIDs  []string `json:"placeIds"`
+	CityLabel string          `json:"cityLabel"`
+	PlaceIDs  []string        `json:"placeIds"`
+	RoutePlan *cloudRoutePlan `json:"routePlan"`
 }
 
 type normalizedCloudState struct {
@@ -92,7 +101,7 @@ func ApplyCloudDelta(
 
 	for id, collection := range after.collections {
 		old, existed := before.collections[id]
-		metadataChanged := !existed || old.input != collection.input
+		metadataChanged := !existed || !reflect.DeepEqual(old.input, collection.input)
 		if metadataChanged {
 			input := collection.input
 			if current, currentErr := store.GetCollection(ctx, userID, id); currentErr == nil {
@@ -232,12 +241,26 @@ func decodeCloudState(raw json.RawMessage, allowEmpty bool) (normalizedCloudStat
 				Description: strings.TrimSpace(item.Subtitle),
 				City:        city,
 				Visibility:  "private",
+				RoutePlan:   normalizeCloudRoutePlan(item.RoutePlan),
 			},
 			placeIDs: placeIDs,
 		}
 	}
 
 	return state, nil
+}
+
+func normalizeCloudRoutePlan(value *cloudRoutePlan) *RoutePlan {
+	if value == nil {
+		return nil
+	}
+	return &RoutePlan{
+		Kind:        strings.TrimSpace(value.Kind),
+		Transport:   strings.TrimSpace(value.Transport),
+		StartPreset: strings.TrimSpace(value.StartPreset),
+		StopMinutes: value.StopMinutes,
+		StartMode:   strings.TrimSpace(value.StartMode),
+	}
 }
 
 func normalizeCloudOpeningHours(value *cloudOpeningHours) *OpeningHours {
