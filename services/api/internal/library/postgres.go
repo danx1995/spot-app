@@ -654,7 +654,6 @@ func (s *PostgresStore) CreateCollection(ctx context.Context, userID string, inp
 		&collection.CityLabel,
 		&collection.Visibility,
 		&collection.CoverURL,
-		&routePlanJSON,
 		&collection.CreatedAt,
 		&collection.UpdatedAt,
 	)
@@ -810,6 +809,7 @@ func (s *PostgresStore) GetSharedCollection(ctx context.Context, collectionID st
 		&collection.CityLabel,
 		&collection.Visibility,
 		&collection.CoverURL,
+		&routePlanJSON,
 		&collection.CreatedAt,
 		&collection.UpdatedAt,
 	)
