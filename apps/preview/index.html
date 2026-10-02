@@ -33,6 +33,7 @@
     .brandheart{position:relative;z-index:1;color:var(--black);font-size:21px;font-weight:900;transform:translateY(-1px)}
     .brandname{font-size:28px;font-weight:950;letter-spacing:-.06em}
     .preview-pill{display:inline-flex;align-items:center;gap:7px;margin-top:34px;padding:9px 12px;border:1px solid rgba(25,195,125,.28);border-radius:999px;background:rgba(25,195,125,.08);color:var(--green);font-size:11px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+    .intro-action{margin-top:18px;min-height:46px;padding:0 16px;border-radius:16px;background:var(--green);color:var(--black);font-size:11px;font-weight:950;cursor:pointer}
     .live-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 5px rgba(25,195,125,.11)}
     h1{font-size:clamp(38px,5vw,66px);line-height:.96;letter-spacing:-.055em;margin:18px 0 0}
     .intro p{max-width:420px;color:#A7B0AA;line-height:1.6;font-size:15px;margin:18px 0 0}
@@ -142,6 +143,7 @@
       <div class="preview-pill"><span class="live-dot"></span>Интерактивный preview</div>
       <h1>Так сейчас выглядит СПОТ.</h1>
       <p>Кликабельный визуальный стенд мобильного приложения. Переключай вкладки, категории и карточки — здесь удобно смотреть дизайн без Expo и сборок.</p>
+      <button class="intro-action" id="showOnboardingDesktop">Посмотреть onboarding →</button>
       <div class="intro-note">
         <div class="mini"><b>Москва</b><span>один из двух стартовых городов</span></div>
         <div class="mini"><b>СПб</b><span>основной стартовый каталог</span></div>
@@ -216,10 +218,80 @@
               <button class="menu-row" data-toast="Одноразовый код действует 10 минут">Перенести профиль <span>Открыть ›</span></button>
               <button class="menu-row" data-toast="История посещённых мест">История посещений <span>7 ›</span></button>
               <button class="menu-row" data-toast="Apple / Google backend уже подготовлен">Аккаунт <span>Скоро ›</span></button>
+              <button class="menu-row" id="showOnboardingProfile">Onboarding <span>Посмотреть ›</span></button>
               <button class="menu-row" id="themeBtn">Тема preview <span>Переключить ›</span></button>
             </div>
           </div>
         </section>
+
+        <div class="onboarding-overlay" id="onboardingPreview">
+          <button class="ob-close" id="closeOnboarding">×</button>
+
+          <section class="ob-step active" data-ob-step="0">
+            <div class="ob-top">
+              <div class="ob-logo">♥</div>
+              <div class="ob-progress"><span class="active"></span><span></span><span></span></div>
+            </div>
+            <div class="ob-hero">
+              <div class="ob-ring one"></div><div class="ob-ring two"></div>
+              <div class="ob-pin">♥</div>
+            </div>
+            <div>
+              <div class="ob-kicker">ТВОЯ ЛИЧНАЯ КАРТА</div>
+              <div class="ob-title">Все места, куда хочется попасть.</div>
+              <div class="ob-text">Сохраняй места из Reels, TikTok, Telegram и карт. СПОТ запомнит, где они и почему ты их сохранил.</div>
+            </div>
+            <div class="ob-bottom">
+              <button class="ob-primary" data-ob-next>Продолжить</button>
+              <div class="ob-privacy">Без публичной геолокации. Твои сохранённые места приватны по умолчанию.</div>
+            </div>
+          </section>
+
+          <section class="ob-step" data-ob-step="1">
+            <div class="ob-top">
+              <div class="ob-logo">♥</div>
+              <div class="ob-progress"><span></span><span class="active"></span><span></span></div>
+            </div>
+            <div style="margin-top:45px">
+              <div class="ob-kicker">НАСТРОИМ КАРТУ</div>
+              <div class="ob-title">Что тебе интересно?</div>
+              <div class="ob-text">Выбранные категории будут идти первыми на карте. Позже их можно поменять в Профиле.</div>
+            </div>
+            <div class="ob-options">
+              <button class="ob-option active" data-interest="restaurant"><span class="ob-icon">🍽</span><span class="ob-option-copy"><b>Еда</b><span>Рестораны и гастрономия</span></span><span class="ob-check">✓</span></button>
+              <button class="ob-option active" data-interest="coffee"><span class="ob-icon">☕</span><span class="ob-option-copy"><b>Кофе</b><span>Кофейни и завтраки</span></span><span class="ob-check">✓</span></button>
+              <button class="ob-option" data-interest="bar"><span class="ob-icon">◌</span><span class="ob-option-copy"><b>Бары</b><span>Коктейли и вечер</span></span><span class="ob-check"></span></button>
+              <button class="ob-option active" data-interest="hotel"><span class="ob-icon">H</span><span class="ob-option-copy"><b>Отели</b><span>Где остановиться</span></span><span class="ob-check">✓</span></button>
+              <button class="ob-option" data-interest="culture"><span class="ob-icon">◇</span><span class="ob-option-copy"><b>Культура</b><span>Музеи и выставки</span></span><span class="ob-check"></span></button>
+            </div>
+            <div class="ob-bottom">
+              <button class="ob-primary" data-ob-next id="interestContinue">Продолжить · 3</button>
+              <button class="ob-back" data-ob-back>Назад</button>
+            </div>
+          </section>
+
+          <section class="ob-step" data-ob-step="2">
+            <div class="ob-top">
+              <div class="ob-logo">♥</div>
+              <div class="ob-progress"><span></span><span></span><span class="active"></span></div>
+            </div>
+            <div style="margin-top:55px">
+              <div class="ob-kicker">СТАРТОВЫЕ ГОРОДА</div>
+              <div class="ob-title">Где искать споты?</div>
+              <div class="ob-text">На старте доступны Москва и Санкт-Петербург. Между ними можно переключаться в один тап.</div>
+            </div>
+            <div class="ob-cities">
+              <button class="ob-city active" data-city="spb"><span class="ob-city-code">СПБ</span><span class="ob-city-copy"><b>Санкт-Петербург</b><span>59.93° · 30.31°</span></span><span class="ob-radio"></span></button>
+              <button class="ob-city" data-city="moscow"><span class="ob-city-code">МСК</span><span class="ob-city-copy"><b>Москва</b><span>55.75° · 37.61°</span></span><span class="ob-radio"></span></button>
+              <button class="ob-city" data-city="both"><span class="ob-city-code">2</span><span class="ob-city-copy"><b>Оба города</b><span>Москва + Петербург</span></span><span class="ob-radio"></span></button>
+            </div>
+            <div class="privacy-note" style="margin:14px 0 0">⌖ Геолокацию не просим сейчас — только когда пользователь сам открывает «рядом».</div>
+            <div class="ob-bottom">
+              <button class="ob-primary" id="finishOnboarding">Открыть СПОТ</button>
+              <button class="ob-back" data-ob-back>Назад</button>
+            </div>
+          </section>
+        </div>
 
         <div class="overlay" id="searchOverlay">
           <div class="sheet">
@@ -413,6 +485,7 @@
     const searchOverlay=document.getElementById('searchOverlay');
     const placeOverlay=document.getElementById('placeOverlay');
     const addOverlay=document.getElementById('addOverlay');
+    const onboardingPreview=document.getElementById('onboardingPreview');
     const searchInput=document.getElementById('previewSearchInput');
     let toastTimer;
 
@@ -430,6 +503,47 @@
     function closeOverlay(element){
       element.classList.remove('open');
     }
+
+    let onboardingStep=0;
+
+    function showOnboardingStep(index){
+      onboardingStep=Math.max(0,Math.min(2,index));
+      document.querySelectorAll('[data-ob-step]').forEach(step=>{
+        step.classList.toggle('active',Number(step.dataset.obStep)===onboardingStep);
+      });
+    }
+
+    function openOnboarding(){
+      showOnboardingStep(0);
+      onboardingPreview.classList.add('open');
+    }
+
+    document.getElementById('showOnboardingDesktop').addEventListener('click',openOnboarding);
+    document.getElementById('showOnboardingProfile').addEventListener('click',openOnboarding);
+    document.getElementById('closeOnboarding').addEventListener('click',()=>onboardingPreview.classList.remove('open'));
+    document.querySelectorAll('[data-ob-next]').forEach(button=>button.addEventListener('click',()=>showOnboardingStep(onboardingStep+1)));
+    document.querySelectorAll('[data-ob-back]').forEach(button=>button.addEventListener('click',()=>showOnboardingStep(onboardingStep-1)));
+
+    document.querySelectorAll('[data-interest]').forEach(button=>{
+      button.addEventListener('click',()=>{
+        button.classList.toggle('active');
+        button.querySelector('.ob-check').textContent=button.classList.contains('active')?'✓':'';
+        const count=document.querySelectorAll('[data-interest].active').length;
+        document.getElementById('interestContinue').textContent=count>0?'Продолжить · '+count:'Пропустить';
+      });
+    });
+
+    document.querySelectorAll('[data-city]').forEach(button=>{
+      button.addEventListener('click',()=>{
+        document.querySelectorAll('[data-city]').forEach(item=>item.classList.remove('active'));
+        button.classList.add('active');
+      });
+    });
+
+    document.getElementById('finishOnboarding').addEventListener('click',()=>{
+      onboardingPreview.classList.remove('open');
+      showToast('Готово · интересы подняты первыми на карте');
+    });
 
     document.getElementById('mapSearchBtn').addEventListener('click',()=>openOverlay(searchOverlay));
     document.getElementById('openPlaceBtn').addEventListener('click',()=>openOverlay(placeOverlay));
