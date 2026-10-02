@@ -2,6 +2,8 @@ package importer
 
 import (
 	"context"
+	"net/url"
+	"strings"
 	"sync"
 	"testing"
 
@@ -38,6 +40,17 @@ func (f *fakeTwoGIS) LookupByID(_ context.Context, providerID, city string) (cat
 type searchCall struct {
 	query string
 	city  string
+}
+
+type fakeMetadataFetcher struct {
+	metadata PageMetadata
+	err      error
+	calls    int
+}
+
+func (f *fakeMetadataFetcher) Fetch(_ context.Context, _ *url.URL, _ string) (PageMetadata, error) {
+	f.calls++
+	return f.metadata, f.err
 }
 
 type fakeSearcher struct {
@@ -224,8 +237,8 @@ func TestYandexOrgSlugBecomesSuggestion(t *testing.T) {
 	}
 }
 
-func TestInstagramNeedsContextWithoutHint(t *testing.T) {
-	resolver := New(nil, nil)
+func TestInstagramNeedsContextWithoutHintWhenMetadataUnavailable(t *testing.T) {
+	resolver := NewWithMetadata(nil, nil, &fakeMetadataFetcher{})
 
 	result, err := resolver.Resolve(
 		context.Background(),
@@ -244,6 +257,80 @@ func TestInstagramNeedsContextWithoutHint(t *testing.T) {
 	}
 	if len(result.Candidates) != 0 {
 		t.Fatalf("expected no candidates, got %#v", result.Candidates)
+	}
+}
+
+func TestInstagramMetadataFindsCandidatesWithoutManualHint(t *testing.T) {
+	searcher := &fakeSearcher{
+		byCity: map[string][]catalog.Place{
+			"spb": {
+				{
+					ID:            "sp_birch_spb",
+					Name:          "Birch",
+					City:          "spb",
+					CityLabel:     "Санкт-Петербург",
+					Category:      "restaurant",
+					CategoryLabel: "Ресторан",
+					Address:       "Кирочная улица, 3",
+				},
+			},
+			"moscow": {},
+		},
+	}
+	metadata := &fakeMetadataFetcher{
+		metadata: PageMetadata{
+			Title:       "Birch on Instagram",
+			Description: "Birch, Кирочная улица 3. Петербург. Сохрани, чтобы не потерять.",
+		},
+	}
+	resolver := NewWithMetadata(nil, searcher, metadata)
+
+	result, err := resolver.Resolve(
+		context.Background(),
+		"https://www.instagram.com/reel/abc123/",
+		"spb",
+		"",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if metadata.calls != 1 {
+		t.Fatalf("expected one metadata fetch, got %d", metadata.calls)
+	}
+	if result.SuggestedQuery == "" {
+		t.Fatal("expected query extracted from page metadata")
+	}
+	if len(result.Candidates) == 0 || result.Candidates[0].Name != "Birch" {
+		t.Fatalf("expected Birch candidate, got %#v", result.Candidates)
+	}
+	if !strings.Contains(result.Message, "прочитал данные страницы") {
+		t.Fatalf("unexpected message: %q", result.Message)
+	}
+}
+
+func TestManualHintSkipsMetadataFetch(t *testing.T) {
+	metadata := &fakeMetadataFetcher{
+		metadata: PageMetadata{
+			Title: "Wrong place",
+		},
+	}
+	searcher := &fakeSearcher{}
+	resolver := NewWithMetadata(nil, searcher, metadata)
+
+	result, err := resolver.Resolve(
+		context.Background(),
+		"https://www.tiktok.com/@creator/video/123",
+		"spb",
+		"Birch",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if metadata.calls != 0 {
+		t.Fatalf("manual share hint should win without page fetch, calls=%d", metadata.calls)
+	}
+	if result.SuggestedQuery != "Birch" {
+		t.Fatalf("unexpected query: %q", result.SuggestedQuery)
 	}
 }
 
