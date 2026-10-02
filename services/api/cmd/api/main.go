@@ -229,6 +229,7 @@ func main() {
 	registerAccountTransferRoutes(mux, transferStore, tokens)
 	registerLibraryRoutes(mux, libraryStore, tokens)
 	registerPublicCollectionRoutes(mux, libraryStore)
+	registerPublicPlaceRoutes(mux, libraryStore)
 
 	mux.HandleFunc("GET /api/v1/cities", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, catalog.Cities)
