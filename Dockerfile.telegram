@@ -16,6 +16,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV API_PORT=8080
 COPY --from=web /app/apps/telegram/dist ./apps/telegram/dist
+COPY apps/telegram/package.json ./apps/telegram/package.json
 COPY apps/telegram/server.js ./apps/telegram/server.js
 COPY --from=api /out/spot-api ./spot-api
 EXPOSE 3000
