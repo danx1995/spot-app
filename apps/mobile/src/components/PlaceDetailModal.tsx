@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Linking,
   Modal,
@@ -7,6 +7,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   useColorScheme,
   View
 } from 'react-native';
@@ -44,17 +45,27 @@ export function PlaceDetailModal({ spot, visible, onClose }: Props) {
     saveSpot,
     removeSpot,
     updateStatus,
+    updateNote,
     toggleFavorite,
     togglePlaceInCollection
   } = useSpotStore();
+  const [editingNote, setEditingNote] = useState(false);
+  const [noteDraft, setNoteDraft] = useState('');
+
   const text = dark ? colors.white : colors.black;
   const muted = dark ? colors.textSecondaryDark : colors.textSecondaryLight;
   const surface = dark ? colors.darkSurface : colors.white;
 
-  if (!spot) return null;
-
-  const saved = getSavedSpot(spot.id);
+  const saved = spot ? getSavedSpot(spot.id) : undefined;
   const current = saved ?? spot;
+
+  useEffect(() => {
+    setEditingNote(false);
+    setNoteDraft(current?.note ?? '');
+  }, [current?.id, current?.note, visible]);
+
+  if (!current) return null;
+
   const status = saved?.status ?? 'want';
   const isHotel = current.category === 'hotel';
 
@@ -64,6 +75,21 @@ export function PlaceDetailModal({ spot, visible, onClose }: Props) {
     } else {
       saveSpot(current, nextStatus);
     }
+  }
+
+  function saveNote() {
+    const note = noteDraft.trim();
+
+    if (saved) {
+      updateNote(current.id, note);
+    } else {
+      saveSpot({
+        ...current,
+        note: note || undefined
+      }, 'want');
+    }
+
+    setEditingNote(false);
   }
 
   function openRoute() {
@@ -90,7 +116,11 @@ export function PlaceDetailModal({ spot, visible, onClose }: Props) {
           </Pressable>
         </View>
 
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+        >
           <Text style={[styles.category, { color: colors.green }]}>{current.categoryLabel.toUpperCase()}</Text>
           <Text style={[styles.title, { color: text }]}>{current.name}</Text>
           <Text style={[styles.meta, { color: muted }]}>
@@ -135,10 +165,57 @@ export function PlaceDetailModal({ spot, visible, onClose }: Props) {
           ) : null}
 
           <View style={[styles.block, { backgroundColor: surface }]}>
-            <Text style={[styles.blockLabel, { color: muted }]}>ПОЧЕМУ СОХРАНЕНО</Text>
-            <Text style={[styles.note, { color: text }]}>
-              {current.note ?? 'Добавь заметку, чтобы потом вспомнить, почему захотелось сюда попасть.'}
-            </Text>
+            <View style={styles.blockHeader}>
+              <Text style={[styles.blockLabel, { color: muted }]}>ПОЧЕМУ СОХРАНЕНО</Text>
+              <Pressable
+                onPress={() => {
+                  if (editingNote) {
+                    saveNote();
+                  } else {
+                    setNoteDraft(current.note ?? '');
+                    setEditingNote(true);
+                  }
+                }}
+              >
+                <Text style={styles.editText}>{editingNote ? 'Готово' : current.note ? 'Изменить' : '+ Заметка'}</Text>
+              </Pressable>
+            </View>
+
+            {editingNote ? (
+              <>
+                <TextInput
+                  value={noteDraft}
+                  onChangeText={setNoteDraft}
+                  autoFocus
+                  multiline
+                  maxLength={500}
+                  placeholder="Например: красивый интерьер, хочу попробовать тартар"
+                  placeholderTextColor={muted}
+                  style={[
+                    styles.noteInput,
+                    {
+                      color: text,
+                      backgroundColor: dark ? colors.darkSurfaceRaised : colors.lightMuted
+                    }
+                  ]}
+                />
+                <View style={styles.noteFooter}>
+                  <Text style={[styles.noteCounter, { color: muted }]}>{noteDraft.length}/500</Text>
+                  <Pressable
+                    onPress={() => {
+                      setNoteDraft(current.note ?? '');
+                      setEditingNote(false);
+                    }}
+                  >
+                    <Text style={[styles.cancelEdit, { color: muted }]}>Отмена</Text>
+                  </Pressable>
+                </View>
+              </>
+            ) : (
+              <Text style={[styles.note, { color: current.note ? text : muted }]}>
+                {current.note ?? 'Добавь короткую заметку — потом будет понятно, почему ты сохранил это место.'}
+              </Text>
+            )}
           </View>
 
           {current.sourceUrl ? (
@@ -336,16 +413,49 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     padding: 17
   },
+  blockHeader: {
+    flexDirection: 'row',
+    alignItems: 'center'
+  },
   blockLabel: {
     fontSize: 10,
     fontWeight: '900',
     letterSpacing: 1.4
+  },
+  editText: {
+    marginLeft: 'auto',
+    color: colors.green,
+    fontSize: 11,
+    fontWeight: '900'
   },
   note: {
     marginTop: 9,
     fontSize: 16,
     lineHeight: 23,
     fontWeight: '600'
+  },
+  noteInput: {
+    minHeight: 108,
+    marginTop: 12,
+    padding: 13,
+    borderRadius: 16,
+    fontSize: 15,
+    lineHeight: 21,
+    fontWeight: '600',
+    textAlignVertical: 'top'
+  },
+  noteFooter: {
+    marginTop: 8,
+    flexDirection: 'row',
+    alignItems: 'center'
+  },
+  noteCounter: {
+    fontSize: 10
+  },
+  cancelEdit: {
+    marginLeft: 'auto',
+    fontSize: 11,
+    fontWeight: '800'
   },
   sourceBlock: {
     overflow: 'hidden'
