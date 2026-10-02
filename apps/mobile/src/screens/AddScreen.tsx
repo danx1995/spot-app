@@ -15,6 +15,7 @@ import { ManualPlaceModal } from '../components/ManualPlaceModal';
 import { PlaceDetailModal } from '../components/PlaceDetailModal';
 import { SpotCard } from '../components/SpotCard';
 import { searchPlaces } from '../services/api';
+import { useInboundImport } from '../state/InboundImport';
 import { useSpotStore } from '../state/SpotStore';
 import { colors } from '../theme';
 import type { Spot } from '../types';
@@ -22,6 +23,7 @@ import type { Spot } from '../types';
 export function AddScreen() {
   const dark = useColorScheme() === 'dark';
   const { selectedCity, setSelectedCity } = useSpotStore();
+  const { pendingURL, consumePendingURL } = useInboundImport();
   const text = dark ? colors.white : colors.black;
   const muted = dark ? colors.textSecondaryDark : colors.textSecondaryLight;
   const surface = dark ? colors.darkSurface : colors.white;
@@ -33,6 +35,12 @@ export function AddScreen() {
   const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
   const [manualOpen, setManualOpen] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
+
+  useEffect(() => {
+    if (pendingURL) {
+      setLinkOpen(true);
+    }
+  }, [pendingURL]);
 
   useEffect(() => {
     const normalized = query.trim();
@@ -174,7 +182,13 @@ export function AddScreen() {
 
       <LinkImportModal
         visible={linkOpen}
-        onClose={() => setLinkOpen(false)}
+        initialURL={pendingURL ?? undefined}
+        onClose={() => {
+          setLinkOpen(false);
+          if (pendingURL) {
+            consumePendingURL();
+          }
+        }}
       />
 
       <ManualPlaceModal

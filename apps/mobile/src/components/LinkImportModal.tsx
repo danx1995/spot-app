@@ -19,6 +19,7 @@ import { SpotCard } from './SpotCard';
 
 type Props = {
   visible: boolean;
+  initialURL?: string;
   onClose: () => void;
 };
 
@@ -31,7 +32,7 @@ const platformLabels: Record<string, string> = {
   web: 'Сайт'
 };
 
-export function LinkImportModal({ visible, onClose }: Props) {
+export function LinkImportModal({ visible, initialURL, onClose }: Props) {
   const dark = useColorScheme() === 'dark';
   const { selectedCity, saveSpot } = useSpotStore();
 
@@ -62,6 +63,12 @@ export function LinkImportModal({ visible, onClose }: Props) {
     setSearching(false);
     setError(null);
   }, [visible]);
+
+  useEffect(() => {
+    if (!visible || !initialURL) return;
+    setURL(initialURL);
+    void resolveLink(initialURL);
+  }, [initialURL, visible]);
 
   useEffect(() => {
     if (!result || result.status !== 'needs_context') return;
@@ -97,9 +104,13 @@ export function LinkImportModal({ visible, onClose }: Props) {
     };
   }, [placeQuery, result, selectedCity]);
 
-  async function resolveLink() {
-    if (!url.trim() || loading) return;
+  async function resolveLink(candidateURL?: string) {
+    const target = (candidateURL ?? url).trim();
+    if (!target || loading) return;
 
+    if (candidateURL) {
+      setURL(target);
+    }
     setLoading(true);
     setError(null);
     setResult(null);
@@ -107,7 +118,7 @@ export function LinkImportModal({ visible, onClose }: Props) {
     setPlaceResults([]);
 
     try {
-      const imported = await importPlaceLink(url.trim(), selectedCity);
+      const imported = await importPlaceLink(target, selectedCity);
       setResult(imported);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Не удалось обработать ссылку');
