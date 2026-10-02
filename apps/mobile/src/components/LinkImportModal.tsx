@@ -20,6 +20,7 @@ import { SpotCard } from './SpotCard';
 type Props = {
   visible: boolean;
   initialURL?: string;
+  initialHint?: string;
   onClose: () => void;
 };
 
@@ -32,7 +33,7 @@ const platformLabels: Record<string, string> = {
   web: 'Сайт'
 };
 
-export function LinkImportModal({ visible, initialURL, onClose }: Props) {
+export function LinkImportModal({ visible, initialURL, initialHint, onClose }: Props) {
   const dark = useColorScheme() === 'dark';
   const { selectedCity, saveSpot } = useSpotStore();
 
@@ -67,8 +68,8 @@ export function LinkImportModal({ visible, initialURL, onClose }: Props) {
   useEffect(() => {
     if (!visible || !initialURL) return;
     setURL(initialURL);
-    void resolveLink(initialURL);
-  }, [initialURL, visible]);
+    void resolveLink(initialURL, initialHint);
+  }, [initialHint, initialURL, visible]);
 
   useEffect(() => {
     if (!result || result.status !== 'needs_context') return;
@@ -104,7 +105,7 @@ export function LinkImportModal({ visible, initialURL, onClose }: Props) {
     };
   }, [placeQuery, result, selectedCity]);
 
-  async function resolveLink(candidateURL?: string) {
+  async function resolveLink(candidateURL?: string, candidateHint?: string) {
     const target = (candidateURL ?? url).trim();
     if (!target || loading) return;
 
@@ -118,8 +119,17 @@ export function LinkImportModal({ visible, initialURL, onClose }: Props) {
     setPlaceResults([]);
 
     try {
-      const imported = await importPlaceLink(target, selectedCity);
+      const imported = await importPlaceLink(target, selectedCity, candidateHint);
       setResult(imported);
+
+      if (imported.status === 'needs_context') {
+        if (imported.suggestedQuery) {
+          setPlaceQuery(imported.suggestedQuery);
+        }
+        if (imported.candidates.length > 0) {
+          setPlaceResults(imported.candidates);
+        }
+      }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Не удалось обработать ссылку');
     } finally {
@@ -213,7 +223,9 @@ export function LinkImportModal({ visible, initialURL, onClose }: Props) {
                 <View style={styles.sourceBadge}>
                   <Text style={styles.sourceBadgeText}>{sourceLabel}</Text>
                 </View>
-                <Text style={[styles.foundText, { color: muted }]}>Источник распознан</Text>
+                <Text style={[styles.foundText, { color: muted }]}>
+                  {result.candidates.length > 0 ? 'СПОТ уже нашёл варианты' : 'Источник распознан'}
+                </Text>
               </View>
 
               <View style={[styles.messageCard, { backgroundColor: surface }]}>
