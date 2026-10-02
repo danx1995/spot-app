@@ -608,3 +608,18 @@ body{
   gap:7px;
 }
 .collection-picker button>span svg{display:block}
+
+.spot-map .leaflet-tile-pane{
+  filter:grayscale(.88) brightness(.48) contrast(1.22) sepia(.08) hue-rotate(82deg) saturate(.55);
+}
+.spot-map .leaflet-overlay-pane,.spot-map .leaflet-marker-pane{filter:none}
+.spot-map:after{
+  content:"";
+  position:absolute;
+  z-index:350;
+  inset:0;
+  pointer-events:none;
+  background:
+    radial-gradient(circle at 50% 40%,transparent 42%,rgba(5,9,6,.08) 78%,rgba(5,9,6,.24) 100%),
+    linear-gradient(180deg,rgba(7,11,8,.04),transparent 36%,rgba(7,11,8,.1));
+}
