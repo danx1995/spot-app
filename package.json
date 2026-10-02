@@ -9,6 +9,7 @@
   "scripts": {
     "mobile": "npm --workspace apps/mobile start",
     "mobile:ios": "npm --workspace apps/mobile run ios",
-    "mobile:android": "npm --workspace apps/mobile run android"
+    "mobile:android": "npm --workspace apps/mobile run android",
+    "typecheck": "npm --workspace apps/mobile run typecheck"
   }
 }
