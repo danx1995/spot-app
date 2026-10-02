@@ -72,14 +72,34 @@ export function CollectionsScreen() {
               { backgroundColor: surface, opacity: pressed ? 0.92 : 1 }
             ]}
           >
-            <View style={[styles.cover, index === 0 && styles.coverFeatured]}>
-              <Text style={styles.coverHeart}>{index === 0 ? '♥' : '●'}</Text>
+            <View style={[
+              styles.cover,
+              index === 0 && styles.coverFeatured,
+              item.routePlan && styles.coverRoute
+            ]}>
+              {item.routePlan ? <Text style={styles.routeKicker}>МАРШРУТ</Text> : null}
+              <Text style={styles.coverHeart}>
+                {item.routePlan ? '⌁' : index === 0 ? '♥' : '●'}
+              </Text>
             </View>
             <Text numberOfLines={1} style={[styles.cardTitle, { color: text }]}>{item.title}</Text>
             <Text style={[styles.cardMeta, { color: muted }]}>
-              {item.placeIds.length} {item.placeIds.length === 1 ? 'место' : 'мест'}
+              {item.routePlan
+                ? String(item.placeIds.length) + ' точек · ' +
+                  (item.routePlan.transport === 'driving' ? 'на машине' : 'пешком')
+                : String(item.placeIds.length) + ' ' +
+                  (item.placeIds.length === 1 ? 'место' : 'мест')}
             </Text>
-            <Text numberOfLines={1} style={[styles.cardCity, { color: muted }]}>{item.cityLabel}</Text>
+            <Text numberOfLines={1} style={[styles.cardCity, { color: muted }]}>
+              {item.routePlan
+                ? item.cityLabel + ' · ' +
+                  (item.routePlan.startPreset === 'tomorrow'
+                    ? 'завтра'
+                    : item.routePlan.startPreset === 'evening'
+                      ? 'вечером'
+                      : 'сейчас')
+                : item.cityLabel}
+            </Text>
           </Pressable>
         )}
         ListEmptyComponent={
@@ -211,6 +231,20 @@ const styles = StyleSheet.create({
   },
   coverFeatured: {
     backgroundColor: '#173528'
+  },
+  coverRoute: {
+    backgroundColor: '#142119',
+    borderWidth: 1,
+    borderColor: '#244432'
+  },
+  routeKicker: {
+    position: 'absolute',
+    top: 13,
+    left: 13,
+    color: colors.green,
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 1.2
   },
   coverHeart: {
     color: colors.green,
