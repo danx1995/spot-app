@@ -71,6 +71,26 @@ export type SearchPlacesOptions = {
   category?: SpotCategory;
 };
 
+export type RouteTransport = 'walking' | 'driving' | 'bicycle';
+
+export type RoutePoint = {
+  latitude: number;
+  longitude: number;
+};
+
+export type RouteLegSummary = {
+  distanceMeters: number;
+  durationSeconds: number;
+};
+
+export type RouteSummary = {
+  transport: RouteTransport;
+  source: '2gis' | 'mixed' | 'estimate';
+  legs: RouteLegSummary[];
+  totalDistanceMeters: number;
+  totalDurationSeconds: number;
+};
+
 function fallbackSearch(
   query: string,
   city: CitySlug,
@@ -116,6 +136,60 @@ export async function searchPlaces(
     return data.map(fromApiPlace);
   } catch {
     return __DEV__ ? fallbackSearch(query, city, options.category) : [];
+  }
+}
+
+export async function getRouteSummary(
+  points: RoutePoint[],
+  transport: RouteTransport = 'walking'
+): Promise<RouteSummary | null> {
+  if (points.length < 2) return null;
+
+  try {
+    const session = await ensureGuestSession();
+    const response = await fetch(`${appConfig.apiBaseUrl}/api/v1/routes/summary`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.token}`
+      },
+      body: JSON.stringify({
+        transport,
+        points: points.map((point) => ({
+          lat: point.latitude,
+          lng: point.longitude
+        }))
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Route API returned ${response.status}`);
+    }
+
+    const payload = await response.json() as {
+      transport: RouteTransport;
+      source: '2gis' | 'mixed' | 'estimate';
+      legs: Array<{
+        distance_meters: number;
+        duration_seconds: number;
+      }>;
+      total_distance_meters: number;
+      total_duration_seconds: number;
+    };
+
+    return {
+      transport: payload.transport,
+      source: payload.source,
+      legs: payload.legs.map((leg) => ({
+        distanceMeters: leg.distance_meters,
+        durationSeconds: leg.duration_seconds
+      })),
+      totalDistanceMeters: payload.total_distance_meters,
+      totalDurationSeconds: payload.total_duration_seconds
+    };
+  } catch {
+    return null;
   }
 }
 
