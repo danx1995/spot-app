@@ -587,6 +587,101 @@ func (s *PostgresStore) GetCollection(ctx context.Context, userID, collectionID 
 	return collection, err
 }
 
+func (s *PostgresStore) GetSharedCollection(ctx context.Context, collectionID string) (SharedCollection, error) {
+	var internalID string
+	var collection Collection
+
+	err := s.pool.QueryRow(ctx, `
+		SELECT
+			col.id::text,
+			col.public_id,
+			col.title,
+			COALESCE(col.description, ''),
+			COALESCE(c.slug, ''),
+			COALESCE(c.name, ''),
+			col.visibility,
+			COALESCE(col.cover_url, ''),
+			col.created_at,
+			col.updated_at
+		FROM collections col
+		LEFT JOIN cities c ON c.id = col.city_id
+		WHERE col.public_id = $1
+		  AND col.visibility IN ('shared', 'public')
+	`, collectionID).Scan(
+		&internalID,
+		&collection.ID,
+		&collection.Title,
+		&collection.Description,
+		&collection.City,
+		&collection.CityLabel,
+		&collection.Visibility,
+		&collection.CoverURL,
+		&collection.CreatedAt,
+		&collection.UpdatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return SharedCollection{}, ErrNotFound
+	}
+	if err != nil {
+		return SharedCollection{}, err
+	}
+
+	rows, err := s.pool.Query(ctx, `
+		SELECT
+			p.public_id,
+			p.name,
+			COALESCE(cat.slug, 'other'),
+			COALESCE(cat.name, 'Другое'),
+			c.slug,
+			c.name,
+			COALESCE(p.address, ''),
+			ST_Y(p.location::geometry),
+			ST_X(p.location::geometry),
+			COALESCE(p.rating::float8, 0)
+		FROM collection_places cp
+		JOIN places p ON p.id = cp.place_id
+		JOIN cities c ON c.id = p.city_id
+		LEFT JOIN categories cat ON cat.id = p.category_id
+		WHERE cp.collection_id = $1::uuid
+		ORDER BY cp.sort_order, cp.created_at
+	`, internalID)
+	if err != nil {
+		return SharedCollection{}, err
+	}
+	defer rows.Close()
+
+	places := make([]Place, 0)
+	collection.PlaceIDs = make([]string, 0)
+
+	for rows.Next() {
+		var place Place
+		if err := rows.Scan(
+			&place.ID,
+			&place.Name,
+			&place.Category,
+			&place.CategoryLabel,
+			&place.City,
+			&place.CityLabel,
+			&place.Address,
+			&place.Latitude,
+			&place.Longitude,
+			&place.Rating,
+		); err != nil {
+			return SharedCollection{}, err
+		}
+		places = append(places, place)
+		collection.PlaceIDs = append(collection.PlaceIDs, place.ID)
+	}
+	if err := rows.Err(); err != nil {
+		return SharedCollection{}, err
+	}
+
+	return SharedCollection{
+		Collection: collection,
+		Places:     places,
+	}, nil
+}
+
 func (s *PostgresStore) PatchCollection(ctx context.Context, userID, collectionID string, patch CollectionPatch) (Collection, error) {
 	current, err := s.GetCollection(ctx, userID, collectionID)
 	if err != nil {
