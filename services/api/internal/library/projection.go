@@ -83,7 +83,14 @@ func ApplyCloudDelta(
 		old, existed := before.collections[id]
 		metadataChanged := !existed || old.input != collection.input
 		if metadataChanged {
-			if _, err := store.CreateCollection(ctx, userID, collection.input); err != nil {
+			input := collection.input
+			if current, currentErr := store.GetCollection(ctx, userID, id); currentErr == nil {
+				if current.Visibility == "shared" || current.Visibility == "public" {
+					input.Visibility = current.Visibility
+				}
+			}
+
+			if _, err := store.CreateCollection(ctx, userID, input); err != nil {
 				return fmt.Errorf("upsert collection %s: %w", id, err)
 			}
 		}
