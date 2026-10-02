@@ -15,6 +15,7 @@ import (
 	"github.com/danx1995/spot-app/services/api/internal/cloud"
 	"github.com/danx1995/spot-app/services/api/internal/importer"
 	"github.com/danx1995/spot-app/services/api/internal/library"
+	"github.com/danx1995/spot-app/services/api/internal/migrations"
 	"github.com/danx1995/spot-app/services/api/internal/provider/twogis"
 	"github.com/danx1995/spot-app/services/api/internal/resolver"
 )
@@ -49,6 +50,12 @@ func main() {
 	linkImporter := importer.New(twoGIS, placesResolver)
 
 	databaseURL := os.Getenv("DATABASE_URL")
+	if strings.TrimSpace(databaseURL) != "" {
+		if err := migrations.Run(ctx, databaseURL); err != nil {
+			log.Fatalf("database migrations failed: %v", err)
+		}
+	}
+
 	syncStore := cloud.NewStore(ctx, databaseURL)
 	defer syncStore.Close()
 
