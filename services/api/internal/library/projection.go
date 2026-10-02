@@ -38,6 +38,8 @@ type cloudSpot struct {
 	Note           string  `json:"note"`
 	SourceURL      string  `json:"sourceUrl"`
 	SourcePlatform string  `json:"sourcePlatform"`
+	SourceTitle    string  `json:"sourceTitle"`
+	SourceExcerpt  string  `json:"sourceExcerpt"`
 }
 
 type cloudCollection struct {
@@ -279,8 +281,10 @@ func normalizeCloudSpot(item cloudSpot) SavePlaceInput {
 		},
 		Status:     item.Status,
 		Note:       strings.TrimSpace(item.Note),
-		SourceType: strings.TrimSpace(item.SourcePlatform),
-		SourceURL:  strings.TrimSpace(item.SourceURL),
-		IsFavorite: item.Favorite,
+		SourceType:    strings.TrimSpace(item.SourcePlatform),
+		SourceURL:     strings.TrimSpace(item.SourceURL),
+		SourceTitle:   strings.TrimSpace(item.SourceTitle),
+		SourceExcerpt: strings.TrimSpace(item.SourceExcerpt),
+		IsFavorite:    item.Favorite,
 	}
 }
