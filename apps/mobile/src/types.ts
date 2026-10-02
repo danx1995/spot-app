@@ -11,6 +11,13 @@ export type SpotCategory =
   | 'park'
   | 'other';
 
+export type DiscoveryInterest =
+  | 'restaurant'
+  | 'coffee'
+  | 'bar'
+  | 'hotel'
+  | 'culture';
+
 export type SpotStatus = 'want' | 'visited' | 'booked';
 
 export type SpotDay = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
