@@ -21,6 +21,7 @@ import {
 import type {
   CitySlug,
   Collection,
+  CollectionRoutePlan,
   DiscoveryInterest,
   Spot,
   SpotStatus
@@ -71,6 +72,7 @@ type NewCollectionInput = {
   title: string;
   subtitle?: string;
   city: CitySlug | 'both';
+  routePlan?: CollectionRoutePlan;
 };
 
 type UpdateCollectionInput = {
@@ -500,6 +502,7 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
       city: input.city,
       cityLabel: cityLabel(input.city),
       placeIds: [],
+      routePlan: input.routePlan,
       createdAt: new Date().toISOString()
     };
     setCollections((current) => [collection, ...current]);
