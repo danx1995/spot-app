@@ -1,5 +1,5 @@
 import React from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
+import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
 
 import { useSpotStore } from '../state/SpotStore';
 import { colors } from '../theme';
@@ -9,6 +9,15 @@ type Props = {
   spot: Spot | null;
   visible: boolean;
   onClose: () => void;
+};
+
+const sourceLabels: Record<string, string> = {
+  instagram: 'Instagram',
+  tiktok: 'TikTok',
+  telegram: 'Telegram',
+  '2gis': '2ГИС',
+  yandex_maps: 'Яндекс Карты',
+  web: 'Сайт'
 };
 
 const statusCopy: Record<SpotStatus, string> = {
@@ -102,6 +111,24 @@ export function PlaceDetailModal({ spot, visible, onClose }: Props) {
               {current.note ?? 'Добавь заметку, чтобы потом вспомнить, почему захотелось сюда попасть.'}
             </Text>
           </View>
+
+          {current.sourceUrl ? (
+            <Pressable
+              onPress={() => void Linking.openURL(current.sourceUrl as string)}
+              style={[styles.block, styles.sourceBlock, { backgroundColor: surface }]}
+            >
+              <View style={styles.sourceHeader}>
+                <Text style={[styles.blockLabel, { color: muted }]}>ИСТОЧНИК</Text>
+                <Text style={styles.sourceArrow}>↗</Text>
+              </View>
+              <Text style={[styles.sourceName, { color: text }]}>
+                {sourceLabels[current.sourcePlatform ?? 'web'] ?? current.sourcePlatform ?? 'Ссылка'}
+              </Text>
+              <Text numberOfLines={1} style={[styles.sourceURL, { color: muted }]}>
+                {current.sourceUrl}
+              </Text>
+            </Pressable>
+          ) : null}
 
           {saved && collections.length > 0 ? (
             <View style={[styles.block, { backgroundColor: surface }]}>
@@ -280,6 +307,28 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 23,
     fontWeight: '600'
+  },
+  sourceBlock: {
+    overflow: 'hidden'
+  },
+  sourceHeader: {
+    flexDirection: 'row',
+    alignItems: 'center'
+  },
+  sourceArrow: {
+    marginLeft: 'auto',
+    color: colors.green,
+    fontSize: 18,
+    fontWeight: '900'
+  },
+  sourceName: {
+    marginTop: 8,
+    fontSize: 16,
+    fontWeight: '900'
+  },
+  sourceURL: {
+    marginTop: 4,
+    fontSize: 11
   },
   collectionList: {
     flexDirection: 'row',
