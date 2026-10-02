@@ -10,6 +10,7 @@ import {
   View
 } from 'react-native';
 
+import { LinkImportModal } from '../components/LinkImportModal';
 import { ManualPlaceModal } from '../components/ManualPlaceModal';
 import { PlaceDetailModal } from '../components/PlaceDetailModal';
 import { SpotCard } from '../components/SpotCard';
@@ -31,6 +32,7 @@ export function AddScreen() {
   const [loading, setLoading] = useState(false);
   const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
   const [manualOpen, setManualOpen] = useState(false);
+  const [linkOpen, setLinkOpen] = useState(false);
 
   useEffect(() => {
     const normalized = query.trim();
@@ -135,11 +137,11 @@ export function AddScreen() {
           <>
             <Text style={[styles.sectionLabel, { color: muted }]}>ЕЩЁ СПОСОБЫ</Text>
             <View style={styles.actions}>
-              <Pressable style={[styles.action, { backgroundColor: surface }]}>
+              <Pressable onPress={() => setLinkOpen(true)} style={[styles.action, { backgroundColor: surface }]}>
                 <View style={styles.actionIcon}><Text style={styles.actionSymbol}>↗</Text></View>
                 <View style={styles.actionCopy}>
                   <Text style={[styles.actionTitle, { color: text }]}>Вставить ссылку</Text>
-                  <Text style={[styles.actionSubtitle, { color: muted }]}>Reels, TikTok, Telegram или сайт · скоро</Text>
+                  <Text style={[styles.actionSubtitle, { color: muted }]}>2ГИС, Reels, TikTok, Telegram или сайт</Text>
                 </View>
                 <Text style={[styles.chevron, { color: muted }]}>›</Text>
               </Pressable>
@@ -157,7 +159,7 @@ export function AddScreen() {
             <View style={[styles.tip, { backgroundColor: dark ? colors.darkSurfaceRaised : '#E7F8F0' }]}>
               <Text style={styles.tipIcon}>✦</Text>
               <Text style={[styles.tipText, { color: text }]}>
-                Следующий этап: отправляй Reel через «Поделиться → СПОТ», и приложение само определит место.
+                Ссылка сохранится вместе со спотом — потом всегда будет понятно, откуда ты нашёл это место.
               </Text>
             </View>
           </>
@@ -168,6 +170,11 @@ export function AddScreen() {
         spot={selectedSpot}
         visible={Boolean(selectedSpot)}
         onClose={() => setSelectedSpot(null)}
+      />
+
+      <LinkImportModal
+        visible={linkOpen}
+        onClose={() => setLinkOpen(false)}
       />
 
       <ManualPlaceModal

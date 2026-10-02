@@ -13,6 +13,7 @@ import (
 	"github.com/danx1995/spot-app/services/api/internal/auth"
 	"github.com/danx1995/spot-app/services/api/internal/catalog"
 	"github.com/danx1995/spot-app/services/api/internal/cloud"
+	"github.com/danx1995/spot-app/services/api/internal/importer"
 	"github.com/danx1995/spot-app/services/api/internal/provider/twogis"
 	"github.com/danx1995/spot-app/services/api/internal/resolver"
 )
@@ -33,11 +34,17 @@ type putStateRequest struct {
 	State        json.RawMessage `json:"state"`
 }
 
+type linkImportRequest struct {
+	URL  string `json:"url"`
+	City string `json:"city"`
+}
+
 func main() {
 	ctx := context.Background()
 
 	twoGIS := twogis.New(os.Getenv("TWO_GIS_API_KEY"))
 	placesResolver := resolver.New(twoGIS)
+	linkImporter := importer.New(twoGIS)
 
 	syncStore := cloud.NewStore(ctx, os.Getenv("DATABASE_URL"))
 	defer syncStore.Close()
@@ -144,6 +151,30 @@ func main() {
 			State:     &state.Data,
 			UpdatedAt: &state.UpdatedAt,
 		})
+	})
+
+	mux.HandleFunc("POST /api/v1/imports/link", func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := requireUser(w, r, tokens); !ok {
+			return
+		}
+
+		r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
+		var request linkImportRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid link import payload")
+			return
+		}
+		if request.City == "" {
+			request.City = "spb"
+		}
+
+		result, err := linkImporter.Resolve(r.Context(), request.URL, request.City)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		writeJSON(w, http.StatusOK, result)
 	})
 
 	mux.HandleFunc("GET /api/v1/cities", func(w http.ResponseWriter, r *http.Request) {

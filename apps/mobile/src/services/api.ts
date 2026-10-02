@@ -1,19 +1,28 @@
 import { appConfig } from '../config';
 import { spots as fallbackSpots } from '../data/mock';
-import type { Spot, SpotCategory } from '../types';
+import { ensureGuestSession } from './cloudSync';
+import type { CitySlug, Spot, SpotCategory } from '../types';
 
 type ApiPlace = {
   id: string;
   name: string;
   category: SpotCategory;
   category_label: string;
-  city: 'spb' | 'moscow';
+  city: CitySlug;
   city_label: string;
   address: string;
   lat: number;
   lng: number;
   rating: number;
   distance_meters?: number;
+};
+
+export type LinkImportResult = {
+  status: 'resolved' | 'needs_context';
+  platform: string;
+  source_url: string;
+  message?: string;
+  place?: Spot;
 };
 
 function fromApiPlace(place: ApiPlace): Spot {
@@ -33,7 +42,7 @@ function fromApiPlace(place: ApiPlace): Spot {
   };
 }
 
-function fallbackSearch(query: string, city: 'spb' | 'moscow') {
+function fallbackSearch(query: string, city: CitySlug) {
   const q = query.trim().toLowerCase();
   return fallbackSpots.filter((spot) => {
     if (spot.city !== city) return false;
@@ -42,7 +51,7 @@ function fallbackSearch(query: string, city: 'spb' | 'moscow') {
   });
 }
 
-export async function searchPlaces(query: string, city: 'spb' | 'moscow' = 'spb'): Promise<Spot[]> {
+export async function searchPlaces(query: string, city: CitySlug = 'spb'): Promise<Spot[]> {
   const params = new URLSearchParams({ q: query, city });
 
   try {
@@ -59,4 +68,48 @@ export async function searchPlaces(query: string, city: 'spb' | 'moscow' = 'spb'
   } catch {
     return fallbackSearch(query, city);
   }
+}
+
+export async function importPlaceLink(url: string, city: CitySlug): Promise<LinkImportResult> {
+  const session = await ensureGuestSession();
+
+  const response = await fetch(`${appConfig.apiBaseUrl}/api/v1/imports/link`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${session.token}`
+    },
+    body: JSON.stringify({ url, city })
+  });
+
+  if (!response.ok) {
+    let message = 'Не удалось обработать ссылку';
+    try {
+      const payload = await response.json() as { error?: string };
+      if (payload.error) message = payload.error;
+    } catch {
+      // keep user-friendly fallback
+    }
+    throw new Error(message);
+  }
+
+  const payload = await response.json() as {
+    status: 'resolved' | 'needs_context';
+    platform: string;
+    source_url: string;
+    message?: string;
+    place?: ApiPlace;
+  };
+
+  return {
+    ...payload,
+    place: payload.place
+      ? {
+          ...fromApiPlace(payload.place),
+          sourceUrl: payload.source_url,
+          sourcePlatform: payload.platform
+        }
+      : undefined
+  };
 }

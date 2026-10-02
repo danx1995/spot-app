@@ -29,6 +29,8 @@ export type Spot = {
   status: SpotStatus;
   favorite?: boolean;
   note?: string;
+  sourceUrl?: string;
+  sourcePlatform?: string;
 };
 
 export type Collection = {
