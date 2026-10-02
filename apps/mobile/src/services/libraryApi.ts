@@ -59,6 +59,86 @@ type PublicApiPlace = {
   description?: string;
 };
 
+function publicPlaceToSpot(place: PublicApiPlace): Spot {
+  return {
+    id: place.id,
+    name: place.name,
+    category: place.category,
+    categoryLabel: place.category_label,
+    city: place.city,
+    cityLabel: place.city_label,
+    address: place.address,
+    latitude: place.lat,
+    longitude: place.lng,
+    distanceMeters: 0,
+    rating: place.rating,
+    reviewCount: place.review_count,
+    openingHours: place.opening_hours ? {
+      is24x7: place.opening_hours.is_24x7,
+      days: place.opening_hours.days
+    } : undefined,
+    description: place.description?.trim() || undefined,
+    status: 'want'
+  };
+}
+
+export async function publishPlace(placeID: string): Promise<string> {
+  const session = await ensureGuestSession();
+  const endpoint = `${appConfig.apiBaseUrl}/api/v1/me/places/${encodeURIComponent(placeID)}/share`;
+
+  let response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      Authorization: `Bearer ${session.token}`
+    }
+  });
+
+  if (response.status === 404 || response.status === 409) {
+    await new Promise((resolve) => setTimeout(resolve, 450));
+    response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${session.token}`
+      }
+    });
+  }
+
+  if (response.status === 401) {
+    await resetGuestSession();
+    throw new Error('session expired');
+  }
+  if (!response.ok) {
+    throw new Error(`place publish failed with ${response.status}`);
+  }
+
+  const payload = await response.json() as { share_id: string };
+  return `${appConfig.shareBaseUrl}/p/${encodeURIComponent(payload.share_id)}`;
+}
+
+export async function getSharedPlace(shareID: string): Promise<Spot> {
+  const response = await fetch(
+    `${appConfig.apiBaseUrl}/api/v1/public/places/${encodeURIComponent(shareID)}`,
+    {
+      headers: { Accept: 'application/json' }
+    }
+  );
+
+  if (response.status === 404) {
+    throw new Error('Ссылка на место недоступна');
+  }
+  if (!response.ok) {
+    throw new Error(`shared place failed with ${response.status}`);
+  }
+
+  const payload = await response.json() as {
+    share_id: string;
+    place: PublicApiPlace;
+  };
+  return publicPlaceToSpot(payload.place);
+}
+
 type PublicApiCollection = {
   id: string;
   title: string;
@@ -97,26 +177,7 @@ export async function getSharedCollection(collectionID: string): Promise<SharedC
     places: PublicApiPlace[];
   };
 
-  const spots: Spot[] = payload.places.map((place) => ({
-    id: place.id,
-    name: place.name,
-    category: place.category,
-    categoryLabel: place.category_label,
-    city: place.city,
-    cityLabel: place.city_label,
-    address: place.address,
-    latitude: place.lat,
-    longitude: place.lng,
-    distanceMeters: 0,
-    rating: place.rating,
-    reviewCount: place.review_count,
-    openingHours: place.opening_hours ? {
-      is24x7: place.opening_hours.is_24x7,
-      days: place.opening_hours.days
-    } : undefined,
-    description: place.description?.trim() || undefined,
-    status: 'want'
-  }));
+  const spots: Spot[] = payload.places.map(publicPlaceToSpot);
 
   const uniqueCities = new Set(spots.map((spot) => spot.city));
   const collectionCity: CitySlug | 'both' = payload.collection.city
