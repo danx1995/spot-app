@@ -87,6 +87,7 @@ type SharedCollectionImport = {
   subtitle: string;
   city: CitySlug | 'both';
   cityLabel: string;
+  routePlan?: CollectionRoutePlan;
   spots: Spot[];
 };
 
@@ -598,6 +599,7 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
           subtitle: input.subtitle.trim() || 'Подборка из СПОТ',
           city: input.city,
           cityLabel: input.cityLabel,
+          routePlan: input.routePlan,
           placeIds: input.spots.map((spot) => spot.id)
         };
 
@@ -610,6 +612,7 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
         subtitle: input.subtitle.trim() || 'Подборка из СПОТ',
         city: input.city,
         cityLabel: input.cityLabel,
+        routePlan: input.routePlan,
         placeIds: input.spots.map((spot) => spot.id),
         createdAt: new Date().toISOString(),
         sourceCollectionId: input.sourceCollectionId
