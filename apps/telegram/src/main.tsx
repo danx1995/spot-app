@@ -27,7 +27,10 @@ const categories = [
   ['coffee', 'coffee', 'Кофе'],
   ['bar', 'bar', 'Бары'],
   ['hotel', 'hotel', 'Отели'],
-  ['culture', 'culture', 'Культура']
+  ['culture', 'culture', 'Культура'],
+  ['entertainment', 'entertainment', 'Досуг'],
+  ['shop', 'shop', 'Магазины'],
+  ['park', 'park', 'Места']
 ] as const satisfies ReadonlyArray<readonly [string, IconName, string]>;
 
 const demoSpots: Spot[] = [
