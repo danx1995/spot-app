@@ -305,7 +305,7 @@ func main() {
 		writeJSON(w, http.StatusOK, place)
 	})
 
-	handler := withCommonHeaders(mux)
+	handler := withCommonHeaders(mux, parseAllowedOrigins(os.Getenv("WEB_ALLOWED_ORIGINS")))
 
 	port := os.Getenv("API_PORT")
 	if port == "" {
@@ -368,10 +368,46 @@ func requireUser(w http.ResponseWriter, r *http.Request, tokens *auth.TokenServi
 	return claims.UserID, true
 }
 
-func withCommonHeaders(next http.Handler) http.Handler {
+func parseAllowedOrigins(raw string) map[string]struct{} {
+	out := make(map[string]struct{})
+	for _, item := range strings.Split(raw, ",") {
+		origin := strings.TrimSpace(item)
+		if origin == "" {
+			continue
+		}
+		out[origin] = struct{}{}
+	}
+	return out
+}
+
+func withCommonHeaders(next http.Handler, allowedOrigins map[string]struct{}) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Cache-Control", "no-store")
+
+		origin := strings.TrimSpace(r.Header.Get("Origin"))
+		if origin != "" {
+			if _, ok := allowedOrigins[origin]; ok {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Set("Vary", "Origin")
+				w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+			}
+		}
+
+		if r.Method == http.MethodOptions {
+			if origin == "" {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+			if _, ok := allowedOrigins[origin]; !ok {
+				writeError(w, http.StatusForbidden, "origin not allowed")
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
 		next.ServeHTTP(w, r)
 	})
 }
