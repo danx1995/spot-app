@@ -27,6 +27,7 @@ export type Spot = {
   rating: number;
   priceLevel?: number;
   status: SpotStatus;
+  visitedAt?: string;
   favorite?: boolean;
   note?: string;
   sourceUrl?: string;
