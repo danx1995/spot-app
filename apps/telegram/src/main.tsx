@@ -712,17 +712,6 @@ function categoryIconName(category: string): IconName {
   return match?.[1] || 'location';
 }
 
-function categoryEmoji(category: string) {
-  const fallback: Record<string, string> = {
-    restaurant: '🍽',
-    coffee: '☕',
-    bar: '🍸',
-    hotel: '🏨',
-    culture: '🎭'
-  };
-  return fallback[category] || '📍';
-}
-
 function SpotDetail({
   spot,
   saved,
@@ -871,7 +860,7 @@ function CollectionEditor({
                   active ? current.filter((id) => id !== spot.id) : [...current, spot.id]
                 ))}
               >
-                <span>{active ? '✓' : categoryEmoji(spot.category)}</span>
+                <span>{active ? '✓' : <SpotIcon name={categoryIconName(spot.category)} size={15} />}</span>
                 <div><b>{spot.name}</b><small>{spot.address}</small></div>
               </button>
             );
