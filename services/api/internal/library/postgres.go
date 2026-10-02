@@ -574,6 +574,18 @@ func (s *PostgresStore) CreateCollection(ctx context.Context, userID string, inp
 	if input.City != "" && input.City != "spb" && input.City != "moscow" {
 		return Collection{}, ErrInvalidInput
 	}
+	if err := validateRoutePlan(input.RoutePlan); err != nil {
+		return Collection{}, err
+	}
+
+	routePlanJSON := []byte("{}")
+	if input.RoutePlan != nil {
+		var marshalErr error
+		routePlanJSON, marshalErr = json.Marshal(input.RoutePlan)
+		if marshalErr != nil {
+			return Collection{}, ErrInvalidInput
+		}
+	}
 
 	id := strings.TrimSpace(input.ID)
 	if id == "" {
@@ -592,6 +604,7 @@ func (s *PostgresStore) CreateCollection(ctx context.Context, userID string, inp
 			city_id,
 			visibility,
 			cover_url,
+			route_plan,
 			updated_at
 		)
 		VALUES (
@@ -602,6 +615,7 @@ func (s *PostgresStore) CreateCollection(ctx context.Context, userID string, inp
 			(SELECT id FROM cities WHERE slug = NULLIF($5, '')),
 			$6,
 			NULLIF(trim($7), ''),
+			$8::jsonb,
 			now()
 		)
 		ON CONFLICT (public_id) DO UPDATE
@@ -610,6 +624,7 @@ func (s *PostgresStore) CreateCollection(ctx context.Context, userID string, inp
 		    city_id = EXCLUDED.city_id,
 		    visibility = EXCLUDED.visibility,
 		    cover_url = EXCLUDED.cover_url,
+		    route_plan = EXCLUDED.route_plan,
 		    updated_at = now()
 		WHERE collections.owner_id = EXCLUDED.owner_id
 		RETURNING
@@ -630,6 +645,7 @@ func (s *PostgresStore) CreateCollection(ctx context.Context, userID string, inp
 		input.City,
 		visibility,
 		input.CoverURL,
+		string(routePlanJSON),
 	).Scan(
 		&collection.ID,
 		&collection.Title,
@@ -653,6 +669,7 @@ func (s *PostgresStore) CreateCollection(ctx context.Context, userID string, inp
 		return current, nil
 	}
 	collection.PlaceIDs = []string{}
+	collection.RoutePlan = cloneRoutePlan(input.RoutePlan)
 	return collection, nil
 }
 
