@@ -1,21 +1,53 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/danx1995/spot-app/services/api/internal/auth"
 	"github.com/danx1995/spot-app/services/api/internal/catalog"
+	"github.com/danx1995/spot-app/services/api/internal/cloud"
 	"github.com/danx1995/spot-app/services/api/internal/provider/twogis"
 	"github.com/danx1995/spot-app/services/api/internal/resolver"
 )
 
+type guestSessionResponse struct {
+	UserID string `json:"user_id"`
+	Token  string `json:"token"`
+}
+
+type cloudStateResponse struct {
+	Revision  int64            `json:"revision"`
+	State     *json.RawMessage `json:"state"`
+	UpdatedAt *time.Time       `json:"updated_at"`
+}
+
+type putStateRequest struct {
+	BaseRevision int64           `json:"base_revision"`
+	State        json.RawMessage `json:"state"`
+}
+
 func main() {
+	ctx := context.Background()
+
 	twoGIS := twogis.New(os.Getenv("TWO_GIS_API_KEY"))
 	placesResolver := resolver.New(twoGIS)
+
+	syncStore := cloud.NewStore(ctx, os.Getenv("DATABASE_URL"))
+	defer syncStore.Close()
+
+	authSecret := strings.TrimSpace(os.Getenv("AUTH_SECRET"))
+	if len(authSecret) < 16 {
+		authSecret = "spot-development-secret-change-me"
+		log.Printf("WARNING: AUTH_SECRET is not configured; using development-only secret")
+	}
+	tokens := auth.NewTokenService(authSecret, 365*24*time.Hour)
 
 	mux := http.NewServeMux()
 
@@ -27,6 +59,90 @@ func main() {
 			"places_provider": map[string]bool{
 				"2gis": twoGIS.Enabled(),
 			},
+			"sync_store": syncStore.Mode(),
+		})
+	})
+
+	mux.HandleFunc("POST /api/v1/auth/guest", func(w http.ResponseWriter, r *http.Request) {
+		userID, err := syncStore.CreateGuest(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to create guest session")
+			return
+		}
+
+		token, err := tokens.Issue(userID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to create guest token")
+			return
+		}
+
+		writeJSON(w, http.StatusCreated, guestSessionResponse{
+			UserID: userID,
+			Token:  token,
+		})
+	})
+
+	mux.HandleFunc("GET /api/v1/me/state", func(w http.ResponseWriter, r *http.Request) {
+		userID, ok := requireUser(w, r, tokens)
+		if !ok {
+			return
+		}
+
+		state, err := syncStore.GetState(r.Context(), userID)
+		if errors.Is(err, cloud.ErrStateNotFound) {
+			writeJSON(w, http.StatusOK, cloudStateResponse{
+				Revision: 0,
+				State:    nil,
+			})
+			return
+		}
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to load cloud state")
+			return
+		}
+
+		writeJSON(w, http.StatusOK, cloudStateResponse{
+			Revision:  state.Revision,
+			State:     &state.Data,
+			UpdatedAt: &state.UpdatedAt,
+		})
+	})
+
+	mux.HandleFunc("PUT /api/v1/me/state", func(w http.ResponseWriter, r *http.Request) {
+		userID, ok := requireUser(w, r, tokens)
+		if !ok {
+			return
+		}
+
+		r.Body = http.MaxBytesReader(w, r.Body, 2<<20)
+		var request putStateRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid state payload")
+			return
+		}
+		if request.BaseRevision < 0 || !json.Valid(request.State) {
+			writeError(w, http.StatusBadRequest, "invalid state revision or json")
+			return
+		}
+
+		state, err := syncStore.PutState(r.Context(), userID, request.BaseRevision, request.State)
+		if errors.Is(err, cloud.ErrRevisionConflict) {
+			writeJSON(w, http.StatusConflict, cloudStateResponse{
+				Revision:  state.Revision,
+				State:     &state.Data,
+				UpdatedAt: &state.UpdatedAt,
+			})
+			return
+		}
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to save cloud state")
+			return
+		}
+
+		writeJSON(w, http.StatusOK, cloudStateResponse{
+			Revision:  state.Revision,
+			State:     &state.Data,
+			UpdatedAt: &state.UpdatedAt,
 		})
 	})
 
@@ -79,10 +195,27 @@ func main() {
 		port = "8080"
 	}
 
-	log.Printf("SPOT API listening on :%s", port)
+	log.Printf("SPOT API listening on :%s (sync=%s)", port, syncStore.Mode())
 	if err := http.ListenAndServe(":"+port, handler); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func requireUser(w http.ResponseWriter, r *http.Request, tokens *auth.TokenService) (string, bool) {
+	header := strings.TrimSpace(r.Header.Get("Authorization"))
+	const prefix = "Bearer "
+	if !strings.HasPrefix(header, prefix) {
+		writeError(w, http.StatusUnauthorized, "authorization required")
+		return "", false
+	}
+
+	claims, err := tokens.Parse(strings.TrimSpace(strings.TrimPrefix(header, prefix)))
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "invalid or expired session")
+		return "", false
+	}
+
+	return claims.UserID, true
 }
 
 func withCommonHeaders(next http.Handler) http.Handler {

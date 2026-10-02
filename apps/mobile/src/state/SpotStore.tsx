@@ -1,6 +1,21 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react';
 
+import {
+  CloudConflictError,
+  ensureGuestSession,
+  getCloudState,
+  putCloudState,
+  type CloudStatePayload
+} from '../services/cloudSync';
 import { collections as demoCollections, spots as demoSpots } from '../data/mock';
 import type { CitySlug, Collection, Spot, SpotStatus } from '../types';
 
@@ -14,12 +29,17 @@ type NewCollectionInput = {
   city: CitySlug | 'both';
 };
 
+export type SyncStatus = 'idle' | 'syncing' | 'synced' | 'offline' | 'conflict';
+
 type SpotStoreValue = {
   savedSpots: Spot[];
   collections: Collection[];
   hydrated: boolean;
   selectedCity: CitySlug;
+  syncStatus: SyncStatus;
+  lastSyncedAt: string | null;
   setSelectedCity: (city: CitySlug) => void;
+  syncNow: () => Promise<void>;
   isSaved: (id: string) => boolean;
   getSavedSpot: (id: string) => Spot | undefined;
   saveSpot: (spot: Spot, status?: SpotStatus) => void;
@@ -43,11 +63,42 @@ function newCollectionId() {
   return `col_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
 }
 
+function mergeByID<T extends { id: string }>(remote: T[], local: T[]) {
+  const merged = new Map<string, T>();
+  for (const item of remote) merged.set(item.id, item);
+  for (const item of local) merged.set(item.id, item);
+  return Array.from(merged.values());
+}
+
+function isCloudPayload(value: CloudStatePayload | null): value is CloudStatePayload {
+  return Boolean(
+    value &&
+    (value.selected_city === 'spb' || value.selected_city === 'moscow') &&
+    Array.isArray(value.saved_spots) &&
+    Array.isArray(value.collections)
+  );
+}
+
 export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
   const [savedSpots, setSavedSpots] = useState<Spot[]>([]);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [selectedCity, setSelectedCity] = useState<CitySlug>('spb');
   const [hydrated, setHydrated] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+
+  const cloudRevisionRef = useRef(0);
+  const cloudReadyRef = useRef(false);
+  const syncingRef = useRef(false);
+  const pendingSyncRef = useRef(false);
+  const skipNextAutoRef = useRef(false);
+  const snapshotRef = useRef({
+    savedSpots,
+    collections,
+    selectedCity
+  });
+
+  snapshotRef.current = { savedSpots, collections, selectedCity };
 
   useEffect(() => {
     let active = true;
@@ -109,6 +160,117 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
     if (!hydrated) return;
     void AsyncStorage.setItem(SELECTED_CITY_KEY, selectedCity);
   }, [hydrated, selectedCity]);
+
+  const applyCloudPayload = useCallback((payload: CloudStatePayload) => {
+    skipNextAutoRef.current = true;
+    setSavedSpots(payload.saved_spots);
+    setCollections(payload.collections);
+    setSelectedCity(payload.selected_city);
+  }, []);
+
+  const syncNow = useCallback(async () => {
+    if (!hydrated) return;
+
+    if (syncingRef.current) {
+      pendingSyncRef.current = true;
+      return;
+    }
+
+    syncingRef.current = true;
+    setSyncStatus('syncing');
+
+    try {
+      const session = await ensureGuestSession();
+      let local = snapshotRef.current;
+
+      if (!cloudReadyRef.current) {
+        const remote = await getCloudState(session.token);
+
+        if (isCloudPayload(remote.state)) {
+          const merged: CloudStatePayload = {
+            selected_city: local.selectedCity,
+            saved_spots: mergeByID(remote.state.saved_spots, local.savedSpots),
+            collections: mergeByID(remote.state.collections, local.collections)
+          };
+
+          const saved = await putCloudState(session.token, remote.revision, merged);
+          cloudRevisionRef.current = saved.revision;
+          applyCloudPayload(merged);
+        } else {
+          const initial: CloudStatePayload = {
+            selected_city: local.selectedCity,
+            saved_spots: local.savedSpots,
+            collections: local.collections
+          };
+          const saved = await putCloudState(session.token, 0, initial);
+          cloudRevisionRef.current = saved.revision;
+        }
+
+        cloudReadyRef.current = true;
+      } else {
+        const payload: CloudStatePayload = {
+          selected_city: local.selectedCity,
+          saved_spots: local.savedSpots,
+          collections: local.collections
+        };
+
+        try {
+          const saved = await putCloudState(session.token, cloudRevisionRef.current, payload);
+          cloudRevisionRef.current = saved.revision;
+        } catch (error) {
+          if (!(error instanceof CloudConflictError) || !isCloudPayload(error.envelope.state)) {
+            throw error;
+          }
+
+          setSyncStatus('conflict');
+
+          const merged: CloudStatePayload = {
+            selected_city: payload.selected_city,
+            saved_spots: mergeByID(error.envelope.state.saved_spots, payload.saved_spots),
+            collections: mergeByID(error.envelope.state.collections, payload.collections)
+          };
+
+          const retried = await putCloudState(session.token, error.envelope.revision, merged);
+          cloudRevisionRef.current = retried.revision;
+          applyCloudPayload(merged);
+        }
+      }
+
+      setLastSyncedAt(new Date().toISOString());
+      setSyncStatus('synced');
+    } catch {
+      setSyncStatus('offline');
+    } finally {
+      syncingRef.current = false;
+
+      if (pendingSyncRef.current) {
+        pendingSyncRef.current = false;
+        setTimeout(() => {
+          void syncNow();
+        }, 0);
+      }
+    }
+  }, [applyCloudPayload, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    void syncNow();
+  }, [hydrated, syncNow]);
+
+  useEffect(() => {
+    if (!hydrated || !cloudReadyRef.current) return;
+
+    if (skipNextAutoRef.current) {
+      skipNextAutoRef.current = false;
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      void syncNow();
+    }, 1200);
+
+    return () => clearTimeout(timer);
+  }, [collections, hydrated, savedSpots, selectedCity, syncNow]);
 
   const getSavedSpot = useCallback(
     (id: string) => savedSpots.find((spot) => spot.id === id),
@@ -182,7 +344,10 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
     collections,
     hydrated,
     selectedCity,
+    syncStatus,
+    lastSyncedAt,
     setSelectedCity,
+    syncNow,
     isSaved,
     getSavedSpot,
     saveSpot,
@@ -197,6 +362,9 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
     collections,
     hydrated,
     selectedCity,
+    syncStatus,
+    lastSyncedAt,
+    syncNow,
     isSaved,
     getSavedSpot,
     saveSpot,
