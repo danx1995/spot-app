@@ -2,6 +2,7 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { colors } from '../theme';
 import type { Spot } from '../types';
+import { getSpotOpenState } from '../utils/openingHours';
 
 function formatDistance(meters: number) {
   if (meters <= 0) return null;
@@ -22,6 +23,7 @@ export function SpotCard({ spot, compact = false, showCity = false, onPress }: P
   const text = dark ? colors.white : colors.black;
   const muted = dark ? colors.textSecondaryDark : colors.textSecondaryLight;
   const distance = formatDistance(spot.distanceMeters);
+  const openState = getSpotOpenState(spot);
 
   return (
     <Pressable
@@ -52,10 +54,29 @@ export function SpotCard({ spot, compact = false, showCity = false, onPress }: P
           </Text>
         </View>
 
+        {openState.kind !== 'unknown' ? (
+          <View style={styles.openRow}>
+            <View style={[
+              styles.openDot,
+              { backgroundColor: openState.kind === 'open' ? colors.green : muted }
+            ]} />
+            <Text
+              style={[
+                styles.openText,
+                { color: openState.kind === 'open' ? colors.green : muted }
+              ]}
+            >
+              {openState.label}
+            </Text>
+          </View>
+        ) : null}
+
         <View style={styles.bottomRow}>
           <Text style={[styles.address, { color: muted }]} numberOfLines={1}>{spot.address}</Text>
           {spot.rating > 0 ? (
-            <Text style={[styles.rating, { color: text }]}>★ {spot.rating.toFixed(1)}</Text>
+            <Text style={[styles.rating, { color: text }]}>
+              ★ {spot.rating.toFixed(1)}{spot.reviewCount ? ` · ${spot.reviewCount}` : ''}
+            </Text>
           ) : null}
         </View>
       </View>
@@ -96,7 +117,7 @@ const styles = StyleSheet.create({
   body: {
     flex: 1,
     padding: 16,
-    gap: 16
+    gap: 10
   },
   topRow: {
     flexDirection: 'row',
@@ -117,6 +138,20 @@ const styles = StyleSheet.create({
   heart: {
     fontSize: 24,
     lineHeight: 28
+  },
+  openRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6
+  },
+  openDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3
+  },
+  openText: {
+    fontSize: 11,
+    fontWeight: '800'
   },
   bottomRow: {
     flexDirection: 'row',
