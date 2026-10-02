@@ -93,6 +93,18 @@ type response struct {
 }
 
 func (c *Client) Search(ctx context.Context, query, city string) ([]catalog.Place, error) {
+	lon, lat, _, ok := cityCenter(city)
+	if !ok {
+		return nil, fmt.Errorf("unsupported city %q", city)
+	}
+	return c.SearchAt(ctx, query, city, lat, lon)
+}
+
+func (c *Client) SearchAt(
+	ctx context.Context,
+	query, city string,
+	lat, lon float64,
+) ([]catalog.Place, error) {
 	if !c.Enabled() {
 		return nil, nil
 	}
@@ -100,8 +112,11 @@ func (c *Client) Search(ctx context.Context, query, city string) ([]catalog.Plac
 	if query == "" {
 		return nil, nil
 	}
+	if !validCoordinate(lat, lon) {
+		return nil, fmt.Errorf("invalid search coordinates")
+	}
 
-	lon, lat, label, ok := cityCenter(city)
+	_, _, label, ok := cityCenter(city)
 	if !ok {
 		return nil, fmt.Errorf("unsupported city %q", city)
 	}
@@ -111,7 +126,7 @@ func (c *Client) Search(ctx context.Context, query, city string) ([]catalog.Plac
 	params.Set("location", fmt.Sprintf("%.6f,%.6f", lon, lat))
 	params.Set("type", "branch")
 	params.Set("fields", "items.point,items.rubrics,items.reviews,items.schedule,items.description")
-	params.Set("page_size", "10")
+	params.Set("page_size", "20")
 	params.Set("key", c.apiKey)
 
 	payload, err := c.get(ctx, endpoint, params)
@@ -269,6 +284,10 @@ func normalizeSchedule(value *schedule) *catalog.OpeningHours {
 		return nil
 	}
 	return out
+}
+
+func validCoordinate(lat, lon float64) bool {
+	return lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180
 }
 
 func cityCenter(city string) (lon, lat float64, label string, ok bool) {
