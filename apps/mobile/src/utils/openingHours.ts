@@ -8,6 +8,10 @@ export type SpotOpenState =
 const DAY_KEYS: SpotDay[] = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 const MOSCOW_UTC_OFFSET_MS = 3 * 60 * 60 * 1000;
 
+function dayKey(index: number): SpotDay {
+  return DAY_KEYS[index] ?? 'sun';
+}
+
 function placeTime(now: Date) {
   return new Date(now.getTime() + MOSCOW_UTC_OFFSET_MS);
 }
@@ -48,8 +52,8 @@ export function getSpotOpenState(
 
   const local = placeTime(now);
   const dayIndex = local.getUTCDay();
-  const day = DAY_KEYS[dayIndex];
-  const previousDay = DAY_KEYS[(dayIndex + 6) % 7];
+  const day = dayKey(dayIndex);
+  const previousDay = dayKey((dayIndex + 6) % 7);
   const currentMinutes = local.getUTCHours() * 60 + local.getUTCMinutes();
 
   for (const range of intervalsFor(hours, previousDay)) {
@@ -94,7 +98,7 @@ export function getTodayHoursLabel(
   if (hours.is24x7) return 'Круглосуточно';
 
   const local = placeTime(now);
-  const day = DAY_KEYS[local.getUTCDay()];
+  const day = dayKey(local.getUTCDay());
   const ranges = intervalsFor(hours, day);
 
   if (ranges.length === 0) return 'Закрыто';
