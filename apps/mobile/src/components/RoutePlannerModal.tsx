@@ -56,7 +56,7 @@ const CITY_CENTERS: Record<CitySlug, Coordinates> = {
 };
 
 const MAX_CITY_START_DISTANCE_METERS = 120_000;
-const STOP_DWELL_SECONDS = 45 * 60;
+const DEFAULT_STOP_MINUTES = 45;
 const MOSCOW_UTC_OFFSET_MS = 3 * 60 * 60 * 1000;
 
 function moscowClockTarget(
@@ -157,7 +157,8 @@ function buildRoute(
   variation: number,
   transport: RouteTransport,
   start: Coordinates | null,
-  now: Date
+  now: Date,
+  stopMinutes: number
 ) {
   const candidates = spots.filter((spot) => spot.status !== 'visited');
   if (candidates.length === 0) return [];
@@ -207,7 +208,7 @@ function buildRoute(
     route.push(best);
     used.add(best.id);
     seenCategories.add(best.category);
-    elapsedSeconds += STOP_DWELL_SECONDS;
+    elapsedSeconds += stopMinutes * 60;
   }
 
   return route;
@@ -331,6 +332,9 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
   const [routeCity, setRouteCity] = useState<CitySlug>(selectedCity);
   const [transport, setTransport] = useState<RouteTransport>('walking');
   const [routeStart, setRouteStart] = useState<RouteStartPreset>('now');
+  const [stopMinutes, setStopMinutes] = useState(DEFAULT_STOP_MINUTES);
+  const [manualOrder, setManualOrder] = useState<string[]>([]);
+  const [editOrder, setEditOrder] = useState(false);
   const [startFromMe, setStartFromMe] = useState(false);
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
   const [locationBusy, setLocationBusy] = useState(false);
@@ -341,6 +345,9 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
     if (!visible) return;
     setRouteCity(selectedCity);
     setRouteStart('now');
+    setStopMinutes(DEFAULT_STOP_MINUTES);
+    setManualOrder([]);
+    setEditOrder(false);
     setVariation(0);
     setSaved(false);
     setRemoteSummary(null);
@@ -380,7 +387,7 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
     () => savedSpots.filter((spot) => spot.city === routeCity && spot.status !== 'visited'),
     [routeCity, savedSpots]
   );
-  const route = useMemo(
+  const generatedRoute = useMemo(
     () => buildRoute(
       eligible,
       interests,
@@ -388,7 +395,8 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
       variation,
       transport,
       startCoordinate,
-      planBaseTime
+      planBaseTime,
+      stopMinutes
     ),
     [
       eligible,
@@ -396,9 +404,27 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
       option.places,
       planBaseTime,
       startCoordinate,
+      stopMinutes,
       transport,
       variation
     ]
+  );
+
+  const route = useMemo(() => {
+    if (manualOrder.length !== generatedRoute.length) return generatedRoute;
+
+    const byID = new Map(generatedRoute.map((spot) => [spot.id, spot]));
+    const ordered = manualOrder
+      .map((id) => byID.get(id))
+      .filter((spot): spot is Spot => Boolean(spot));
+
+    if (ordered.length !== generatedRoute.length) return generatedRoute;
+    return ordered;
+  }, [generatedRoute, manualOrder]);
+
+  const hasManualOrder = useMemo(
+    () => route.some((spot, index) => spot.id !== generatedRoute[index]?.id),
+    [generatedRoute, route]
   );
 
   const routePoints = useMemo(() => {
@@ -455,11 +481,11 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
 
       const arrival = new Date(planBaseTime.getTime() + elapsedSeconds * 1000);
       const openState = getSpotOpenState(spot, arrival);
-      elapsedSeconds += STOP_DWELL_SECONDS;
+      elapsedSeconds += stopMinutes * 60;
 
       return { spot, arrival, openState };
     });
-  }, [effectiveSummary, planBaseTime, route, startCoordinate]);
+  }, [effectiveSummary, planBaseTime, route, startCoordinate, stopMinutes]);
 
   const transportLabel = transport === 'driving' ? 'На машине' : 'Пешком';
   const routeSourceLabel = routingBusy
@@ -470,13 +496,30 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
         ? 'частично по улицам 2ГИС'
         : 'оценка по расстоянию';
 
+  function clearManualOrder() {
+    setManualOrder([]);
+    setEditOrder(false);
+  }
+
   function rebuild() {
+    clearManualOrder();
     setSaved(false);
     setVariation((current) => current + 1);
   }
 
+  function moveRouteStop(index: number, direction: 'up' | 'down') {
+    const target = direction === 'up' ? index - 1 : index + 1;
+    if (target < 0 || target >= route.length) return;
+
+    const next = route.map((spot) => spot.id);
+    [next[index], next[target]] = [next[target] as string, next[index] as string];
+    setManualOrder(next);
+    setSaved(false);
+  }
+
   async function toggleStartFromMe() {
     if (startFromMe) {
+      clearManualOrder();
       setStartFromMe(false);
       return;
     }
@@ -515,6 +558,7 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
       }
 
       setUserLocation(coordinates);
+      clearManualOrder();
       setStartFromMe(true);
       setSaved(false);
       setVariation(0);
@@ -533,7 +577,7 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
 
     const collection = createCollection({
       title: `Маршрут · ${CITY_LABELS[routeCity]}`,
-      subtitle: planStartLabel + ' · ' + option.label + ' · ' + String(route.length) + ' мест · ' + transportLabel,
+      subtitle: planStartLabel + ' · ' + option.label + ' · ' + String(route.length) + ' мест · ' + transportLabel + ' · ' + String(stopMinutes) + ' мин/место',
       city: routeCity
     });
 
@@ -554,8 +598,9 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
     const routeMeta = effectiveSummary
       ? planStartLabel + ' · ' + transportLabel + ' · ' +
         formatDistance(effectiveSummary.totalDistanceMeters) + ' · ' +
-        formatDuration(effectiveSummary.totalDurationSeconds) + ' в пути'
-      : planStartLabel + ' · ' + transportLabel;
+        formatDuration(effectiveSummary.totalDurationSeconds) + ' в пути · ' +
+        String(stopMinutes) + ' мин/место'
+      : planStartLabel + ' · ' + transportLabel + ' · ' + String(stopMinutes) + ' мин/место';
 
     await Share.share({
       title: 'Маршрут · ' + CITY_LABELS[routeCity],
