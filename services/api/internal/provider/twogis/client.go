@@ -143,7 +143,7 @@ func (c *Client) SearchAtPage(
 		page = 1
 	}
 	params.Set("page", fmt.Sprintf("%d", page))
-	params.Set("page_size", "50")
+	params.Set("page_size", "10")
 	params.Set("locale", "ru_RU")
 	params.Set("key", c.apiKey)
 
