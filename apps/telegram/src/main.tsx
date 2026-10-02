@@ -98,6 +98,8 @@ function App() {
   const [search, setSearch] = useState('');
   const [searchResults, setSearchResults] = useState<Spot[]>([]);
   const [searching, setSearching] = useState(false);
+  const [searchPage, setSearchPage] = useState(1);
+  const [canLoadMore, setCanLoadMore] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<'all' | SpotStatus>('all');
   const [importURL, setImportURL] = useState('');
@@ -251,25 +253,51 @@ function App() {
     setToast('Подборка создана');
   }
 
-  async function runSearch(query = search, category = activeCategory) {
+  async function runSearch(
+    query = search,
+    category = activeCategory,
+    page = 1,
+    append = false
+  ) {
     if (!session && !demoMode) return;
     setSearching(true);
 
     try {
       if (demoMode) {
         const q = query.trim().toLowerCase();
-        setSearchResults(demoSpots.filter((spot) => (
+        const next = demoSpots.filter((spot) => (
           (!q || (spot.name + ' ' + spot.address).toLowerCase().includes(q)) &&
           (!category || spot.category === category)
-        )));
+        ));
+        setSearchResults(next);
+        setCanLoadMore(false);
+        setSearchPage(1);
       } else if (session) {
-        setSearchResults(await searchPlaces(session.token, query, city, category || undefined));
+        const next = await searchPlaces(
+          session.token,
+          query,
+          city,
+          category || undefined,
+          undefined,
+          page
+        );
+        setSearchResults((current) => append
+          ? Array.from(new Map([...current, ...next].map((spot) => [spot.id, spot])).values())
+          : next
+        );
+        setCanLoadMore(next.length >= 50);
+        setSearchPage(page);
       }
     } catch {
       setToast('Поиск временно недоступен');
     } finally {
       setSearching(false);
     }
+  }
+
+  async function loadMorePlaces() {
+    if (searching || !canLoadMore) return;
+    await runSearch(search, activeCategory, searchPage + 1, true);
   }
 
   async function runImport() {
@@ -340,10 +368,17 @@ function App() {
         </div>
         <button
           className="city-pill"
-          onClick={() => updateCloud((current) => ({
-            ...current,
-            selected_city: current.selected_city === 'spb' ? 'moscow' : 'spb'
-          }))}
+          onClick={() => {
+            setSearchResults([]);
+            setSearch('');
+            setActiveCategory('');
+            setSearchPage(1);
+            setCanLoadMore(false);
+            updateCloud((current) => ({
+              ...current,
+              selected_city: current.selected_city === 'spb' ? 'moscow' : 'spb'
+            }));
+          }}
         >
           <span>{city === 'spb' ? 'СПБ' : 'МСК'}</span>
           <span className="city-switch-icon">⇅</span>
@@ -376,16 +411,19 @@ function App() {
                 className={!activeCategory ? 'active' : ''}
                 onClick={() => {
                   setActiveCategory('');
-                  void runSearch(search, '');
+                  setSearchResults([]);
+                  setSearchPage(1);
+                  setCanLoadMore(false);
                 }}
-              >Все</button>
+              >Мои на карте</button>
               {categories.map(([id, icon, label]) => (
                 <button
                   key={id}
                   className={activeCategory === id ? 'active' : ''}
                   onClick={() => {
                     setActiveCategory(id);
-                    void runSearch(search, id);
+                    setSearchPage(1);
+                    void runSearch(search, id, 1, false);
                   }}
                 ><SpotIcon name={icon} size={14} /> {label}</button>
               ))}
@@ -410,6 +448,12 @@ function App() {
               onUpdate={updateSpot}
               onOpen={setSelectedSpot}
             />
+            {searchResults.length > 0 && canLoadMore ? (
+              <button className="load-more" disabled={searching} onClick={() => void loadMorePlaces()}>
+                <span>{searching ? 'Загружаем…' : 'Показать ещё места'}</span>
+                {!searching ? <SpotIcon name="chevron" size={16} /> : null}
+              </button>
+            ) : null}
           </section>
         ) : null}
 
