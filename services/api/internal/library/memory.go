@@ -437,6 +437,49 @@ func (s *MemoryStore) SetCollectionPlace(_ context.Context, userID, collectionID
 	return cloneCollection(collection), nil
 }
 
+func (s *MemoryStore) SetCollectionPlaceOrder(
+	_ context.Context,
+	userID, collectionID string,
+	placeIDs []string,
+) (Collection, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	collection, ok := s.collections[userID][collectionID]
+	if !ok {
+		return Collection{}, ErrNotFound
+	}
+
+	seen := make(map[string]struct{}, len(placeIDs))
+	ordered := make([]string, 0, len(placeIDs))
+	for _, rawID := range placeIDs {
+		placeID := strings.TrimSpace(rawID)
+		if placeID == "" {
+			return Collection{}, ErrInvalidInput
+		}
+		if _, duplicate := seen[placeID]; duplicate {
+			return Collection{}, ErrInvalidInput
+		}
+		if _, saved := s.places[userID][placeID]; !saved {
+			return Collection{}, ErrPlaceNotSaved
+		}
+		if !containsString(collection.PlaceIDs, placeID) {
+			return Collection{}, ErrNotFound
+		}
+		seen[placeID] = struct{}{}
+		ordered = append(ordered, placeID)
+	}
+
+	if len(ordered) != len(collection.PlaceIDs) {
+		return Collection{}, ErrInvalidInput
+	}
+
+	collection.PlaceIDs = ordered
+	collection.UpdatedAt = time.Now().UTC()
+	s.collections[userID][collectionID] = collection
+	return cloneCollection(collection), nil
+}
+
 func (s *MemoryStore) Mode() string { return "memory" }
 func (s *MemoryStore) Close()       {}
 
