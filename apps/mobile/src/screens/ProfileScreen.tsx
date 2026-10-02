@@ -1,6 +1,7 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, useColorScheme, View } from 'react-native';
 
+import { VisitHistoryModal } from '../components/VisitHistoryModal';
 import { useSpotStore, type SyncStatus } from '../state/SpotStore';
 import { colors } from '../theme';
 
@@ -14,6 +15,7 @@ const syncCopy: Record<SyncStatus, string> = {
 
 export function ProfileScreen() {
   const dark = useColorScheme() === 'dark';
+  const [historyOpen, setHistoryOpen] = useState(false);
   const {
     savedSpots,
     collections,
@@ -76,13 +78,29 @@ export function ProfileScreen() {
       </Pressable>
 
       <View style={[styles.menu, { backgroundColor: surface }]}>
-        {['История посещений', 'Уведомления рядом', 'Тема приложения', 'Настройки', 'Помощь'].map((label) => (
+        <Pressable onPress={() => setHistoryOpen(true)} style={styles.menuRow}>
+          <Text style={[styles.menuText, { color: text }]}>История посещений</Text>
+          <Text style={[styles.menuValue, { color: muted }]}>{visited}</Text>
+          <Text style={[styles.chevron, { color: muted }]}>›</Text>
+        </Pressable>
+
+        {[
+          ['Уведомления рядом', 'Скоро'],
+          ['Тема приложения', 'Системная'],
+          ['Настройки', 'Скоро'],
+          ['Помощь', 'Скоро']
+        ].map(([label, value]) => (
           <View key={label} style={styles.menuRow}>
             <Text style={[styles.menuText, { color: text }]}>{label}</Text>
-            <Text style={[styles.chevron, { color: muted }]}>›</Text>
+            <Text style={[styles.menuValue, { color: muted }]}>{value}</Text>
           </View>
         ))}
       </View>
+
+      <VisitHistoryModal
+        visible={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+      />
     </View>
   );
 }
@@ -198,7 +216,13 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700'
   },
+  menuValue: {
+    marginLeft: 12,
+    fontSize: 12,
+    fontWeight: '700'
+  },
   chevron: {
+    marginLeft: 6,
     fontSize: 24
   }
 });
