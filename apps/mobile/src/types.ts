@@ -35,6 +35,8 @@ export type Collection = {
   id: string;
   title: string;
   subtitle: string;
-  count: number;
+  city: CitySlug | 'both';
   cityLabel: string;
+  placeIds: string[];
+  createdAt: string;
 };
