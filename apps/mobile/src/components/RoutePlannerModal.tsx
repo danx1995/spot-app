@@ -533,7 +533,7 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
 
     const collection = createCollection({
       title: `Маршрут · ${CITY_LABELS[routeCity]}`,
-      subtitle: option.label + ' · ' + String(route.length) + ' мест · ' + transportLabel,
+      subtitle: planStartLabel + ' · ' + option.label + ' · ' + String(route.length) + ' мест · ' + transportLabel,
       city: routeCity
     });
 
@@ -552,10 +552,10 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
     if (route.length < 2) return;
 
     const routeMeta = effectiveSummary
-      ? transportLabel + ' · ' +
+      ? planStartLabel + ' · ' + transportLabel + ' · ' +
         formatDistance(effectiveSummary.totalDistanceMeters) + ' · ' +
         formatDuration(effectiveSummary.totalDurationSeconds) + ' в пути'
-      : transportLabel;
+      : planStartLabel + ' · ' + transportLabel;
 
     await Share.share({
       title: 'Маршрут · ' + CITY_LABELS[routeCity],
