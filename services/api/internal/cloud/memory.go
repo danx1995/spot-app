@@ -6,20 +6,23 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 )
 
 type MemoryStore struct {
-	mu     sync.RWMutex
-	users  map[string]UserProfile
-	states map[string]State
+	mu         sync.RWMutex
+	users      map[string]UserProfile
+	states     map[string]State
+	identities map[string]string
 }
 
 func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{
-		users:  make(map[string]UserProfile),
-		states: make(map[string]State),
+		users:      make(map[string]UserProfile),
+		states:     make(map[string]State),
+		identities: make(map[string]string),
 	}
 }
 
@@ -91,6 +94,73 @@ func (s *MemoryStore) PatchUserProfile(_ context.Context, userID string, patch U
 	next.LastSeenAt = &now
 	s.users[userID] = next
 	return next, nil
+}
+
+func (s *MemoryStore) LinkIdentity(_ context.Context, userID string, identity VerifiedIdentity) (UserProfile, error) {
+	identity, err := normalizeIdentity(identity)
+	if err != nil {
+		return UserProfile{}, err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	profile, ok := s.users[userID]
+	if !ok {
+		return UserProfile{}, ErrUserNotFound
+	}
+
+	key := identityKey(identity.Provider, identity.Subject)
+	if existingUserID, exists := s.identities[key]; exists && existingUserID != userID {
+		return UserProfile{}, ErrIdentityInUse
+	}
+
+	providerPrefix := identity.Provider + "|"
+	for existingKey, existingUserID := range s.identities {
+		if existingUserID == userID && strings.HasPrefix(existingKey, providerPrefix) && existingKey != key {
+			return UserProfile{}, ErrIdentityInUse
+		}
+	}
+
+	s.identities[key] = userID
+
+	if identity.EmailVerified && profile.Email == "" {
+		profile.Email = identity.Email
+	}
+	if profile.DisplayName == "" {
+		profile.DisplayName = identity.DisplayName
+	}
+	if profile.AvatarURL == "" {
+		profile.AvatarURL = identity.AvatarURL
+	}
+
+	now := time.Now().UTC()
+	profile.IsGuest = false
+	profile.UpdatedAt = now
+	profile.LastSeenAt = &now
+	s.users[userID] = profile
+	return profile, nil
+}
+
+func (s *MemoryStore) FindUserByIdentity(_ context.Context, provider, subject string) (UserProfile, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	userID, ok := s.identities[identityKey(provider, subject)]
+	if !ok {
+		return UserProfile{}, ErrIdentityNotFound
+	}
+
+	profile, ok := s.users[userID]
+	if !ok {
+		return UserProfile{}, ErrUserNotFound
+	}
+
+	now := time.Now().UTC()
+	profile.LastSeenAt = &now
+	profile.UpdatedAt = now
+	s.users[userID] = profile
+	return profile, nil
 }
 
 func (s *MemoryStore) GetState(_ context.Context, userID string) (State, error) {

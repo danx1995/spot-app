@@ -11,6 +11,7 @@ func TestEmbeddedVersionsSorted(t *testing.T) {
 	expected := []string{
 		"0004_account_profiles.sql",
 		"0005_account_transfer_codes.sql",
+		"0006_auth_identities.sql",
 	}
 	if len(versions) != len(expected) {
 		t.Fatalf("unexpected migration count: got %d want %d (%v)", len(versions), len(expected), versions)
