@@ -10,17 +10,13 @@ import {
   View
 } from 'react-native';
 
+import { ManualPlaceModal } from '../components/ManualPlaceModal';
 import { PlaceDetailModal } from '../components/PlaceDetailModal';
 import { SpotCard } from '../components/SpotCard';
 import { searchPlaces } from '../services/api';
 import { useSpotStore } from '../state/SpotStore';
 import { colors } from '../theme';
 import type { Spot } from '../types';
-
-const secondaryActions = [
-  { symbol: '↗', title: 'Вставить ссылку', subtitle: 'Reels, TikTok, Telegram или сайт' },
-  { symbol: '+', title: 'Добавить вручную', subtitle: 'Если места пока нет в СПОТ' }
-];
 
 export function AddScreen() {
   const dark = useColorScheme() === 'dark';
@@ -34,6 +30,7 @@ export function AddScreen() {
   const [results, setResults] = useState<Spot[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
+  const [manualOpen, setManualOpen] = useState(false);
 
   useEffect(() => {
     const normalized = query.trim();
@@ -122,28 +119,39 @@ export function AddScreen() {
             ))}
 
             {!loading && results.length === 0 ? (
-              <View style={[styles.empty, { backgroundColor: surface }]}>
+              <Pressable
+                onPress={() => setManualOpen(true)}
+                style={[styles.empty, { backgroundColor: surface }]}
+              >
                 <Text style={[styles.emptyTitle, { color: text }]}>Не нашли такой спот</Text>
                 <Text style={[styles.emptyText, { color: muted }]}>
-                  Можно добавить место вручную — позже мы свяжем его с официальной карточкой.
+                  Добавь его вручную и поставь точную метку на карте.
                 </Text>
-              </View>
+                <Text style={styles.emptyAction}>Добавить вручную →</Text>
+              </Pressable>
             ) : null}
           </View>
         ) : (
           <>
             <Text style={[styles.sectionLabel, { color: muted }]}>ЕЩЁ СПОСОБЫ</Text>
             <View style={styles.actions}>
-              {secondaryActions.map((action) => (
-                <Pressable key={action.title} style={[styles.action, { backgroundColor: surface }]}>
-                  <View style={styles.actionIcon}><Text style={styles.actionSymbol}>{action.symbol}</Text></View>
-                  <View style={styles.actionCopy}>
-                    <Text style={[styles.actionTitle, { color: text }]}>{action.title}</Text>
-                    <Text style={[styles.actionSubtitle, { color: muted }]}>{action.subtitle}</Text>
-                  </View>
-                  <Text style={[styles.chevron, { color: muted }]}>›</Text>
-                </Pressable>
-              ))}
+              <Pressable style={[styles.action, { backgroundColor: surface }]}>
+                <View style={styles.actionIcon}><Text style={styles.actionSymbol}>↗</Text></View>
+                <View style={styles.actionCopy}>
+                  <Text style={[styles.actionTitle, { color: text }]}>Вставить ссылку</Text>
+                  <Text style={[styles.actionSubtitle, { color: muted }]}>Reels, TikTok, Telegram или сайт · скоро</Text>
+                </View>
+                <Text style={[styles.chevron, { color: muted }]}>›</Text>
+              </Pressable>
+
+              <Pressable onPress={() => setManualOpen(true)} style={[styles.action, { backgroundColor: surface }]}>
+                <View style={styles.actionIcon}><Text style={styles.actionSymbol}>+</Text></View>
+                <View style={styles.actionCopy}>
+                  <Text style={[styles.actionTitle, { color: text }]}>Добавить вручную</Text>
+                  <Text style={[styles.actionSubtitle, { color: muted }]}>Название, категория и точка на карте</Text>
+                </View>
+                <Text style={[styles.chevron, { color: muted }]}>›</Text>
+              </Pressable>
             </View>
 
             <View style={[styles.tip, { backgroundColor: dark ? colors.darkSurfaceRaised : '#E7F8F0' }]}>
@@ -160,6 +168,11 @@ export function AddScreen() {
         spot={selectedSpot}
         visible={Boolean(selectedSpot)}
         onClose={() => setSelectedSpot(null)}
+      />
+
+      <ManualPlaceModal
+        visible={manualOpen}
+        onClose={() => setManualOpen(false)}
       />
     </View>
   );
@@ -272,6 +285,12 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontSize: 13,
     lineHeight: 19
+  },
+  emptyAction: {
+    marginTop: 12,
+    color: colors.green,
+    fontSize: 13,
+    fontWeight: '900'
   },
   sectionLabel: {
     marginTop: 30,
