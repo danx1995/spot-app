@@ -4,6 +4,7 @@ import * as Location from 'expo-location';
 import MapView, { Marker, type Region } from 'react-native-maps';
 
 import { CategoryChip } from '../components/CategoryChip';
+import { MapSearchSheet } from '../components/MapSearchSheet';
 import { PlaceDetailModal } from '../components/PlaceDetailModal';
 import { SpotCard } from '../components/SpotCard';
 import { categories } from '../data/mock';
@@ -49,6 +50,7 @@ export function MapScreen() {
   const { savedSpots, selectedCity, setSelectedCity } = useSpotStore();
   const [category, setCategory] = useState<(typeof categories)[number]['id']>('all');
   const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [locationBusy, setLocationBusy] = useState(false);
 
   const filtered = useMemo(
@@ -58,6 +60,13 @@ export function MapScreen() {
     }),
     [category, savedSpots, selectedCity]
   );
+
+  const markerSpots = useMemo(() => {
+    if (!selectedSpot || savedSpots.some((spot) => spot.id === selectedSpot.id)) {
+      return filtered;
+    }
+    return [selectedSpot, ...filtered];
+  }, [filtered, savedSpots, selectedSpot]);
 
   const nearby = selectedSpot ?? filtered[0];
 
@@ -92,6 +101,16 @@ export function MapScreen() {
     setSelectedCity(selectedCity === 'spb' ? 'moscow' : 'spb');
   }
 
+  function selectSearchResult(spot: Spot) {
+    setSelectedSpot(spot);
+    mapRef.current?.animateToRegion({
+      latitude: spot.latitude,
+      longitude: spot.longitude,
+      latitudeDelta: 0.02,
+      longitudeDelta: 0.02
+    }, 450);
+  }
+
   return (
     <View style={[styles.root, { backgroundColor: dark ? colors.black : colors.lightBackground }]}>
       <MapView
@@ -106,20 +125,29 @@ export function MapScreen() {
         toolbarEnabled={false}
         onPress={() => setSelectedSpot(null)}
       >
-        {filtered.map((spot) => (
-          <Marker
-            key={spot.id}
-            coordinate={{ latitude: spot.latitude, longitude: spot.longitude }}
-            onPress={(event) => {
-              event.stopPropagation();
-              setSelectedSpot(spot);
-            }}
-          >
-            <View style={[styles.pin, selectedSpot?.id === spot.id && styles.pinSelected]}>
-              <Text style={styles.pinHeart}>♥</Text>
-            </View>
-          </Marker>
-        ))}
+        {markerSpots.map((spot) => {
+          const saved = savedSpots.some((item) => item.id === spot.id);
+          const selected = selectedSpot?.id === spot.id;
+
+          return (
+            <Marker
+              key={spot.id}
+              coordinate={{ latitude: spot.latitude, longitude: spot.longitude }}
+              onPress={(event) => {
+                event.stopPropagation();
+                setSelectedSpot(spot);
+              }}
+            >
+              <View style={[
+                styles.pin,
+                !saved && styles.searchPin,
+                selected && styles.pinSelected
+              ]}>
+                <Text style={styles.pinHeart}>{saved ? '♥' : '+'}</Text>
+              </View>
+            </Marker>
+          );
+        })}
       </MapView>
 
       <View style={styles.header}>
@@ -129,7 +157,7 @@ export function MapScreen() {
             <Text style={styles.city}>{CITY_LABELS[selectedCity]}⌄</Text>
           </Pressable>
         </View>
-        <Pressable style={styles.searchButton}>
+        <Pressable onPress={() => setSearchOpen(true)} style={styles.searchButton}>
           <Text style={styles.searchText}>⌕</Text>
         </Pressable>
       </View>
@@ -169,9 +197,16 @@ export function MapScreen() {
       ) : (
         <View style={styles.emptyCard}>
           <Text style={styles.emptyTitle}>Здесь пока нет спотов</Text>
-          <Text style={styles.emptyText}>Добавь место в {CITY_LABELS[selectedCity]} через зелёную кнопку «+».</Text>
+          <Text style={styles.emptyText}>Найди место через поиск или добавь его через зелёную кнопку «+».</Text>
         </View>
       )}
+
+      <MapSearchSheet
+        visible={searchOpen}
+        city={selectedCity}
+        onClose={() => setSearchOpen(false)}
+        onSelect={selectSearchResult}
+      />
 
       <PlaceDetailModal
         spot={selectedSpot}
@@ -242,6 +277,10 @@ const styles = StyleSheet.create({
     borderColor: colors.black,
     alignItems: 'center',
     justifyContent: 'center'
+  },
+  searchPin: {
+    backgroundColor: colors.white,
+    borderColor: colors.green
   },
   pinSelected: {
     width: 50,
