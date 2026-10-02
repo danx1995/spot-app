@@ -11,6 +11,8 @@ import {
 } from 'react-native';
 
 import { CollectionDetailModal } from '../components/CollectionDetailModal';
+import { SharedCollectionImportModal } from '../components/SharedCollectionImportModal';
+import { useInboundImport } from '../state/InboundImport';
 import { useSpotStore } from '../state/SpotStore';
 import { colors } from '../theme';
 import type { CitySlug } from '../types';
@@ -20,6 +22,7 @@ type CollectionCity = CitySlug | 'both';
 export function CollectionsScreen() {
   const dark = useColorScheme() === 'dark';
   const { collections, createCollection } = useSpotStore();
+  const { pendingCollectionID, consumePendingCollection } = useInboundImport();
   const [creatorOpen, setCreatorOpen] = useState(false);
   const [selectedCollectionID, setSelectedCollectionID] = useState<string | null>(null);
   const [title, setTitle] = useState('');
@@ -137,8 +140,14 @@ export function CollectionsScreen() {
 
       <CollectionDetailModal
         collection={selectedCollection}
-        visible={Boolean(selectedCollection)}
+        visible={Boolean(selectedCollection) && !pendingCollectionID}
         onClose={() => setSelectedCollectionID(null)}
+      />
+
+      <SharedCollectionImportModal
+        collectionID={pendingCollectionID}
+        visible={Boolean(pendingCollectionID)}
+        onClose={consumePendingCollection}
       />
     </View>
   );
