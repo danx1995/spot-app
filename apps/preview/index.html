@@ -94,6 +94,8 @@
     .route-transport.active{background:var(--green);color:var(--black)}
     .route-from{flex:.9}.route-from.active{background:#173528;color:var(--green)}
     .route-location-note{margin-top:6px;padding:0 3px;color:var(--muted);font-size:8px;line-height:1.4}
+    .route-time-label{margin:10px 3px 5px;color:var(--muted);font-size:7px;font-weight:950;letter-spacing:.12em}
+    .route-time-row{display:flex;gap:7px}.route-time{min-height:44px}.route-time b{display:block;font-size:9px}.route-time span{display:block;font-size:7px;margin-top:2px;opacity:.72}.route-time.active{background:#173528;color:var(--green)}
     .route-length{min-height:55px}.route-length b{display:block;color:inherit;font-size:10px}.route-length span{display:block;font-size:8px;margin-top:3px;opacity:.72}
     .route-length.active{background:var(--green);color:var(--black)}
     .route-summary{margin:14px 18px 0;padding:15px 16px;border-radius:21px;background:var(--surface);display:flex;align-items:center;gap:10px}
@@ -387,6 +389,12 @@
                   <button class="route-choice route-from" id="routeFromMe">⌖ От меня</button>
                 </div>
                 <div class="route-location-note">В мобильном приложении геопозиция запрашивается только после нажатия «От меня».</div>
+                <div class="route-time-label">КОГДА</div>
+                <div class="route-time-row">
+                  <button class="route-choice route-time active" data-route-start="now"><b>Сейчас</b><span>по текущему времени</span></button>
+                  <button class="route-choice route-time" data-route-start="evening"><b>Вечером</b><span>19:00</span></button>
+                  <button class="route-choice route-time" data-route-start="tomorrow"><b>Завтра</b><span>12:00</span></button>
+                </div>
                 <div class="route-length-row">
                   <button class="route-choice route-length" data-route-length="3"><b>2–3 часа</b><span>3 места</span></button>
                   <button class="route-choice route-length active" data-route-length="4"><b>Полдня</b><span>4 места</span></button>
@@ -635,6 +643,7 @@
     let routeVariation=0;
     let routeTransport='walking';
     let routeFromMe=false;
+    let routeStart='now';
 
     function routeMetric(city,length,transport,fromMe){
       const base={
@@ -677,12 +686,14 @@
       const routeLabel=routeTransport==='walking'?'пешком':'на машине';
       const firstTravel=routeFromMe?(routeTransport==='walking'?15:7):0;
       const legMinutes=routeTransport==='walking'?18:8;
-      let arrival=18*60+firstTravel;
+      const startMinute=routeStart==='tomorrow'?12*60:routeStart==='evening'?19*60:18*60;
+      const startLabel=routeStart==='tomorrow'?'Завтра · 12:00':routeStart==='evening'?'Сегодня · 19:00':'Сейчас';
+      let arrival=startMinute+firstTravel;
 
       document.getElementById('routeCityLabel').textContent=routeCity==='spb'?'САНКТ-ПЕТЕРБУРГ':'МОСКВА';
       document.getElementById('routePlanLabel').textContent=plan+' · '+routeLength+' остановки';
       document.getElementById('routeDistanceLabel').textContent=metric.distance.toFixed(1).replace('.',',')+' км · '+formatRouteMinutes(metric.minutes)+' в пути';
-      document.getElementById('routeSourceLabel').textContent=routeLabel+' · по улицам 2ГИС';
+      document.getElementById('routeSourceLabel').textContent=startLabel+' · '+routeLabel+' · по улицам 2ГИС';
       document.getElementById('routeStops').innerHTML=ordered.map((spot,index)=>{
         if(index>0) arrival+=legMinutes+45;
         return '<div class="route-stop">'+
@@ -716,6 +727,13 @@
       routeTransport=button.dataset.routeTransport;
       routeVariation=0;
       document.querySelectorAll('[data-route-transport]').forEach(item=>item.classList.toggle('active',item===button));
+      renderRoutePreview();
+    }));
+    document.querySelectorAll('[data-route-start]').forEach(button=>button.addEventListener('click',()=>{
+      routeStart=button.dataset.routeStart;
+      routeVariation=0;
+      document.querySelectorAll('[data-route-start]').forEach(item=>item.classList.toggle('active',item===button));
+      document.getElementById('routeSave').textContent='♥ В подборку';
       renderRoutePreview();
     }));
     document.querySelectorAll('[data-route-length]').forEach(button=>button.addEventListener('click',()=>{
