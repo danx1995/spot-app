@@ -82,6 +82,16 @@ export function RouteRunModal({
 
   const routePlan = collection.routePlan;
   const driving = routePlan.transport === 'driving';
+  const progressWidth = (
+    String(
+      spots.length === 0
+        ? 0
+        : Math.min(
+            100,
+            ((progress.completed + progress.skipped) / spots.length) * 100
+          )
+    ) + '%'
+  ) as `${number}%`;
 
   async function openCurrentInMaps() {
     if (!progress.current) return;
@@ -136,16 +146,7 @@ export function RouteRunModal({
             <View
               style={[
                 styles.progressFill,
-                {
-                  width: spots.length === 0
-                    ? '0%'
-                    : String(
-                        Math.min(
-                          100,
-                          ((progress.completed + progress.skipped) / spots.length) * 100
-                        )
-                      ) + '%'
-                }
+                { width: progressWidth }
               ]}
             />
           </View>
