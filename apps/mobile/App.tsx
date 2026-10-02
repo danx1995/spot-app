@@ -39,7 +39,7 @@ const icons: Record<string, string> = {
 
 function SpotApp() {
   const isDark = useColorScheme() === 'dark';
-  const { setSelectedCity } = useSpotStore();
+  const { setSelectedCity, setInterests } = useSpotStore();
   const { pendingURL, pendingCollectionID, pendingPlaceID } = useInboundImport();
   const [onboarded, setOnboarded] = useState<boolean | null>(null);
 
@@ -83,8 +83,9 @@ function SpotApp() {
       <>
         <StatusBar style="light" />
         <OnboardingScreen
-          onComplete={(city) => {
+          onComplete={(city, interests) => {
             setSelectedCity(city === 'moscow' ? 'moscow' : 'spb');
+            setInterests(interests);
             setOnboarded(true);
             void AsyncStorage.setItem(ONBOARDING_KEY, '1');
           }}
