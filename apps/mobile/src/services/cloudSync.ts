@@ -18,7 +18,7 @@ export type CloudEnvelope = {
   updated_at: string | null;
 };
 
-type GuestSession = {
+export type GuestSession = {
   user_id: string;
   token: string;
 };
@@ -63,6 +63,13 @@ export async function ensureGuestSession(): Promise<GuestSession> {
   ]);
 
   return session;
+}
+
+export async function replaceGuestSession(session: GuestSession) {
+  await Promise.all([
+    AsyncStorage.setItem(SESSION_TOKEN_KEY, session.token),
+    AsyncStorage.setItem(SESSION_USER_KEY, session.user_id)
+  ]);
 }
 
 export async function resetGuestSession() {
