@@ -1,10 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, useColorScheme, View } from 'react-native';
-import { NavigationContainer, DarkTheme, DefaultTheme } from '@react-navigation/native';
+import { NavigationContainer, DarkTheme, DefaultTheme, createNavigationContainerRef } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StatusBar } from 'expo-status-bar';
 
+import { InboundImportProvider, useInboundImport } from './src/state/InboundImport';
 import { SpotStoreProvider, useSpotStore } from './src/state/SpotStore';
 import { colors } from './src/theme';
 import { AddScreen } from './src/screens/AddScreen';
@@ -14,7 +15,16 @@ import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { SpotsScreen } from './src/screens/SpotsScreen';
 
-const Tab = createBottomTabNavigator();
+type RootTabParamList = {
+  'Карта': undefined;
+  'Споты': undefined;
+  '+': undefined;
+  'Подборки': undefined;
+  'Профиль': undefined;
+};
+
+const Tab = createBottomTabNavigator<RootTabParamList>();
+const navigationRef = createNavigationContainerRef<RootTabParamList>();
 const ONBOARDING_KEY = '@spot/onboarding-complete/v1';
 
 const icons: Record<string, string> = {
@@ -28,6 +38,7 @@ const icons: Record<string, string> = {
 function SpotApp() {
   const isDark = useColorScheme() === 'dark';
   const { setSelectedCity } = useSpotStore();
+  const { pendingURL } = useInboundImport();
   const [onboarded, setOnboarded] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -39,6 +50,11 @@ function SpotApp() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!pendingURL || !onboarded || !navigationRef.isReady()) return;
+    navigationRef.navigate('+');
+  }, [onboarded, pendingURL]);
 
   if (onboarded === null) {
     return (
@@ -87,7 +103,15 @@ function SpotApp() {
       };
 
   return (
-    <NavigationContainer theme={navigationTheme}>
+    <NavigationContainer
+      ref={navigationRef}
+      theme={navigationTheme}
+      onReady={() => {
+        if (pendingURL) {
+          navigationRef.navigate('+');
+        }
+      }}
+    >
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <Tab.Navigator
         initialRouteName="Карта"
@@ -143,9 +167,11 @@ function SpotApp() {
 
 export default function App() {
   return (
-    <SpotStoreProvider>
-      <SpotApp />
-    </SpotStoreProvider>
+    <InboundImportProvider>
+      <SpotStoreProvider>
+        <SpotApp />
+      </SpotStoreProvider>
+    </InboundImportProvider>
   );
 }
 
