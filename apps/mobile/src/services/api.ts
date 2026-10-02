@@ -1,3 +1,5 @@
+declare const __DEV__: boolean;
+
 import { appConfig } from '../config';
 import { spots as fallbackSpots } from '../data/mock';
 import { ensureGuestSession } from './cloudSync';
@@ -66,7 +68,7 @@ export async function searchPlaces(query: string, city: CitySlug = 'spb'): Promi
     const data = await response.json() as ApiPlace[];
     return data.map(fromApiPlace);
   } catch {
-    return fallbackSearch(query, city);
+    return __DEV__ ? fallbackSearch(query, city) : [];
   }
 }
 

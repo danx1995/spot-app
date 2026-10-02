@@ -16,12 +16,39 @@ import {
   putCloudState,
   type CloudStatePayload
 } from '../services/cloudSync';
-import { collections as demoCollections, spots as demoSpots } from '../data/mock';
 import type { CitySlug, Collection, Spot, SpotStatus } from '../types';
 
 const SAVED_SPOTS_KEY = '@spot/saved-places/v1';
 const COLLECTIONS_KEY = '@spot/collections/v1';
 const SELECTED_CITY_KEY = '@spot/selected-city/v1';
+
+const LEGACY_DEMO_SPOT_IDS = new Set([
+  'birch-spb',
+  'skuratov-spb',
+  'wawelberg-spb',
+  'new-holland-spb'
+]);
+
+const LEGACY_DEMO_COLLECTION_IDS = new Set([
+  'date',
+  'breakfast',
+  'hotels'
+]);
+
+function stripLegacyDemoSpots(items: Spot[]) {
+  return items.filter((spot) => !LEGACY_DEMO_SPOT_IDS.has(spot.id));
+}
+
+function stripLegacyDemoCollections(items: Collection[]) {
+  return items
+    .map((collection) => ({
+      ...collection,
+      placeIds: collection.placeIds.filter((id) => !LEGACY_DEMO_SPOT_IDS.has(id))
+    }))
+    .filter((collection) => (
+      !LEGACY_DEMO_COLLECTION_IDS.has(collection.id) || collection.placeIds.length > 0
+    ));
+}
 
 type NewCollectionInput = {
   title: string;
@@ -113,24 +140,24 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
         if (!active) return;
 
         if (!rawSpots) {
-          setSavedSpots(demoSpots);
+          setSavedSpots([]);
         } else {
           try {
             const parsed = JSON.parse(rawSpots) as Spot[];
-            setSavedSpots(Array.isArray(parsed) ? parsed : demoSpots);
+            setSavedSpots(Array.isArray(parsed) ? stripLegacyDemoSpots(parsed) : []);
           } catch {
-            setSavedSpots(demoSpots);
+            setSavedSpots([]);
           }
         }
 
         if (!rawCollections) {
-          setCollections(demoCollections);
+          setCollections([]);
         } else {
           try {
             const parsed = JSON.parse(rawCollections) as Collection[];
-            setCollections(Array.isArray(parsed) ? parsed : demoCollections);
+            setCollections(Array.isArray(parsed) ? stripLegacyDemoCollections(parsed) : []);
           } catch {
-            setCollections(demoCollections);
+            setCollections([]);
           }
         }
 
