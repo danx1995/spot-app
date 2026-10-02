@@ -91,7 +91,7 @@ function normalizeCloud(raw: CloudPayload | null): CloudPayload {
 
 function App() {
   const tg = telegram();
-  const [tab, setTab] = useState<Tab>('spots');
+  const [tab, setTab] = useState<Tab>('map');
   const [session, setSession] = useState<Session | null>(null);
   const [cloud, setCloud] = useState<CloudPayload>(emptyCloud());
   const [revision, setRevision] = useState(0);
