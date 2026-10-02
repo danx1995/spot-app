@@ -25,7 +25,7 @@ type Client struct {
 func New(apiKey string) *Client {
 	return &Client{
 		apiKey: strings.TrimSpace(apiKey),
-		http: &http.Client{Timeout: 4 * time.Second},
+		http:   &http.Client{Timeout: 4 * time.Second},
 	}
 }
 
@@ -159,10 +159,11 @@ func categoryFromRubrics(rubrics []rubric) (string, string) {
 		return "bar", label
 	case strings.Contains(name, "отел"), strings.Contains(name, "гостиниц"):
 		return "hotel", label
-	case strings.Contains(name, "музе"), strings.Contains(name, "галере"), strings.Contains(name, "театр"):
-		return "culture", label
+	// "Кинотеатр" also contains "театр", so entertainment must be matched first.
 	case strings.Contains(name, "кино"), strings.Contains(name, "развлеч"):
 		return "entertainment", label
+	case strings.Contains(name, "музе"), strings.Contains(name, "галере"), strings.Contains(name, "театр"):
+		return "culture", label
 	case strings.Contains(name, "магазин"), strings.Contains(name, "торгов"):
 		return "shop", label
 	default:
