@@ -77,6 +77,7 @@ export function SharedCollectionImportModal({ collectionID, visible, onClose }: 
       subtitle: preview.subtitle,
       city: preview.city,
       cityLabel: preview.cityLabel,
+      routePlan: preview.routePlan,
       spots: preview.spots
     });
 
@@ -133,12 +134,16 @@ export function SharedCollectionImportModal({ collectionID, visible, onClose }: 
               </View>
               <View style={styles.infoCopy}>
                 <Text style={[styles.infoTitle, { color: text }]}>
-                  {alreadyImported ? 'Подборка уже у тебя' : 'Можно добавить целиком'}
+                  {preview.routePlan
+                    ? (alreadyImported ? 'Маршрут уже у тебя' : 'Можно добавить готовый маршрут')
+                    : (alreadyImported ? 'Подборка уже у тебя' : 'Можно добавить целиком')}
                 </Text>
                 <Text style={[styles.infoText, { color: muted }]}>
                   {alreadyImported
                     ? 'Импорт обновит список мест, а твои личные заметки и статусы сохранятся.'
-                    : 'Все места сохранятся как «Хочу сюда» и появятся отдельной подборкой.'}
+                    : preview.routePlan
+                      ? 'Сохраним порядок точек и настройки маршрута, а места добавим как «Хочу сюда».'
+                      : 'Все места сохранятся как «Хочу сюда» и появятся отдельной подборкой.'}
                 </Text>
               </View>
             </View>
