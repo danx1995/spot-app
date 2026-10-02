@@ -42,6 +42,7 @@ export type Spot = {
   description?: string;
   priceLevel?: number;
   status: SpotStatus;
+  savedAt?: string;
   visitedAt?: string;
   favorite?: boolean;
   note?: string;

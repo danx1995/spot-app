@@ -16,6 +16,7 @@ import { useSpotStore } from '../state/SpotStore';
 import { colors } from '../theme';
 import type { Spot, SpotStatus } from '../types';
 import { getSpotOpenState, getTodayHoursLabel } from '../utils/openingHours';
+import { savedContextLabel } from '../utils/savedContext';
 
 type Props = {
   spot: Spot | null;
@@ -81,6 +82,7 @@ export function PlaceDetailModal({ spot, visible, onClose }: Props) {
   const isHotel = activeSpot.category === 'hotel';
   const openState = getSpotOpenState(activeSpot);
   const todayHours = getTodayHoursLabel(activeSpot);
+  const savedContext = saved ? savedContextLabel(activeSpot) : null;
 
   function ensureSaved(nextStatus: SpotStatus) {
     if (saved) {
@@ -212,6 +214,10 @@ export function PlaceDetailModal({ spot, visible, onClose }: Props) {
                 <Text style={styles.editText}>{editingNote ? 'Готово' : activeSpot.note ? 'Изменить' : '+ Заметка'}</Text>
               </Pressable>
             </View>
+
+            {savedContext ? (
+              <Text style={[styles.savedContext, { color: muted }]}>{savedContext}</Text>
+            ) : null}
 
             {editingNote ? (
               <>
@@ -492,6 +498,12 @@ const styles = StyleSheet.create({
     color: colors.green,
     fontSize: 11,
     fontWeight: '900'
+  },
+  savedContext: {
+    marginTop: 9,
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: '800'
   },
   note: {
     marginTop: 9,
