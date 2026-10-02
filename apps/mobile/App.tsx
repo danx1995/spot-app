@@ -40,7 +40,7 @@ const icons: Record<string, string> = {
 function SpotApp() {
   const isDark = useColorScheme() === 'dark';
   const { setSelectedCity } = useSpotStore();
-  const { pendingURL } = useInboundImport();
+  const { pendingURL, pendingCollectionID } = useInboundImport();
   const [onboarded, setOnboarded] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -54,9 +54,16 @@ function SpotApp() {
   }, []);
 
   useEffect(() => {
-    if (!pendingURL || !onboarded || !navigationRef.isReady()) return;
-    navigationRef.navigate('+');
-  }, [onboarded, pendingURL]);
+    if (!onboarded || !navigationRef.isReady()) return;
+
+    if (pendingCollectionID) {
+      navigationRef.navigate('Подборки');
+      return;
+    }
+    if (pendingURL) {
+      navigationRef.navigate('+');
+    }
+  }, [onboarded, pendingCollectionID, pendingURL]);
 
   if (onboarded === null) {
     return (
@@ -109,7 +116,9 @@ function SpotApp() {
       ref={navigationRef}
       theme={navigationTheme}
       onReady={() => {
-        if (pendingURL) {
+        if (pendingCollectionID) {
+          navigationRef.navigate('Подборки');
+        } else if (pendingURL) {
           navigationRef.navigate('+');
         }
       }}
