@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Linking,
   Modal,
@@ -7,6 +7,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   useColorScheme,
   View
 } from 'react-native';
@@ -44,34 +45,60 @@ export function PlaceDetailModal({ spot, visible, onClose }: Props) {
     saveSpot,
     removeSpot,
     updateStatus,
+    updateNote,
     toggleFavorite,
     togglePlaceInCollection
   } = useSpotStore();
+  const [editingNote, setEditingNote] = useState(false);
+  const [noteDraft, setNoteDraft] = useState('');
+
   const text = dark ? colors.white : colors.black;
   const muted = dark ? colors.textSecondaryDark : colors.textSecondaryLight;
   const surface = dark ? colors.darkSurface : colors.white;
 
-  if (!spot) return null;
-
-  const saved = getSavedSpot(spot.id);
+  const saved = spot ? getSavedSpot(spot.id) : undefined;
   const current = saved ?? spot;
+
+  useEffect(() => {
+    setEditingNote(false);
+    setNoteDraft(current?.note ?? '');
+  }, [current?.id, current?.note, visible]);
+
+  if (!current) return null;
+  const activeSpot: Spot = current;
+
   const status = saved?.status ?? 'want';
-  const isHotel = current.category === 'hotel';
+  const isHotel = activeSpot.category === 'hotel';
 
   function ensureSaved(nextStatus: SpotStatus) {
     if (saved) {
-      updateStatus(current.id, nextStatus);
+      updateStatus(activeSpot.id, nextStatus);
     } else {
-      saveSpot(current, nextStatus);
+      saveSpot(activeSpot, nextStatus);
     }
   }
 
+  function saveNote() {
+    const note = noteDraft.trim();
+
+    if (saved) {
+      updateNote(activeSpot.id, note);
+    } else {
+      saveSpot({
+        ...activeSpot,
+        note: note || undefined
+      }, 'want');
+    }
+
+    setEditingNote(false);
+  }
+
   function openRoute() {
-    const label = encodeURIComponent(current.name);
+    const label = encodeURIComponent(activeSpot.name);
     const url = Platform.select({
-      ios: `http://maps.apple.com/?daddr=${current.latitude},${current.longitude}&q=${label}`,
-      android: `geo:0,0?q=${current.latitude},${current.longitude}(${label})`,
-      default: `https://www.google.com/maps/dir/?api=1&destination=${current.latitude},${current.longitude}`
+      ios: `http://maps.apple.com/?daddr=${activeSpot.latitude},${activeSpot.longitude}&q=${label}`,
+      android: `geo:0,0?q=${activeSpot.latitude},${activeSpot.longitude}(${label})`,
+      default: `https://www.google.com/maps/dir/?api=1&destination=${activeSpot.latitude},${activeSpot.longitude}`
     });
 
     if (url) {
@@ -90,11 +117,15 @@ export function PlaceDetailModal({ spot, visible, onClose }: Props) {
           </Pressable>
         </View>
 
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <Text style={[styles.category, { color: colors.green }]}>{current.categoryLabel.toUpperCase()}</Text>
-          <Text style={[styles.title, { color: text }]}>{current.name}</Text>
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={[styles.category, { color: colors.green }]}>{activeSpot.categoryLabel.toUpperCase()}</Text>
+          <Text style={[styles.title, { color: text }]}>{activeSpot.name}</Text>
           <Text style={[styles.meta, { color: muted }]}>
-            {current.rating > 0 ? `★ ${current.rating.toFixed(1)} · ` : ''}{current.address}
+            {activeSpot.rating > 0 ? `★ ${activeSpot.rating.toFixed(1)} · ` : ''}{activeSpot.address}
           </Text>
 
           <View style={styles.actions}>
@@ -135,15 +166,62 @@ export function PlaceDetailModal({ spot, visible, onClose }: Props) {
           ) : null}
 
           <View style={[styles.block, { backgroundColor: surface }]}>
-            <Text style={[styles.blockLabel, { color: muted }]}>ПОЧЕМУ СОХРАНЕНО</Text>
-            <Text style={[styles.note, { color: text }]}>
-              {current.note ?? 'Добавь заметку, чтобы потом вспомнить, почему захотелось сюда попасть.'}
-            </Text>
+            <View style={styles.blockHeader}>
+              <Text style={[styles.blockLabel, { color: muted }]}>ПОЧЕМУ СОХРАНЕНО</Text>
+              <Pressable
+                onPress={() => {
+                  if (editingNote) {
+                    saveNote();
+                  } else {
+                    setNoteDraft(activeSpot.note ?? '');
+                    setEditingNote(true);
+                  }
+                }}
+              >
+                <Text style={styles.editText}>{editingNote ? 'Готово' : activeSpot.note ? 'Изменить' : '+ Заметка'}</Text>
+              </Pressable>
+            </View>
+
+            {editingNote ? (
+              <>
+                <TextInput
+                  value={noteDraft}
+                  onChangeText={setNoteDraft}
+                  autoFocus
+                  multiline
+                  maxLength={500}
+                  placeholder="Например: красивый интерьер, хочу попробовать тартар"
+                  placeholderTextColor={muted}
+                  style={[
+                    styles.noteInput,
+                    {
+                      color: text,
+                      backgroundColor: dark ? colors.darkSurfaceRaised : colors.lightMuted
+                    }
+                  ]}
+                />
+                <View style={styles.noteFooter}>
+                  <Text style={[styles.noteCounter, { color: muted }]}>{noteDraft.length}/500</Text>
+                  <Pressable
+                    onPress={() => {
+                      setNoteDraft(activeSpot.note ?? '');
+                      setEditingNote(false);
+                    }}
+                  >
+                    <Text style={[styles.cancelEdit, { color: muted }]}>Отмена</Text>
+                  </Pressable>
+                </View>
+              </>
+            ) : (
+              <Text style={[styles.note, { color: activeSpot.note ? text : muted }]}>
+                {activeSpot.note ?? 'Добавь короткую заметку — потом будет понятно, почему ты сохранил это место.'}
+              </Text>
+            )}
           </View>
 
-          {current.sourceUrl ? (
+          {activeSpot.sourceUrl ? (
             <Pressable
-              onPress={() => void Linking.openURL(current.sourceUrl as string)}
+              onPress={() => void Linking.openURL(activeSpot.sourceUrl as string)}
               style={[styles.block, styles.sourceBlock, { backgroundColor: surface }]}
             >
               <View style={styles.sourceHeader}>
@@ -151,10 +229,10 @@ export function PlaceDetailModal({ spot, visible, onClose }: Props) {
                 <Text style={styles.sourceArrow}>↗</Text>
               </View>
               <Text style={[styles.sourceName, { color: text }]}>
-                {sourceLabels[current.sourcePlatform ?? 'web'] ?? current.sourcePlatform ?? 'Ссылка'}
+                {sourceLabels[activeSpot.sourcePlatform ?? 'web'] ?? activeSpot.sourcePlatform ?? 'Ссылка'}
               </Text>
               <Text numberOfLines={1} style={[styles.sourceURL, { color: muted }]}>
-                {current.sourceUrl}
+                {activeSpot.sourceUrl}
               </Text>
             </Pressable>
           ) : null}
@@ -164,11 +242,11 @@ export function PlaceDetailModal({ spot, visible, onClose }: Props) {
               <Text style={[styles.blockLabel, { color: muted }]}>ПОДБОРКИ</Text>
               <View style={styles.collectionList}>
                 {collections.map((collection) => {
-                  const active = collection.placeIds.includes(current.id);
+                  const active = collection.placeIds.includes(activeSpot.id);
                   return (
                     <Pressable
                       key={collection.id}
-                      onPress={() => togglePlaceInCollection(collection.id, current.id)}
+                      onPress={() => togglePlaceInCollection(collection.id, activeSpot.id)}
                       style={[styles.collectionChip, active && styles.collectionChipActive]}
                     >
                       <Text style={[styles.collectionChipText, { color: active ? colors.black : text }]}>
@@ -185,19 +263,19 @@ export function PlaceDetailModal({ spot, visible, onClose }: Props) {
             <Text style={[styles.blockLabel, { color: muted }]}>О МЕСТЕ</Text>
             <View style={styles.infoRow}>
               <Text style={[styles.infoKey, { color: muted }]}>Город</Text>
-              <Text style={[styles.infoValue, { color: text }]}>{current.cityLabel}</Text>
+              <Text style={[styles.infoValue, { color: text }]}>{activeSpot.cityLabel}</Text>
             </View>
             <View style={styles.infoRow}>
               <Text style={[styles.infoKey, { color: muted }]}>Адрес</Text>
-              <Text style={[styles.infoValue, { color: text }]}>{current.address}</Text>
+              <Text style={[styles.infoValue, { color: text }]}>{activeSpot.address}</Text>
             </View>
-            {current.distanceMeters > 0 ? (
+            {activeSpot.distanceMeters > 0 ? (
               <View style={styles.infoRow}>
                 <Text style={[styles.infoKey, { color: muted }]}>От тебя</Text>
                 <Text style={[styles.infoValue, { color: text }]}>
-                  {current.distanceMeters < 1000
-                    ? `${current.distanceMeters} м`
-                    : `${(current.distanceMeters / 1000).toFixed(1).replace('.', ',')} км`}
+                  {activeSpot.distanceMeters < 1000
+                    ? `${activeSpot.distanceMeters} м`
+                    : `${(activeSpot.distanceMeters / 1000).toFixed(1).replace('.', ',')} км`}
                 </Text>
               </View>
             ) : null}
@@ -211,13 +289,13 @@ export function PlaceDetailModal({ spot, visible, onClose }: Props) {
 
           {saved ? (
             <View style={styles.manageRow}>
-              <Pressable onPress={() => toggleFavorite(current.id)}>
-                <Text style={[styles.manageText, { color: current.favorite ? colors.green : muted }]}>
-                  {current.favorite ? '♥ Любимое' : '♡ В любимое'}
+              <Pressable onPress={() => toggleFavorite(activeSpot.id)}>
+                <Text style={[styles.manageText, { color: activeSpot.favorite ? colors.green : muted }]}>
+                  {activeSpot.favorite ? '♥ Любимое' : '♡ В любимое'}
                 </Text>
               </Pressable>
               <Pressable onPress={() => {
-                removeSpot(current.id);
+                removeSpot(activeSpot.id);
                 onClose();
               }}>
                 <Text style={[styles.removeText, { color: colors.error }]}>Удалить из СПОТ</Text>
@@ -336,16 +414,49 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     padding: 17
   },
+  blockHeader: {
+    flexDirection: 'row',
+    alignItems: 'center'
+  },
   blockLabel: {
     fontSize: 10,
     fontWeight: '900',
     letterSpacing: 1.4
+  },
+  editText: {
+    marginLeft: 'auto',
+    color: colors.green,
+    fontSize: 11,
+    fontWeight: '900'
   },
   note: {
     marginTop: 9,
     fontSize: 16,
     lineHeight: 23,
     fontWeight: '600'
+  },
+  noteInput: {
+    minHeight: 108,
+    marginTop: 12,
+    padding: 13,
+    borderRadius: 16,
+    fontSize: 15,
+    lineHeight: 21,
+    fontWeight: '600',
+    textAlignVertical: 'top'
+  },
+  noteFooter: {
+    marginTop: 8,
+    flexDirection: 'row',
+    alignItems: 'center'
+  },
+  noteCounter: {
+    fontSize: 10
+  },
+  cancelEdit: {
+    marginLeft: 'auto',
+    fontSize: 11,
+    fontWeight: '800'
   },
   sourceBlock: {
     overflow: 'hidden'
