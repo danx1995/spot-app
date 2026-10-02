@@ -59,6 +59,14 @@ export type Spot = {
   sourceExcerpt?: string;
 };
 
+export type CollectionRoutePlan = {
+  kind: 'route';
+  transport: 'walking' | 'driving';
+  startPreset: 'now' | 'evening' | 'tomorrow';
+  stopMinutes: 30 | 45 | 60;
+  startMode: 'first_stop' | 'current_location';
+};
+
 export type Collection = {
   id: string;
   title: string;
@@ -66,6 +74,7 @@ export type Collection = {
   city: CitySlug | 'both';
   cityLabel: string;
   placeIds: string[];
+  routePlan?: CollectionRoutePlan;
   createdAt: string;
   sourceCollectionId?: string;
 };
