@@ -45,6 +45,7 @@ type SpotStoreValue = {
   saveSpot: (spot: Spot, status?: SpotStatus) => void;
   removeSpot: (id: string) => void;
   updateStatus: (id: string, status: SpotStatus) => void;
+  updateNote: (id: string, note: string) => void;
   toggleFavorite: (id: string) => void;
   createCollection: (input: NewCollectionInput) => Collection;
   deleteCollection: (id: string) => void;
@@ -304,6 +305,12 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
     setSavedSpots((current) => current.map((spot) => spot.id === id ? { ...spot, status } : spot));
   }, []);
 
+  const updateNote = useCallback((id: string, note: string) => {
+    setSavedSpots((current) => current.map((spot) => (
+      spot.id === id ? { ...spot, note: note.trim() || undefined } : spot
+    )));
+  }, []);
+
   const toggleFavorite = useCallback((id: string) => {
     setSavedSpots((current) => current.map((spot) => spot.id === id ? { ...spot, favorite: !spot.favorite } : spot));
   }, []);
@@ -353,6 +360,7 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
     saveSpot,
     removeSpot,
     updateStatus,
+    updateNote,
     toggleFavorite,
     createCollection,
     deleteCollection,
@@ -370,6 +378,7 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
     saveSpot,
     removeSpot,
     updateStatus,
+    updateNote,
     toggleFavorite,
     createCollection,
     deleteCollection,
