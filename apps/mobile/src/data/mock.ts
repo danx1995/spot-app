@@ -66,10 +66,33 @@ export const spots: Spot[] = [
 ];
 
 export const collections: Collection[] = [
-  { id: 'date', title: 'Свидания', subtitle: 'Красиво и вкусно', count: 18, cityLabel: 'Санкт-Петербург' },
-  { id: 'breakfast', title: 'Завтраки', subtitle: 'Начать день', count: 12, cityLabel: 'Санкт-Петербург' },
-  { id: 'weekend', title: 'Москва на выходные', subtitle: 'Следующая поездка', count: 16, cityLabel: 'Москва' },
-  { id: 'hotels', title: 'Отели', subtitle: 'Где остановиться', count: 7, cityLabel: 'Москва · Петербург' }
+  {
+    id: 'date',
+    title: 'Свидания',
+    subtitle: 'Красиво и вкусно',
+    city: 'spb',
+    cityLabel: 'Санкт-Петербург',
+    placeIds: ['birch-spb', 'new-holland-spb'],
+    createdAt: '2026-10-02T00:00:00.000Z'
+  },
+  {
+    id: 'breakfast',
+    title: 'Завтраки',
+    subtitle: 'Начать день',
+    city: 'spb',
+    cityLabel: 'Санкт-Петербург',
+    placeIds: ['skuratov-spb'],
+    createdAt: '2026-10-02T00:00:00.000Z'
+  },
+  {
+    id: 'hotels',
+    title: 'Отели',
+    subtitle: 'Где остановиться',
+    city: 'both',
+    cityLabel: 'Москва · Петербург',
+    placeIds: ['wawelberg-spb'],
+    createdAt: '2026-10-02T00:00:00.000Z'
+  }
 ];
 
 export const categories = [
