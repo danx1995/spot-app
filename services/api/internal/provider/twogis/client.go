@@ -353,14 +353,16 @@ func categoryFromRubrics(rubrics []rubric) (string, string) {
 		strings.Contains(name, "хостел"),
 		strings.Contains(name, "апарт-отел"):
 		return "hotel", label
+	case strings.Contains(name, "кинотеатр"),
+		strings.Contains(name, "кинозал"):
+		return "entertainment", label
 	case strings.Contains(name, "музе"),
 		strings.Contains(name, "галере"),
 		strings.Contains(name, "театр"),
 		strings.Contains(name, "выстав"),
 		strings.Contains(name, "библиот"):
 		return "culture", label
-	case strings.Contains(name, "кино"),
-		strings.Contains(name, "развлеч"),
+	case strings.Contains(name, "развлеч"),
 		strings.Contains(name, "боулинг"),
 		strings.Contains(name, "квест"),
 		strings.Contains(name, "караоке"),
