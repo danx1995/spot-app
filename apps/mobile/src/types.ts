@@ -8,7 +8,8 @@ export type SpotCategory =
   | 'culture'
   | 'entertainment'
   | 'shop'
-  | 'park';
+  | 'park'
+  | 'other';
 
 export type SpotStatus = 'want' | 'visited' | 'booked';
 
