@@ -68,3 +68,51 @@ func TestNormalizeItemRejectsImpossibleRating(t *testing.T) {
 		t.Fatalf("impossible rating must be discarded, got %v", place.Rating)
 	}
 }
+
+
+func TestNormalizeItemMapsReviewCountAndSchedule(t *testing.T) {
+	place, ok := normalizeItem(item{
+		ID:          "700000010200",
+		Name:        "Late Cafe",
+		AddressName: "Литейный проспект, 10",
+		Point:       &point{Lat: 59.94, Lon: 30.35},
+		Reviews: &reviews{
+			GeneralRating:      4.6,
+			GeneralReviewCount: 128,
+			ReviewCount:        121,
+		},
+		Schedule: &schedule{
+			Mon: scheduleDay{WorkingHours: []workingHours{{From: "09:00", To: "23:00"}}},
+			Fri: scheduleDay{WorkingHours: []workingHours{{From: "10:00", To: "02:00"}}},
+		},
+		Description: "Авторская кофейня",
+	}, "spb", "Санкт-Петербург")
+	if !ok {
+		t.Fatal("expected usable place")
+	}
+	if place.ReviewCount != 128 {
+		t.Fatalf("expected review count 128, got %d", place.ReviewCount)
+	}
+	if place.OpeningHours == nil {
+		t.Fatal("expected opening hours")
+	}
+	if got := place.OpeningHours.Days["mon"]; len(got) != 1 || got[0].From != "09:00" || got[0].To != "23:00" {
+		t.Fatalf("unexpected monday hours: %#v", got)
+	}
+	if place.Description != "Авторская кофейня" {
+		t.Fatalf("unexpected description: %q", place.Description)
+	}
+}
+
+func TestNormalizeScheduleHandles24x7(t *testing.T) {
+	hours := normalizeSchedule(&schedule{Is24x7: true})
+	if hours == nil || !hours.Is24x7 {
+		t.Fatalf("expected 24x7 hours, got %#v", hours)
+	}
+}
+
+func TestNormalizeScheduleDropsEmptySchedule(t *testing.T) {
+	if hours := normalizeSchedule(&schedule{}); hours != nil {
+		t.Fatalf("expected nil empty schedule, got %#v", hours)
+	}
+}
