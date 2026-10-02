@@ -163,7 +163,7 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
   const surface = dark ? colors.darkSurface : colors.white;
   const raised = dark ? colors.darkSurfaceRaised : colors.lightMuted;
 
-  const option = ROUTE_LENGTHS.find((item) => item.id === length) ?? ROUTE_LENGTHS[1];
+  const option = ROUTE_LENGTHS.find((item) => item.id === length) ?? ROUTE_LENGTHS[1]!;
   const eligible = useMemo(
     () => savedSpots.filter((spot) => spot.city === selectedCity && spot.status !== 'visited'),
     [savedSpots, selectedCity]
