@@ -21,6 +21,7 @@ type Store interface {
 	CreateCollection(ctx context.Context, userID string, input CreateCollectionInput) (Collection, error)
 	ListCollections(ctx context.Context, userID string) ([]Collection, error)
 	GetCollection(ctx context.Context, userID, collectionID string) (Collection, error)
+	GetSharedCollection(ctx context.Context, collectionID string) (SharedCollection, error)
 	PatchCollection(ctx context.Context, userID, collectionID string, patch CollectionPatch) (Collection, error)
 	DeleteCollection(ctx context.Context, userID, collectionID string) error
 	SetCollectionPlace(ctx context.Context, userID, collectionID, placeID string, add bool) (Collection, error)
