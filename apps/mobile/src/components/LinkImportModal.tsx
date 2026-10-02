@@ -171,7 +171,7 @@ export function LinkImportModal({ visible, initialURL, initialHint, onClose }: P
           </View>
           <Text style={[styles.title, { color: text }]}>Вставь ссылку на место</Text>
           <Text style={[styles.subtitle, { color: muted }]}>
-            Прямые ссылки 2ГИС определяем автоматически. Reels, TikTok и Telegram уже можно привязать к споту вручную.
+            2ГИС определяем напрямую. Для Reels, TikTok и Telegram СПОТ сначала пробует прочитать публичную подпись страницы и сам найти место.
           </Text>
 
           <View style={[styles.urlBox, { backgroundColor: surface }]}>
@@ -232,7 +232,11 @@ export function LinkImportModal({ visible, initialURL, initialHint, onClose }: P
                   <Text style={styles.sourceBadgeText}>{sourceLabel}</Text>
                 </View>
                 <Text style={[styles.foundText, { color: muted }]}>
-                  {result.candidates.length > 0 ? 'СПОТ уже нашёл варианты' : 'Источник распознан'}
+                  {result.candidates.length > 0
+                    ? 'СПОТ уже нашёл варианты'
+                    : result.suggestedQuery
+                      ? 'Подпись страницы распознана'
+                      : 'Источник распознан'}
                 </Text>
               </View>
 
@@ -257,7 +261,9 @@ export function LinkImportModal({ visible, initialURL, initialHint, onClose }: P
               ) : null}
 
               <View style={[styles.messageCard, { backgroundColor: surface }]}>
-                <Text style={[styles.messageTitle, { color: text }]}>Ссылка сохранится вместе со спотом</Text>
+                <Text style={[styles.messageTitle, { color: text }]}>
+                  {result.suggestedQuery ? 'СПОТ попробовал распознать место' : 'Ссылка сохранится вместе со спотом'}
+                </Text>
                 <Text style={[styles.messageText, { color: muted }]}>
                   {result.message ?? 'Напиши название места, чтобы привязать источник к карточке.'}
                 </Text>
