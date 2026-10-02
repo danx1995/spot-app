@@ -411,7 +411,13 @@ func (s *PostgresStore) CreateCollection(ctx context.Context, userID string, inp
 		return Collection{}, ErrInvalidInput
 	}
 
-	id := newPublicID("col")
+	id := strings.TrimSpace(input.ID)
+	if id == "" {
+		id = newPublicID("col")
+	} else if !validPublicID(id) {
+		return Collection{}, ErrInvalidInput
+	}
+
 	var collection Collection
 	err := s.pool.QueryRow(ctx, `
 		INSERT INTO collections (
@@ -434,6 +440,14 @@ func (s *PostgresStore) CreateCollection(ctx context.Context, userID string, inp
 			NULLIF(trim($7), ''),
 			now()
 		)
+		ON CONFLICT (public_id) DO UPDATE
+		SET title = EXCLUDED.title,
+		    description = EXCLUDED.description,
+		    city_id = EXCLUDED.city_id,
+		    visibility = EXCLUDED.visibility,
+		    cover_url = EXCLUDED.cover_url,
+		    updated_at = now()
+		WHERE collections.owner_id = EXCLUDED.owner_id
 		RETURNING
 			public_id,
 			title,
@@ -463,8 +477,16 @@ func (s *PostgresStore) CreateCollection(ctx context.Context, userID string, inp
 		&collection.CreatedAt,
 		&collection.UpdatedAt,
 	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Collection{}, ErrInvalidInput
+	}
 	if err != nil {
 		return Collection{}, err
+	}
+
+	current, getErr := s.GetCollection(ctx, userID, id)
+	if getErr == nil {
+		return current, nil
 	}
 	collection.PlaceIDs = []string{}
 	return collection, nil
