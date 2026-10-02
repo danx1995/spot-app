@@ -12,6 +12,21 @@
         {
           "locationWhenInUsePermission": "СПОТ использует геолокацию только чтобы показывать сохранённые места рядом с вами."
         }
+      ],
+      [
+        "expo-share-intent",
+        {
+          "iosActivationRules": {
+            "NSExtensionActivationSupportsWebURLWithMaxCount": 1,
+            "NSExtensionActivationSupportsWebPageWithMaxCount": 1,
+            "NSExtensionActivationSupportsText": true
+          },
+          "iosShareExtensionName": "СПОТ",
+          "iosHideView": true,
+          "androidIntentFilters": [
+            "text/*"
+          ]
+        }
       ]
     ],
     "ios": {

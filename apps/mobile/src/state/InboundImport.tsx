@@ -6,6 +6,7 @@ import React, {
   useMemo,
   useState
 } from 'react';
+import { useShareIntentContext } from 'expo-share-intent';
 import { Linking } from 'react-native';
 
 type InboundImportValue = {
@@ -14,6 +15,12 @@ type InboundImportValue = {
 };
 
 const InboundImportContext = createContext<InboundImportValue | null>(null);
+
+function extractFirstHTTPURL(text: string | null | undefined) {
+  if (!text) return null;
+  const match = text.match(/https?:\/\/[^\s<>'"]+/i);
+  return match?.[0]?.replace(/[),.;!?]+$/, '') ?? null;
+}
 
 function extractTargetURL(appURL: string) {
   const normalized = appURL.trim();
@@ -35,6 +42,11 @@ function extractTargetURL(appURL: string) {
 
 export function InboundImportProvider({ children }: { children: React.ReactNode }) {
   const [pendingURL, setPendingURL] = useState<string | null>(null);
+  const {
+    hasShareIntent,
+    shareIntent,
+    resetShareIntent
+  } = useShareIntentContext();
 
   const receive = useCallback((appURL: string | null) => {
     if (!appURL) return;
@@ -60,6 +72,17 @@ export function InboundImportProvider({ children }: { children: React.ReactNode 
       subscription.remove();
     };
   }, [receive]);
+
+  useEffect(() => {
+    if (!hasShareIntent) return;
+
+    const target = shareIntent.webUrl?.trim() || extractFirstHTTPURL(shareIntent.text);
+    if (target) {
+      setPendingURL(target);
+    }
+
+    resetShareIntent();
+  }, [hasShareIntent, resetShareIntent, shareIntent]);
 
   const consumePendingURL = useCallback(() => {
     setPendingURL(null);

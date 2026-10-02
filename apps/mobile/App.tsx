@@ -3,6 +3,8 @@ import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { NavigationContainer, DarkTheme, DefaultTheme, createNavigationContainerRef } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import Constants from 'expo-constants';
+import { ShareIntentProvider } from 'expo-share-intent';
 import { StatusBar } from 'expo-status-bar';
 
 import { InboundImportProvider, useInboundImport } from './src/state/InboundImport';
@@ -166,12 +168,16 @@ function SpotApp() {
 }
 
 export default function App() {
+  const shareIntentDisabled = Constants.appOwnership === 'expo';
+
   return (
-    <InboundImportProvider>
-      <SpotStoreProvider>
-        <SpotApp />
-      </SpotStoreProvider>
-    </InboundImportProvider>
+    <ShareIntentProvider options={{ disabled: shareIntentDisabled }}>
+      <InboundImportProvider>
+        <SpotStoreProvider>
+          <SpotApp />
+        </SpotStoreProvider>
+      </InboundImportProvider>
+    </ShareIntentProvider>
   );
 }
 
