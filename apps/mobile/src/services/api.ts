@@ -59,17 +59,43 @@ function fromApiPlace(place: ApiPlace): Spot {
   };
 }
 
-function fallbackSearch(query: string, city: CitySlug) {
+export type SearchPlacesOptions = {
+  latitude?: number;
+  longitude?: number;
+  category?: SpotCategory;
+};
+
+function fallbackSearch(
+  query: string,
+  city: CitySlug,
+  category?: SpotCategory
+) {
   const q = query.trim().toLowerCase();
   return fallbackSpots.filter((spot) => {
     if (spot.city !== city) return false;
+    if (category && spot.category !== category) return false;
     if (!q) return true;
     return `${spot.name} ${spot.address} ${spot.categoryLabel}`.toLowerCase().includes(q);
   });
 }
 
-export async function searchPlaces(query: string, city: CitySlug = 'spb'): Promise<Spot[]> {
+export async function searchPlaces(
+  query: string,
+  city: CitySlug = 'spb',
+  options: SearchPlacesOptions = {}
+): Promise<Spot[]> {
   const params = new URLSearchParams({ q: query, city });
+
+  if (options.category) {
+    params.set('category', options.category);
+  }
+  if (
+    Number.isFinite(options.latitude) &&
+    Number.isFinite(options.longitude)
+  ) {
+    params.set('lat', String(options.latitude));
+    params.set('lng', String(options.longitude));
+  }
 
   try {
     const response = await fetch(`${appConfig.apiBaseUrl}/api/v1/places?${params.toString()}`, {
@@ -83,7 +109,7 @@ export async function searchPlaces(query: string, city: CitySlug = 'spb'): Promi
     const data = await response.json() as ApiPlace[];
     return data.map(fromApiPlace);
   } catch {
-    return __DEV__ ? fallbackSearch(query, city) : [];
+    return __DEV__ ? fallbackSearch(query, city, options.category) : [];
   }
 }
 
