@@ -56,6 +56,15 @@ type NewCollectionInput = {
   city: CitySlug | 'both';
 };
 
+type SharedCollectionImport = {
+  sourceCollectionId: string;
+  title: string;
+  subtitle: string;
+  city: CitySlug | 'both';
+  cityLabel: string;
+  spots: Spot[];
+};
+
 export type SyncStatus = 'idle' | 'syncing' | 'synced' | 'offline' | 'conflict';
 
 type SpotStoreValue = {
@@ -75,6 +84,7 @@ type SpotStoreValue = {
   updateNote: (id: string, note: string) => void;
   toggleFavorite: (id: string) => void;
   createCollection: (input: NewCollectionInput) => Collection;
+  importSharedCollection: (input: SharedCollectionImport) => Collection;
   deleteCollection: (id: string) => void;
   togglePlaceInCollection: (collectionId: string, placeId: string) => void;
 };
@@ -370,6 +380,79 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
     return collection;
   }, []);
 
+  const importSharedCollection = useCallback((input: SharedCollectionImport) => {
+    setSavedSpots((current) => {
+      const byID = new Map(current.map((spot) => [spot.id, spot]));
+
+      for (const incoming of input.spots) {
+        const existing = byID.get(incoming.id);
+        if (!existing) {
+          byID.set(incoming.id, incoming);
+          continue;
+        }
+
+        byID.set(incoming.id, {
+          ...incoming,
+          status: existing.status,
+          visitedAt: existing.visitedAt,
+          favorite: existing.favorite,
+          note: existing.note,
+          sourceUrl: existing.sourceUrl,
+          sourcePlatform: existing.sourcePlatform
+        });
+      }
+
+      const importedIDs = new Set(input.spots.map((spot) => spot.id));
+      const imported = input.spots.map((spot) => byID.get(spot.id) as Spot);
+      const rest = current.filter((spot) => !importedIDs.has(spot.id));
+      return [...imported, ...rest];
+    });
+
+    let result: Collection | null = null;
+    setCollections((current) => {
+      const existing = current.find(
+        (collection) => collection.sourceCollectionId === input.sourceCollectionId
+      );
+
+      if (existing) {
+        result = {
+          ...existing,
+          title: input.title.trim(),
+          subtitle: input.subtitle.trim() || 'Подборка из СПОТ',
+          city: input.city,
+          cityLabel: input.cityLabel,
+          placeIds: input.spots.map((spot) => spot.id)
+        };
+
+        return current.map((collection) => collection.id === existing.id ? result as Collection : collection);
+      }
+
+      result = {
+        id: newCollectionId(),
+        title: input.title.trim(),
+        subtitle: input.subtitle.trim() || 'Подборка из СПОТ',
+        city: input.city,
+        cityLabel: input.cityLabel,
+        placeIds: input.spots.map((spot) => spot.id),
+        createdAt: new Date().toISOString(),
+        sourceCollectionId: input.sourceCollectionId
+      };
+
+      return [result, ...current];
+    });
+
+    return result ?? {
+      id: newCollectionId(),
+      title: input.title.trim(),
+      subtitle: input.subtitle.trim() || 'Подборка из СПОТ',
+      city: input.city,
+      cityLabel: input.cityLabel,
+      placeIds: input.spots.map((spot) => spot.id),
+      createdAt: new Date().toISOString(),
+      sourceCollectionId: input.sourceCollectionId
+    };
+  }, []);
+
   const deleteCollection = useCallback((id: string) => {
     setCollections((current) => current.filter((collection) => collection.id !== id));
   }, []);
@@ -404,6 +487,7 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
     updateNote,
     toggleFavorite,
     createCollection,
+    importSharedCollection,
     deleteCollection,
     togglePlaceInCollection
   }), [
@@ -422,6 +506,7 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
     updateNote,
     toggleFavorite,
     createCollection,
+    importSharedCollection,
     deleteCollection,
     togglePlaceInCollection
   ]);
