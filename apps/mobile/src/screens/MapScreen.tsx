@@ -82,6 +82,7 @@ const darkMapStyle = [
 export function MapScreen() {
   const dark = useColorScheme() === 'dark';
   const mapRef = useRef<MapView | null>(null);
+  const skipNextCityResetRef = useRef(false);
   const { pendingPlaceID, consumePendingPlace } = useInboundImport();
   const { savedSpots, selectedCity, setSelectedCity } = useSpotStore();
   const [category, setCategory] = useState<MapCategory>('all');
@@ -172,6 +173,7 @@ export function MapScreen() {
         if (!active) return;
 
         if (spot.city !== selectedCity) {
+          skipNextCityResetRef.current = true;
           setSelectedCity(spot.city);
         }
 
@@ -201,6 +203,11 @@ export function MapScreen() {
   }, [consumePendingPlace, pendingPlaceID, selectedCity, setSelectedCity]);
 
   useEffect(() => {
+    if (skipNextCityResetRef.current) {
+      skipNextCityResetRef.current = false;
+      return;
+    }
+
     const region = CITY_REGIONS[selectedCity];
     setSelectedSpot(null);
     setNearbyOpen(false);
