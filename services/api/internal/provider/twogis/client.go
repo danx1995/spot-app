@@ -46,12 +46,17 @@ type rubric struct {
 	Kind string `json:"kind"`
 }
 
+type reviews struct {
+	GeneralRating float64 `json:"general_rating"`
+}
+
 type item struct {
 	ID          string   `json:"id"`
 	Name        string   `json:"name"`
 	AddressName string   `json:"address_name"`
 	Point       *point   `json:"point"`
 	Rubrics     []rubric `json:"rubrics"`
+	Reviews     *reviews `json:"reviews"`
 }
 
 type response struct {
@@ -81,7 +86,7 @@ func (c *Client) Search(ctx context.Context, query, city string) ([]catalog.Plac
 	params.Set("q", query)
 	params.Set("location", fmt.Sprintf("%.6f,%.6f", lon, lat))
 	params.Set("type", "branch")
-	params.Set("fields", "items.point,items.rubrics")
+	params.Set("fields", "items.point,items.rubrics,items.reviews")
 	params.Set("page_size", "10")
 	params.Set("key", c.apiKey)
 
@@ -118,7 +123,7 @@ func (c *Client) LookupByID(ctx context.Context, providerID, city string) (catal
 
 	params := url.Values{}
 	params.Set("id", providerID)
-	params.Set("fields", "items.point,items.rubrics")
+	params.Set("fields", "items.point,items.rubrics,items.reviews")
 	params.Set("key", c.apiKey)
 
 	payload, err := c.get(ctx, endpoint+"/byid", params)
@@ -169,6 +174,11 @@ func normalizeItem(it item, city, cityLabel string) (catalog.Place, bool) {
 	}
 
 	category, categoryLabel := categoryFromRubrics(it.Rubrics)
+	rating := 0.0
+	if it.Reviews != nil && it.Reviews.GeneralRating >= 0 && it.Reviews.GeneralRating <= 5 {
+		rating = it.Reviews.GeneralRating
+	}
+
 	return catalog.Place{
 		ID:             publicID(it.ID),
 		Name:           it.Name,
@@ -179,7 +189,7 @@ func normalizeItem(it item, city, cityLabel string) (catalog.Place, bool) {
 		Address:        it.AddressName,
 		Latitude:       it.Point.Lat,
 		Longitude:      it.Point.Lon,
-		Rating:         0,
+		Rating:         rating,
 		DistanceMeters: 0,
 	}, true
 }
