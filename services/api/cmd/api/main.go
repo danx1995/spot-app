@@ -201,6 +201,7 @@ func main() {
 		writeJSON(w, http.StatusOK, result)
 	})
 
+	registerProfileRoutes(mux, syncStore, tokens)
 	registerLibraryRoutes(mux, libraryStore, tokens)
 	registerPublicCollectionRoutes(mux, libraryStore)
 
