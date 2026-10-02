@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   FlatList,
   Modal,
@@ -10,6 +10,7 @@ import {
   View
 } from 'react-native';
 
+import { CollectionDetailModal } from '../components/CollectionDetailModal';
 import { useSpotStore } from '../state/SpotStore';
 import { colors } from '../theme';
 import type { CitySlug } from '../types';
@@ -18,20 +19,28 @@ type CollectionCity = CitySlug | 'both';
 
 export function CollectionsScreen() {
   const dark = useColorScheme() === 'dark';
-  const { collections, createCollection, deleteCollection } = useSpotStore();
+  const { collections, createCollection } = useSpotStore();
   const [creatorOpen, setCreatorOpen] = useState(false);
+  const [selectedCollectionID, setSelectedCollectionID] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [city, setCity] = useState<CollectionCity>('spb');
   const text = dark ? colors.white : colors.black;
   const muted = dark ? colors.textSecondaryDark : colors.textSecondaryLight;
   const surface = dark ? colors.darkSurface : colors.white;
 
+  const selectedCollection = useMemo(
+    () => collections.find((collection) => collection.id === selectedCollectionID) ?? null,
+    [collections, selectedCollectionID]
+  );
+
   function submit() {
     const value = title.trim();
     if (!value) return;
-    createCollection({ title: value, city });
+
+    const created = createCollection({ title: value, city });
     setTitle('');
     setCreatorOpen(false);
+    setSelectedCollectionID(created.id);
   }
 
   return (
@@ -54,8 +63,11 @@ export function CollectionsScreen() {
         keyExtractor={(item) => item.id}
         renderItem={({ item, index }) => (
           <Pressable
-            onLongPress={() => deleteCollection(item.id)}
-            style={[styles.card, { backgroundColor: surface }]}
+            onPress={() => setSelectedCollectionID(item.id)}
+            style={({ pressed }) => [
+              styles.card,
+              { backgroundColor: surface, opacity: pressed ? 0.92 : 1 }
+            ]}
           >
             <View style={[styles.cover, index === 0 && styles.coverFeatured]}>
               <Text style={styles.coverHeart}>{index === 0 ? '♥' : '●'}</Text>
@@ -111,13 +123,23 @@ export function CollectionsScreen() {
               <Pressable onPress={() => setCreatorOpen(false)} style={styles.cancelButton}>
                 <Text style={[styles.cancelText, { color: muted }]}>Отмена</Text>
               </Pressable>
-              <Pressable onPress={submit} style={[styles.createButton, !title.trim() && styles.createButtonDisabled]}>
+              <Pressable
+                onPress={submit}
+                disabled={!title.trim()}
+                style={[styles.createButton, !title.trim() && styles.createButtonDisabled]}
+              >
                 <Text style={styles.createText}>Создать</Text>
               </Pressable>
             </View>
           </View>
         </View>
       </Modal>
+
+      <CollectionDetailModal
+        collection={selectedCollection}
+        visible={Boolean(selectedCollection)}
+        onClose={() => setSelectedCollectionID(null)}
+      />
     </View>
   );
 }
