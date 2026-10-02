@@ -81,6 +81,10 @@ func main() {
 		os.Getenv("GOOGLE_CLIENT_IDS"),
 		os.Getenv("APPLE_CLIENT_IDS"),
 	)
+	telegramVerifier := auth.NewTelegramVerifier(
+		os.Getenv("TELEGRAM_BOT_TOKEN"),
+		24*time.Hour,
+	)
 
 	mux := http.NewServeMux()
 
@@ -96,8 +100,9 @@ func main() {
 			"library_store":  libraryStore.Mode(),
 			"transfer_store": transferStore.Mode(),
 			"auth_providers": map[string]bool{
-				"google": providerVerifier.Enabled("google"),
-				"apple":  providerVerifier.Enabled("apple"),
+				"google":   providerVerifier.Enabled("google"),
+				"apple":    providerVerifier.Enabled("apple"),
+				"telegram": telegramVerifier.Enabled(),
 			},
 		})
 	})
@@ -228,6 +233,7 @@ func main() {
 
 	registerProfileRoutes(mux, syncStore, tokens)
 	registerProviderAuthRoutes(mux, syncStore, tokens, providerVerifier)
+	registerTelegramAuthRoutes(mux, syncStore, tokens, telegramVerifier)
 	registerAccountTransferRoutes(mux, transferStore, tokens)
 	registerLibraryRoutes(mux, libraryStore, tokens)
 	registerPublicCollectionRoutes(mux, libraryStore)
