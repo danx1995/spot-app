@@ -110,6 +110,13 @@ export async function redeemTransferCode(code: string): Promise<GuestSession> {
 
 export type AuthProvider = 'google' | 'apple';
 
+export class ProviderIdentityInUseError extends Error {
+  constructor() {
+    super('Этот вход уже связан с другим профилем СПОТ');
+    this.name = 'ProviderIdentityInUseError';
+  }
+}
+
 export async function getAuthProviders(): Promise<Record<AuthProvider, boolean>> {
   const response = await fetch(`${appConfig.apiBaseUrl}/api/v1/auth/providers`, {
     headers: { Accept: 'application/json' }
@@ -146,7 +153,7 @@ export async function linkProviderIdentity(
     throw new Error('Не удалось подтвердить вход');
   }
   if (response.status === 409) {
-    throw new Error('Этот вход уже связан с другим профилем СПОТ');
+    throw new ProviderIdentityInUseError();
   }
   if (!response.ok) {
     throw new Error(`identity link failed with ${response.status}`);
