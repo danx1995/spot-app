@@ -12,6 +12,7 @@ import {
 
 import { CategoryChip } from '../components/CategoryChip';
 import { PlaceDetailModal } from '../components/PlaceDetailModal';
+import { RoutePlannerModal } from '../components/RoutePlannerModal';
 import { SpotCard } from '../components/SpotCard';
 import { categories } from '../data/mock';
 import { useSpotStore } from '../state/SpotStore';
@@ -71,6 +72,7 @@ export function SpotsScreen() {
   const [sortMode, setSortMode] = useState<SortMode>('recent');
   const [query, setQuery] = useState('');
   const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
+  const [routeOpen, setRouteOpen] = useState(false);
 
   const text = dark ? colors.white : colors.black;
   const muted = dark ? colors.textSecondaryDark : colors.textSecondaryLight;
@@ -189,6 +191,24 @@ export function SpotsScreen() {
         ) : null}
       </View>
 
+      {savedSpots.length >= 2 ? (
+        <Pressable
+          onPress={() => setRouteOpen(true)}
+          style={[styles.routeLauncher, { backgroundColor: surface }]}
+        >
+          <View style={styles.routeLauncherIcon}>
+            <Text style={styles.routeLauncherIconText}>⌁</Text>
+          </View>
+          <View style={styles.routeLauncherCopy}>
+            <Text style={[styles.routeLauncherTitle, { color: text }]}>Собрать маршрут</Text>
+            <Text style={[styles.routeLauncherHint, { color: muted }]}>
+              СПОТ соединит сохранённые места в готовый план
+            </Text>
+          </View>
+          <Text style={styles.routeLauncherArrow}>›</Text>
+        </Pressable>
+      ) : null}
+
       <View style={styles.statusRow}>
         {statusFilters.map(([id, label]) => {
           const active = statusFilter === id;
@@ -306,6 +326,11 @@ export function SpotsScreen() {
         }
       />
 
+      <RoutePlannerModal
+        visible={routeOpen}
+        onClose={() => setRouteOpen(false)}
+      />
+
       <PlaceDetailModal
         spot={selectedSpot}
         visible={Boolean(selectedSpot)}
@@ -381,6 +406,45 @@ const styles = StyleSheet.create({
   },
   clearText: {
     fontSize: 20
+  },
+  routeLauncher: {
+    marginTop: 12,
+    minHeight: 68,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12
+  },
+  routeLauncherIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 15,
+    backgroundColor: '#173528',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  routeLauncherIconText: {
+    color: colors.green,
+    fontSize: 24,
+    fontWeight: '900'
+  },
+  routeLauncherCopy: {
+    flex: 1
+  },
+  routeLauncherTitle: {
+    fontSize: 13,
+    fontWeight: '900'
+  },
+  routeLauncherHint: {
+    marginTop: 3,
+    fontSize: 10,
+    lineHeight: 14
+  },
+  routeLauncherArrow: {
+    color: colors.green,
+    fontSize: 25,
+    fontWeight: '700'
   },
   statusRow: {
     marginTop: 12,
