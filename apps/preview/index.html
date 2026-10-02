@@ -84,6 +84,22 @@
     .filter-row{display:flex;gap:7px;margin-top:10px}
     .filter{flex:1;text-align:center;padding:10px 5px;border-radius:14px;background:var(--surface);font-size:10px;font-weight:850;color:#C4CCC7}
     .filter.active{background:var(--green);color:var(--black)}
+    .route-launcher{width:100%;margin-top:11px;min-height:68px;border-radius:20px;background:var(--surface);padding:12px 13px;display:flex;align-items:center;gap:12px;text-align:left;cursor:pointer}
+    .route-launcher-icon{width:42px;height:42px;flex:0 0 42px;border-radius:15px;background:#173528;color:var(--green);display:grid;place-items:center;font-size:23px;font-weight:950}
+    .route-launcher-copy{min-width:0;flex:1}.route-launcher-copy b{display:block;font-size:12px}.route-launcher-copy span{display:block;color:var(--muted);font-size:9px;line-height:1.4;margin-top:3px}
+    .route-launcher-arrow{color:var(--green);font-size:24px;font-weight:900}
+    .route-controls{padding:4px 18px 0}.route-city-row,.route-length-row{display:flex;gap:7px}.route-length-row{margin-top:9px}
+    .route-choice{flex:1;min-height:39px;border-radius:14px;background:var(--surface);color:#A7B0AA;font-size:9px;font-weight:900;cursor:pointer}
+    .route-choice.active{background:#173528;color:var(--green)}
+    .route-length{min-height:55px}.route-length b{display:block;color:inherit;font-size:10px}.route-length span{display:block;font-size:8px;margin-top:3px;opacity:.72}
+    .route-length.active{background:var(--green);color:var(--black)}
+    .route-summary{margin:14px 18px 0;padding:15px 16px;border-radius:21px;background:var(--surface);display:flex;align-items:center;gap:10px}
+    .route-summary-copy{min-width:0;flex:1}.route-summary-copy small{color:var(--green);font-size:8px;font-weight:950;letter-spacing:.11em}.route-summary-copy b{display:block;font-size:14px;margin-top:4px}.route-summary-copy span{display:block;color:var(--muted);font-size:9px;margin-top:4px}
+    .route-reroll{min-height:38px;padding:0 12px;border-radius:13px;background:var(--raised);font-size:10px;font-weight:900;cursor:pointer}
+    .route-stops{padding:13px 18px 4px}.route-stop{display:grid;grid-template-columns:31px 1fr;gap:9px;align-items:stretch}
+    .route-timeline{display:flex;flex-direction:column;align-items:center}.route-num{width:29px;height:29px;border-radius:50%;background:var(--green);color:var(--black);display:grid;place-items:center;font-size:10px;font-weight:950}.route-line{width:2px;min-height:51px;flex:1;background:#29362F}
+    .route-stop-card{background:var(--surface);border-radius:19px;padding:13px 14px;margin-bottom:9px;display:flex;gap:10px}.route-stop-copy{min-width:0;flex:1}.route-stop-copy small{display:block;color:var(--green);font-size:7px;font-weight:950;letter-spacing:.08em}.route-stop-copy b{display:block;font-size:14px;margin-top:4px}.route-stop-copy span{display:block;color:var(--muted);font-size:9px;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.route-stop-rating{font-size:9px;font-weight:900;white-space:nowrap}
+    .route-actions{position:sticky;bottom:0;padding:10px 18px 18px;background:linear-gradient(180deg,rgba(13,18,15,0),#0D120F 28%);display:grid;grid-template-columns:1fr 1.25fr;gap:8px}.route-actions button{min-height:50px;border-radius:17px;font-size:10px;font-weight:950;cursor:pointer}.route-share{background:var(--surface)}.route-save{background:var(--green);color:var(--black)}
     .spot-list{display:grid;gap:10px;margin-top:14px;padding-bottom:110px}
     .spot{background:var(--surface);border-radius:23px;padding:13px;display:flex;gap:12px}
     .spot .thumb{width:64px;height:64px;flex-basis:64px;border-radius:17px}.spot h3{font-size:15px;margin:1px 0}.spot .right{margin-left:auto;text-align:right;font-size:10px;font-weight:800}
@@ -186,6 +202,11 @@
               <div class="search">⌕ <span>Название, заметка или откуда сохранил</span></div>
               <div class="filter-row"><div class="filter active">Все</div><div class="filter">Хочу</div><div class="filter">Был</div><div class="filter">Бронь</div></div>
               <div class="chips" style="padding:10px 0 0"><button class="chip active">Все города</button><button class="chip">СПБ</button><button class="chip">МСК</button><button class="chip">♡ Любимые</button></div>
+              <button class="route-launcher" id="previewRouteLauncher">
+                <span class="route-launcher-icon">⌁</span>
+                <span class="route-launcher-copy"><b>Собрать маршрут</b><span>СПОТ соединит сохранённые места в готовый план</span></span>
+                <span class="route-launcher-arrow">›</span>
+              </button>
               <div class="spot-list">
                 <button class="spot" data-toast="Открыть карточку Birch"><div class="thumb">🍽️</div><div class="place-copy"><div class="meta">РЕСТОРАН · СПБ</div><h3>Birch</h3><div class="open">● Открыто до 23:00</div><div class="address">Кирочная, 3</div></div><div class="right">★ 4.8<br><span class="meta">1 284</span></div></button>
                 <button class="spot" data-toast="Открыть карточку Aster"><div class="thumb">☕</div><div class="place-copy"><div class="meta">КОФЕЙНЯ · СПБ</div><h3>Aster</h3><div class="open">● Открыто до 22:00</div><div class="address">Маяковского, 23</div></div><div class="right">★ 4.7<br><span class="meta">824</span></div></button>
@@ -342,6 +363,38 @@
           </div>
         </div>
 
+        <div class="overlay" id="routeOverlay">
+          <div class="sheet">
+            <div class="sheet-head">
+              <button class="sheet-close" data-close="routeOverlay">×</button>
+              <div><div class="sheet-title">Собрать маршрут</div><div class="sheet-sub">из моих сохранённых спотов</div></div>
+              <div></div>
+            </div>
+            <div class="sheet-scroll">
+              <div class="route-controls">
+                <div class="route-city-row">
+                  <button class="route-choice active" data-route-city="spb">СПБ</button>
+                  <button class="route-choice" data-route-city="moscow">Москва</button>
+                </div>
+                <div class="route-length-row">
+                  <button class="route-choice route-length" data-route-length="3"><b>2–3 часа</b><span>3 места</span></button>
+                  <button class="route-choice route-length active" data-route-length="4"><b>Полдня</b><span>4 места</span></button>
+                  <button class="route-choice route-length" data-route-length="5"><b>Весь день</b><span>5 мест</span></button>
+                </div>
+              </div>
+              <div class="route-summary">
+                <div class="route-summary-copy"><small id="routeCityLabel">САНКТ-ПЕТЕРБУРГ</small><b id="routePlanLabel">Полдня · 4 остановки</b><span id="routeDistanceLabel">≈ 5,8 км между точками · оценка по прямой</span></div>
+                <button class="route-reroll" id="routeReroll">↻ Ещё</button>
+              </div>
+              <div class="route-stops" id="routeStops"></div>
+              <div class="route-actions">
+                <button class="route-share" id="routeShare">↗ Поделиться</button>
+                <button class="route-save" id="routeSave">♥ В подборку</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="overlay" id="placeOverlay">
           <div class="sheet">
             <div class="sheet-head">
@@ -485,6 +538,7 @@
     const searchOverlay=document.getElementById('searchOverlay');
     const placeOverlay=document.getElementById('placeOverlay');
     const addOverlay=document.getElementById('addOverlay');
+    const routeOverlay=document.getElementById('routeOverlay');
     const onboardingPreview=document.getElementById('onboardingPreview');
     const searchInput=document.getElementById('previewSearchInput');
     let toastTimer;
@@ -545,9 +599,76 @@
       showToast('Готово · интересы подняты первыми на карте');
     });
 
+    const routeDemo={
+      spb:[
+        {name:'Birch',meta:'РЕСТОРАН · ЛЮБИМОЕ',address:'Кирочная улица, 3',rating:'4.8'},
+        {name:'Aster',meta:'КОФЕЙНЯ',address:'Маяковского, 23',rating:'4.7'},
+        {name:'Новая Голландия',meta:'КУЛЬТУРА',address:'наб. Адмиралтейского канала, 2',rating:'4.8'},
+        {name:'Four Seasons',meta:'ОТЕЛЬ',address:'Вознесенский проспект, 1',rating:'4.9'},
+        {name:'Tara Brooch',meta:'БАР',address:'2-я Советская улица, 18',rating:'4.7'}
+      ],
+      moscow:[
+        {name:'Noor',meta:'БАР · ЛЮБИМОЕ',address:'Тверская улица, 23',rating:'4.6'},
+        {name:'Кофемания',meta:'КОФЕЙНЯ',address:'Большая Никитская улица',rating:'4.7'},
+        {name:'ГЭС-2',meta:'КУЛЬТУРА',address:'Болотная набережная, 15',rating:'4.8'},
+        {name:'Ararat Park Hyatt',meta:'ОТЕЛЬ',address:'Неглинная улица, 4',rating:'4.8'},
+        {name:'Lucky Izakaya Bar',meta:'РЕСТОРАН',address:'Большая Никитская улица, 9',rating:'4.7'}
+      ]
+    };
+    let routeCity='spb';
+    let routeLength=4;
+    let routeVariation=0;
+
+    function renderRoutePreview(){
+      const source=routeDemo[routeCity];
+      const shift=routeVariation%source.length;
+      const ordered=[...source.slice(shift),...source.slice(0,shift)].slice(0,routeLength);
+      const plan=routeLength===3?'2–3 часа':routeLength===4?'Полдня':'Весь день';
+      const distance=routeCity==='spb'
+        ? (routeLength===3?'≈ 3,2 км':routeLength===4?'≈ 5,8 км':'≈ 7,1 км')
+        : (routeLength===3?'≈ 2,7 км':routeLength===4?'≈ 4,9 км':'≈ 6,4 км');
+
+      document.getElementById('routeCityLabel').textContent=routeCity==='spb'?'САНКТ-ПЕТЕРБУРГ':'МОСКВА';
+      document.getElementById('routePlanLabel').textContent=`${plan} · ${routeLength} остановки`;
+      document.getElementById('routeDistanceLabel').textContent=`${distance} между точками · оценка по прямой`;
+      document.getElementById('routeStops').innerHTML=ordered.map((spot,index)=>`
+        <div class="route-stop">
+          <div class="route-timeline"><div class="route-num">${index+1}</div>${index<ordered.length-1?'<div class="route-line"></div>':''}</div>
+          <div class="route-stop-card">
+            <div class="route-stop-copy"><small>${spot.meta}</small><b>${spot.name}</b><span>${spot.address}</span></div>
+            <div class="route-stop-rating">★ ${spot.rating}</div>
+          </div>
+        </div>
+      `).join('');
+    }
+
     document.getElementById('mapSearchBtn').addEventListener('click',()=>openOverlay(searchOverlay));
     document.getElementById('openPlaceBtn').addEventListener('click',()=>openOverlay(placeOverlay));
     document.getElementById('addBtn').addEventListener('click',()=>openOverlay(addOverlay));
+    document.getElementById('previewRouteLauncher').addEventListener('click',()=>{
+      renderRoutePreview();
+      openOverlay(routeOverlay);
+    });
+    document.querySelectorAll('[data-route-city]').forEach(button=>button.addEventListener('click',()=>{
+      routeCity=button.dataset.routeCity;
+      routeVariation=0;
+      document.querySelectorAll('[data-route-city]').forEach(item=>item.classList.toggle('active',item===button));
+      renderRoutePreview();
+    }));
+    document.querySelectorAll('[data-route-length]').forEach(button=>button.addEventListener('click',()=>{
+      routeLength=Number(button.dataset.routeLength);
+      document.querySelectorAll('[data-route-length]').forEach(item=>item.classList.toggle('active',item===button));
+      renderRoutePreview();
+    }));
+    document.getElementById('routeReroll').addEventListener('click',()=>{
+      routeVariation+=1;
+      renderRoutePreview();
+    });
+    document.getElementById('routeShare').addEventListener('click',()=>showToast('Маршрут готов к отправке'));
+    document.getElementById('routeSave').addEventListener('click',()=>{
+      showToast('Маршрут сохранён как подборка');
+      document.getElementById('routeSave').textContent='✓ Сохранено';
+    });
     document.getElementById('savedBirchResult').addEventListener('click',()=>{
       closeOverlay(searchOverlay);
       openOverlay(placeOverlay);
