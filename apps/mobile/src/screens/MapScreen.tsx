@@ -1,4 +1,3 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -27,6 +26,10 @@ import { useSpotStore } from '../state/SpotStore';
 import { colors } from '../theme';
 import type { CitySlug, DiscoveryInterest, Spot, SpotCategory } from '../types';
 import { distanceMeters, spotWithDistance, type Coordinates } from '../utils/geo';
+import {
+  dismissRecommendationID,
+  getDismissedRecommendationIDs
+} from '../utils/recommendationFeedback';
 
 const NEARBY_RADIUS_METERS = 2000;
 
@@ -70,8 +73,6 @@ const CITY_LABELS: Record<CitySlug, string> = {
 };
 
 const PERSONALIZED_DISCOVERY_LIMIT = 10;
-const DISMISSED_RECOMMENDATIONS_KEY = '@spot/dismissed-recommendations/v1';
-const MAX_DISMISSED_RECOMMENDATIONS = 200;
 
 function personalizedCategoriesFor(
   interests: DiscoveryInterest[],
@@ -172,21 +173,9 @@ export function MapScreen() {
   useEffect(() => {
     let active = true;
 
-    void AsyncStorage.getItem(DISMISSED_RECOMMENDATIONS_KEY)
-      .then((raw) => {
-        if (!active || !raw) return;
-        try {
-          const parsed = JSON.parse(raw) as unknown;
-          if (!Array.isArray(parsed)) return;
-          setDismissedRecommendationIDs(
-            parsed
-              .filter((item): item is string => typeof item === 'string')
-              .slice(-MAX_DISMISSED_RECOMMENDATIONS)
-          );
-        } catch {
-          setDismissedRecommendationIDs([]);
-        }
-      });
+    void getDismissedRecommendationIDs().then((ids) => {
+      if (active) setDismissedRecommendationIDs(ids);
+    });
 
     return () => {
       active = false;
@@ -434,10 +423,9 @@ export function MapScreen() {
   function dismissRecommendation(spot: Spot) {
     setForYouSpots((current) => current.filter((item) => item.id !== spot.id));
     setDismissedRecommendationIDs((current) => {
-      const next = [...current.filter((id) => id !== spot.id), spot.id]
-        .slice(-MAX_DISMISSED_RECOMMENDATIONS);
-      void AsyncStorage.setItem(DISMISSED_RECOMMENDATIONS_KEY, JSON.stringify(next));
-      return next;
+      const optimistic = [...current.filter((id) => id !== spot.id), spot.id];
+      void dismissRecommendationID(spot.id).then(setDismissedRecommendationIDs);
+      return optimistic;
     });
   }
 
