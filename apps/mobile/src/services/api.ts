@@ -24,7 +24,9 @@ export type LinkImportResult = {
   platform: string;
   source_url: string;
   message?: string;
+  suggestedQuery?: string;
   place?: Spot;
+  candidates: Spot[];
 };
 
 function fromApiPlace(place: ApiPlace): Spot {
@@ -72,7 +74,7 @@ export async function searchPlaces(query: string, city: CitySlug = 'spb'): Promi
   }
 }
 
-export async function importPlaceLink(url: string, city: CitySlug): Promise<LinkImportResult> {
+export async function importPlaceLink(url: string, city: CitySlug, hint?: string): Promise<LinkImportResult> {
   const session = await ensureGuestSession();
 
   const response = await fetch(`${appConfig.apiBaseUrl}/api/v1/imports/link`, {
@@ -82,7 +84,7 @@ export async function importPlaceLink(url: string, city: CitySlug): Promise<Link
       'Content-Type': 'application/json',
       Authorization: `Bearer ${session.token}`
     },
-    body: JSON.stringify({ url, city })
+    body: JSON.stringify({ url, city, hint: hint?.trim() || undefined })
   });
 
   if (!response.ok) {
@@ -101,17 +103,24 @@ export async function importPlaceLink(url: string, city: CitySlug): Promise<Link
     platform: string;
     source_url: string;
     message?: string;
+    suggested_query?: string;
     place?: ApiPlace;
+    candidates?: ApiPlace[];
   };
 
+  const withSource = (place: ApiPlace): Spot => ({
+    ...fromApiPlace(place),
+    sourceUrl: payload.source_url,
+    sourcePlatform: payload.platform
+  });
+
   return {
-    ...payload,
-    place: payload.place
-      ? {
-          ...fromApiPlace(payload.place),
-          sourceUrl: payload.source_url,
-          sourcePlatform: payload.platform
-        }
-      : undefined
+    status: payload.status,
+    platform: payload.platform,
+    source_url: payload.source_url,
+    message: payload.message,
+    suggestedQuery: payload.suggested_query,
+    place: payload.place ? withSource(payload.place) : undefined,
+    candidates: (payload.candidates ?? []).map(withSource)
   };
 }
