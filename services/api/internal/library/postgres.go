@@ -80,7 +80,8 @@ func (s *PostgresStore) UpsertPlace(ctx context.Context, userID string, input Sa
 			category_id,
 			name,
 			normalized_name,
-			location,
+			latitude,
+			longitude,
 			address,
 			rating,
 			rating_count,
@@ -94,7 +95,8 @@ func (s *PostgresStore) UpsertPlace(ctx context.Context, userID string, input Sa
 			category.id,
 			$4,
 			lower(trim($4)),
-			ST_SetSRID(ST_Point($6, $5), 4326)::geography,
+			$5,
+			$6,
 			NULLIF(trim($7), ''),
 			NULLIF($8, 0),
 			NULLIF($9, 0),
@@ -109,7 +111,8 @@ func (s *PostgresStore) UpsertPlace(ctx context.Context, userID string, input Sa
 		    category_id = EXCLUDED.category_id,
 		    name = EXCLUDED.name,
 		    normalized_name = EXCLUDED.normalized_name,
-		    location = EXCLUDED.location,
+		    latitude = EXCLUDED.latitude,
+		    longitude = EXCLUDED.longitude,
 		    address = EXCLUDED.address,
 		    rating = COALESCE(EXCLUDED.rating, places.rating),
 		    rating_count = GREATEST(
@@ -232,8 +235,8 @@ func (s *PostgresStore) ListPlaces(ctx context.Context, userID string, filters P
 			c.slug,
 			c.name,
 			COALESCE(p.address, ''),
-			ST_Y(p.location::geometry),
-			ST_X(p.location::geometry),
+			p.latitude,
+			p.longitude,
 			COALESCE(p.rating::float8, 0),
 			COALESCE(p.rating_count, 0),
 			COALESCE(p.working_hours::text, '{}'),
@@ -290,9 +293,6 @@ func (s *PostgresStore) NearbyPlaces(ctx context.Context, userID string, query N
 	limit := normalizeLimit(query.Limit, 50, 100)
 
 	rows, err := s.pool.Query(ctx, `
-		WITH origin AS (
-			SELECT ST_SetSRID(ST_Point($3, $2), 4326)::geography AS point
-		)
 		SELECT
 			p.public_id,
 			p.name,
@@ -301,8 +301,8 @@ func (s *PostgresStore) NearbyPlaces(ctx context.Context, userID string, query N
 			c.slug,
 			c.name,
 			COALESCE(p.address, ''),
-			ST_Y(p.location::geometry),
-			ST_X(p.location::geometry),
+			p.latitude,
+			p.longitude,
 			COALESCE(p.rating::float8, 0),
 			COALESCE(p.rating_count, 0),
 			COALESCE(p.working_hours::text, '{}'),
@@ -317,15 +317,26 @@ func (s *PostgresStore) NearbyPlaces(ctx context.Context, userID string, query N
 			up.saved_at,
 			up.visited_at,
 			up.updated_at,
-			round(ST_Distance(p.location, origin.point))::int
+			round(distance.distance_m)::int
 		FROM user_places up
 		JOIN places p ON p.id = up.place_id
 		JOIN cities c ON c.id = p.city_id
 		LEFT JOIN categories cat ON cat.id = p.category_id
-		CROSS JOIN origin
+		CROSS JOIN LATERAL (
+			SELECT 6371000.0 * 2.0 * asin(
+				least(
+					1.0,
+					sqrt(
+						power(sin(radians(p.latitude - $2) / 2.0), 2) +
+						cos(radians($2)) * cos(radians(p.latitude)) *
+						power(sin(radians(p.longitude - $3) / 2.0), 2)
+					)
+				)
+			) AS distance_m
+		) distance
 		WHERE up.user_id = $1::uuid
-		  AND ST_DWithin(p.location, origin.point, $4)
-		ORDER BY ST_Distance(p.location, origin.point), up.saved_at DESC
+		  AND distance.distance_m <= $4
+		ORDER BY distance.distance_m, up.saved_at DESC
 		LIMIT $5
 	`, userID, query.Latitude, query.Longitude, radius, limit)
 	if err != nil {
@@ -522,8 +533,8 @@ func (s *PostgresStore) GetSharedPlace(ctx context.Context, shareID string) (Sha
 			c.slug,
 			c.name,
 			COALESCE(p.address, ''),
-			ST_Y(p.location::geometry),
-			ST_X(p.location::geometry),
+			p.latitude,
+			p.longitude,
 			COALESCE(p.rating::float8, 0),
 			COALESCE(p.rating_count, 0),
 			COALESCE(p.working_hours::text, '{}'),
@@ -830,8 +841,8 @@ func (s *PostgresStore) GetSharedCollection(ctx context.Context, collectionID st
 			c.slug,
 			c.name,
 			COALESCE(p.address, ''),
-			ST_Y(p.location::geometry),
-			ST_X(p.location::geometry),
+			p.latitude,
+			p.longitude,
 			COALESCE(p.rating::float8, 0),
 			COALESCE(p.rating_count, 0),
 			COALESCE(p.working_hours::text, '{}'),
@@ -1130,8 +1141,8 @@ func (s *PostgresStore) getPlace(ctx context.Context, userID, placeID string) (S
 			c.slug,
 			c.name,
 			COALESCE(p.address, ''),
-			ST_Y(p.location::geometry),
-			ST_X(p.location::geometry),
+			p.latitude,
+			p.longitude,
 			COALESCE(p.rating::float8, 0),
 			COALESCE(p.rating_count, 0),
 			COALESCE(p.working_hours::text, '{}'),
