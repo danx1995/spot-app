@@ -263,6 +263,34 @@ func (s *MemoryStore) GetCollection(_ context.Context, userID, collectionID stri
 	return cloneCollection(collection), nil
 }
 
+func (s *MemoryStore) GetSharedCollection(_ context.Context, collectionID string) (SharedCollection, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for userID, collections := range s.collections {
+		collection, ok := collections[collectionID]
+		if !ok || (collection.Visibility != "shared" && collection.Visibility != "public") {
+			continue
+		}
+
+		places := make([]Place, 0, len(collection.PlaceIDs))
+		for _, placeID := range collection.PlaceIDs {
+			saved, exists := s.places[userID][placeID]
+			if !exists {
+				continue
+			}
+			places = append(places, saved.Place)
+		}
+
+		return SharedCollection{
+			Collection: cloneCollection(collection),
+			Places:     places,
+		}, nil
+	}
+
+	return SharedCollection{}, ErrNotFound
+}
+
 func (s *MemoryStore) PatchCollection(_ context.Context, userID, collectionID string, patch CollectionPatch) (Collection, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
