@@ -58,6 +58,12 @@ type NewCollectionInput = {
   city: CitySlug | 'both';
 };
 
+type UpdateCollectionInput = {
+  title: string;
+  subtitle?: string;
+  city: CitySlug | 'both';
+};
+
 type SharedCollectionImport = {
   sourceCollectionId: string;
   title: string;
@@ -87,6 +93,8 @@ type SpotStoreValue = {
   updateNote: (id: string, note: string) => void;
   toggleFavorite: (id: string) => void;
   createCollection: (input: NewCollectionInput) => Collection;
+  updateCollection: (id: string, input: UpdateCollectionInput) => void;
+  reorderCollectionPlace: (collectionId: string, placeId: string, direction: 'up' | 'down') => void;
   importSharedCollection: (input: SharedCollectionImport) => void;
   deleteCollection: (id: string) => void;
   togglePlaceInCollection: (collectionId: string, placeId: string) => void;
@@ -422,6 +430,47 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
     return collection;
   }, []);
 
+  const updateCollection = useCallback((id: string, input: UpdateCollectionInput) => {
+    const title = input.title.trim();
+    if (!title) return;
+
+    setCollections((current) => current.map((collection) => (
+      collection.id === id
+        ? {
+            ...collection,
+            title,
+            subtitle: input.subtitle?.trim() || 'Моя подборка',
+            city: input.city,
+            cityLabel: cityLabel(input.city)
+          }
+        : collection
+    )));
+  }, []);
+
+  const reorderCollectionPlace = useCallback((
+    collectionId: string,
+    placeId: string,
+    direction: 'up' | 'down'
+  ) => {
+    setCollections((current) => current.map((collection) => {
+      if (collection.id !== collectionId) return collection;
+
+      const index = collection.placeIds.indexOf(placeId);
+      if (index < 0) return collection;
+
+      const target = direction === 'up' ? index - 1 : index + 1;
+      if (target < 0 || target >= collection.placeIds.length) return collection;
+
+      const next = [...collection.placeIds];
+      [next[index], next[target]] = [next[target] as string, next[index] as string];
+
+      return {
+        ...collection,
+        placeIds: next
+      };
+    }));
+  }, []);
+
   const importSharedCollection = useCallback((input: SharedCollectionImport) => {
     setSavedSpots((current) => {
       const byID = new Map(current.map((spot) => [spot.id, spot]));
@@ -518,6 +567,8 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
     updateNote,
     toggleFavorite,
     createCollection,
+    updateCollection,
+    reorderCollectionPlace,
     importSharedCollection,
     deleteCollection,
     togglePlaceInCollection
@@ -538,6 +589,8 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
     updateNote,
     toggleFavorite,
     createCollection,
+    updateCollection,
+    reorderCollectionPlace,
     importSharedCollection,
     deleteCollection,
     togglePlaceInCollection
