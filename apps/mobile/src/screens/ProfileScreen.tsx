@@ -26,6 +26,37 @@ import {
   clearDismissedRecommendations,
   getDismissedRecommendationIDs
 } from '../utils/recommendationFeedback';
+import {
+  getThemePreference,
+  setThemePreference,
+  type ThemePreference
+} from '../utils/themePreference';
+
+const themeOptions: Array<{
+  id: ThemePreference;
+  label: string;
+  description: string;
+  icon: string;
+}> = [
+  {
+    id: 'system',
+    label: 'Системная',
+    description: 'Меняется вместе с настройками телефона',
+    icon: '◐'
+  },
+  {
+    id: 'light',
+    label: 'Светлая',
+    description: 'Всегда светлое оформление',
+    icon: '○'
+  },
+  {
+    id: 'dark',
+    label: 'Тёмная',
+    description: 'Всегда тёмное оформление',
+    icon: '●'
+  }
+];
 
 const interestOptions: Array<{ id: DiscoveryInterest; label: string; icon: string }> = [
   { id: 'restaurant', label: 'Еда', icon: '🍽' },
@@ -54,6 +85,9 @@ export function ProfileScreen() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
   const [interestsOpen, setInterestsOpen] = useState(false);
+  const [themeOpen, setThemeOpen] = useState(false);
+  const [themePreference, setThemePreferenceState] = useState<ThemePreference>('system');
+  const [themeSaving, setThemeSaving] = useState(false);
   const [profile, setProfile] = useState<AccountProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [editorOpen, setEditorOpen] = useState(false);
@@ -104,6 +138,18 @@ export function ProfileScreen() {
   useEffect(() => {
     let active = true;
 
+    void getThemePreference().then((preference) => {
+      if (active) setThemePreferenceState(preference);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
     void getDismissedRecommendationIDs().then((ids) => {
       if (active) setDismissedRecommendationCount(ids.length);
     });
@@ -131,6 +177,26 @@ export function ProfileScreen() {
     setDraftName(profile?.display_name ?? '');
     setProfileError(null);
     setEditorOpen(true);
+  }
+
+  async function changeTheme(preference: ThemePreference) {
+    if (themeSaving) return;
+
+    setThemePreferenceState(preference);
+    setThemeSaving(true);
+    setProfileError(null);
+
+    try {
+      await setThemePreference(preference);
+      setThemeOpen(false);
+
+      const next = await updateAccountProfile({ theme: preference });
+      setProfile(next);
+    } catch {
+      setProfileError('Тема применена на устройстве, но пока не синхронизировалась с профилем');
+    } finally {
+      setThemeSaving(false);
+    }
   }
 
   function resetRecommendationFeedback() {
@@ -279,9 +345,20 @@ export function ProfileScreen() {
             <Text style={[styles.chevron, { color: muted }]}>›</Text>
           </Pressable>
 
+          <Pressable onPress={() => setThemeOpen(true)} style={styles.menuRow}>
+            <Text style={[styles.menuText, { color: text }]}>Тема приложения</Text>
+            <Text style={[styles.menuValue, { color: muted }]}>
+              {themePreference === 'light'
+                ? 'Светлая'
+                : themePreference === 'dark'
+                  ? 'Тёмная'
+                  : 'Системная'}
+            </Text>
+            <Text style={[styles.chevron, { color: muted }]}>›</Text>
+          </Pressable>
+
           {[
             ['Уведомления рядом', 'Скоро'],
-            ['Тема приложения', 'Системная'],
             ['Настройки', 'Скоро'],
             ['Помощь', 'Скоро']
           ].map(([label, value]) => (
@@ -305,8 +382,65 @@ export function ProfileScreen() {
           setProfile(nextProfile);
           setDraftName(nextProfile.display_name ?? '');
           setProfileError(null);
+          const transferredTheme = nextProfile.theme ?? 'system';
+          setThemePreferenceState(transferredTheme);
+          void setThemePreference(transferredTheme);
         }}
       />
+
+      <Modal
+        visible={themeOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setThemeOpen(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalCard, { backgroundColor: dark ? '#151B17' : colors.white }]}>
+            <Text style={[styles.modalTitle, { color: text }]}>Тема приложения</Text>
+            <Text style={[styles.modalSubtitle, { color: muted }]}>
+              Выбор применяется сразу ко всему СПОТ, включая системные окна и навигацию.
+            </Text>
+
+            <View style={styles.themeList}>
+              {themeOptions.map((item) => {
+                const active = themePreference === item.id;
+                return (
+                  <Pressable
+                    key={item.id}
+                    onPress={() => void changeTheme(item.id)}
+                    disabled={themeSaving}
+                    style={[
+                      styles.themeRow,
+                      { backgroundColor: raised },
+                      active && styles.themeRowActive,
+                      themeSaving && styles.disabled
+                    ]}
+                  >
+                    <View style={[styles.themeIcon, active && styles.themeIconActive]}>
+                      <Text style={[styles.themeIconText, active && styles.themeIconTextActive]}>
+                        {item.icon}
+                      </Text>
+                    </View>
+                    <View style={styles.themeCopy}>
+                      <Text style={[styles.themeLabel, { color: text }]}>{item.label}</Text>
+                      <Text style={[styles.themeDescription, { color: muted }]}>
+                        {item.description}
+                      </Text>
+                    </View>
+                    <View style={[styles.interestCheck, active && styles.interestCheckActive]}>
+                      <Text style={styles.interestCheckText}>{active ? '✓' : ''}</Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <Pressable onPress={() => setThemeOpen(false)} style={styles.themeClose}>
+              <Text style={[styles.cancelText, { color: muted }]}>Закрыть</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         visible={interestsOpen}
@@ -635,6 +769,60 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontSize: 12,
     lineHeight: 18
+  },
+  themeList: {
+    marginTop: 18,
+    gap: 8
+  },
+  themeRow: {
+    minHeight: 68,
+    borderRadius: 19,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'transparent'
+  },
+  themeRowActive: {
+    borderColor: '#19C37D66'
+  },
+  themeIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 15,
+    backgroundColor: '#202923',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  themeIconActive: {
+    backgroundColor: colors.green
+  },
+  themeIconText: {
+    color: '#AFB8B2',
+    fontSize: 18,
+    fontWeight: '900'
+  },
+  themeIconTextActive: {
+    color: colors.black
+  },
+  themeCopy: {
+    flex: 1,
+    marginLeft: 12
+  },
+  themeLabel: {
+    fontSize: 14,
+    fontWeight: '900'
+  },
+  themeDescription: {
+    marginTop: 3,
+    fontSize: 10,
+    lineHeight: 14
+  },
+  themeClose: {
+    minHeight: 48,
+    marginTop: 12,
+    alignItems: 'center',
+    justifyContent: 'center'
   },
   interestList: {
     marginTop: 18,

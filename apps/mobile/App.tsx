@@ -10,6 +10,7 @@ import { StatusBar } from 'expo-status-bar';
 import { InboundImportProvider, useInboundImport } from './src/state/InboundImport';
 import { SpotStoreProvider, useSpotStore } from './src/state/SpotStore';
 import { colors } from './src/theme';
+import { hydrateThemePreference } from './src/utils/themePreference';
 import { AddScreen } from './src/screens/AddScreen';
 import { CollectionsScreen } from './src/screens/CollectionsScreen';
 import { MapScreen } from './src/screens/MapScreen';
@@ -185,6 +186,30 @@ function SpotApp() {
 
 export default function App() {
   const shareIntentDisabled = Constants.appOwnership === 'expo';
+  const [themeReady, setThemeReady] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    void hydrateThemePreference()
+      .catch(() => undefined)
+      .finally(() => {
+        if (active) setThemeReady(true);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (!themeReady) {
+    return (
+      <View style={styles.loading}>
+        <StatusBar style="light" />
+        <View style={styles.loadingMark}><Text style={styles.loadingHeart}>♥</Text></View>
+      </View>
+    );
+  }
 
   return (
     <ShareIntentProvider options={{ disabled: shareIntentDisabled }}>

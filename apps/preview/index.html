@@ -10,8 +10,11 @@
       --green:#19C37D;
       --green-2:#7CF1B8;
       --black:#0B0F0C;
+      --app-bg:#0B0F0C;
+      --text:#F8FAF9;
       --surface:#151B17;
       --surface-2:#1C241F;
+      --raised:#202923;
       --muted:#97A09B;
       --white:#F8FAF9;
       --line:rgba(255,255,255,.08);
@@ -21,7 +24,7 @@
     html,body{margin:0;min-height:100%;background:
       radial-gradient(circle at 18% 4%, rgba(25,195,125,.13), transparent 28%),
       radial-gradient(circle at 84% 92%, rgba(25,195,125,.08), transparent 30%),
-      #070A08;color:var(--white);font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+      #070A08;color:var(--text);font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
     body{min-height:100vh}
     button,input{font:inherit}
     button{border:0}
@@ -42,9 +45,40 @@
     .mini b{display:block;font-size:16px;color:var(--white)}
     .mini span{display:block;margin-top:4px;color:#7D8882;font-size:10px;line-height:1.35}
     .device-wrap{display:flex;justify-content:center}
-    .phone{width:min(430px,calc(100vw - 32px));height:min(860px,calc(100vh - 50px));min-height:670px;max-height:860px;border-radius:46px;background:var(--black);border:1px solid rgba(255,255,255,.12);box-shadow:var(--shadow);overflow:hidden;position:relative;isolation:isolate}
+    .phone{width:min(430px,calc(100vw - 32px));height:min(860px,calc(100vh - 50px));min-height:670px;max-height:860px;border-radius:46px;background:var(--app-bg);border:1px solid rgba(255,255,255,.12);box-shadow:var(--shadow);overflow:hidden;position:relative;isolation:isolate}
     .phone:before{content:"";position:absolute;z-index:30;top:12px;left:50%;transform:translateX(-50%);width:110px;height:28px;border-radius:20px;background:#050706}
     .screen{position:absolute;inset:0;padding-bottom:88px;overflow:hidden;display:none}
+    body.light-preview{
+      --app-bg:#F5F7F6;
+      --text:#111612;
+      --surface:#FFFFFF;
+      --surface-2:#EDF1EF;
+      --raised:#E8EEEA;
+      --muted:#69746E;
+      --white:#111612;
+      --line:rgba(11,15,12,.09);
+      --shadow:0 24px 70px rgba(22,45,32,.18);
+    }
+    body.light-preview .phone{border-color:rgba(11,15,12,.12)}
+    body.light-preview .phone:before{background:#0B0F0C}
+    body.light-preview .map{background:
+      linear-gradient(30deg,transparent 48%,rgba(11,15,12,.055) 49%,rgba(11,15,12,.055) 51%,transparent 52%) 0 0/92px 92px,
+      linear-gradient(120deg,transparent 48%,rgba(11,15,12,.04) 49%,rgba(11,15,12,.04) 51%,transparent 52%) 0 0/132px 132px,
+      radial-gradient(circle at 62% 33%,rgba(25,195,125,.12),transparent 18%),
+      #EEF3F0}
+    body.light-preview .river{background:#D9EEE4}
+    body.light-preview .road{background:#D6DDD9}
+    body.light-preview .place-card{background:rgba(255,255,255,.97)}
+    body.light-preview .bottom-nav{background:rgba(255,255,255,.97);border-color:rgba(11,15,12,.08);box-shadow:0 15px 40px rgba(22,45,32,.12)}
+    body.light-preview .sheet{background:#F5F7F6;border-top-color:rgba(11,15,12,.08);box-shadow:0 -20px 60px rgba(22,45,32,.16)}
+    body.light-preview .search-result{color:#111612}
+    body.light-preview .round{color:#111612}
+    body.light-preview .route-actions{background:linear-gradient(180deg,rgba(245,247,246,0),#F5F7F6 28%)}
+    body.light-preview .route-schedule-note b{color:#111612}
+    body.light-preview .run-skip{color:#111612}
+    body.light-preview .for-you-dismiss{color:#111612}
+    body.light-preview .intro{color:#F8FAF9}
+    .theme-options{padding:6px 18px 26px;display:grid;gap:8px}.theme-option{width:100%;min-height:67px;border-radius:19px;background:var(--surface);color:var(--text);display:flex;align-items:center;gap:12px;padding:12px;text-align:left;cursor:pointer;border:1px solid transparent}.theme-option.active{border-color:rgba(25,195,125,.45)}.theme-option-icon{width:42px;height:42px;border-radius:15px;background:var(--raised);display:grid;place-items:center;font-size:18px;font-weight:950}.theme-option.active .theme-option-icon{background:var(--green);color:var(--black)}.theme-option-copy{flex:1}.theme-option-copy b{display:block;font-size:12px}.theme-option-copy span{display:block;color:var(--muted);font-size:8px;line-height:1.4;margin-top:3px}.theme-option-check{color:var(--green);font-size:14px;font-weight:950}
     .screen.active{display:block}
     .scroll{height:100%;overflow-y:auto;scrollbar-width:none}
     .scroll::-webkit-scrollbar{display:none}
@@ -265,7 +299,7 @@
               <button class="menu-row" data-toast="Apple / Google backend уже подготовлен">Аккаунт <span>Скоро ›</span></button>
               <button class="menu-row" id="previewResetRecommendations">Скрытые рекомендации <span id="previewHiddenCount">2 ›</span></button>
               <button class="menu-row" id="showOnboardingProfile">Onboarding <span>Посмотреть ›</span></button>
-              <button class="menu-row" id="themeBtn">Тема preview <span>Переключить ›</span></button>
+              <button class="menu-row" id="themeBtn">Тема приложения <span id="themeValue">Системная ›</span></button>
             </div>
           </div>
         </section>
@@ -337,6 +371,33 @@
               <button class="ob-back" data-ob-back>Назад</button>
             </div>
           </section>
+        </div>
+
+        <div class="overlay" id="themeOverlay">
+          <div class="sheet">
+            <div class="sheet-head">
+              <button class="sheet-close" data-close="themeOverlay">×</button>
+              <div><div class="sheet-title">Тема приложения</div><div class="sheet-sub">применяется ко всему СПОТ</div></div>
+              <div></div>
+            </div>
+            <div class="theme-options">
+              <button class="theme-option active" data-theme-choice="system">
+                <span class="theme-option-icon">◐</span>
+                <span class="theme-option-copy"><b>Системная</b><span>Меняется вместе с настройками устройства</span></span>
+                <span class="theme-option-check">✓</span>
+              </button>
+              <button class="theme-option" data-theme-choice="light">
+                <span class="theme-option-icon">○</span>
+                <span class="theme-option-copy"><b>Светлая</b><span>Всегда светлое оформление</span></span>
+                <span class="theme-option-check"></span>
+              </button>
+              <button class="theme-option" data-theme-choice="dark">
+                <span class="theme-option-icon">●</span>
+                <span class="theme-option-copy"><b>Тёмная</b><span>Всегда тёмное оформление</span></span>
+                <span class="theme-option-check"></span>
+              </button>
+            </div>
+          </div>
         </div>
 
         <div class="overlay" id="forYouOverlay">
@@ -674,6 +735,7 @@
     const toast=document.getElementById('toast');
     const searchOverlay=document.getElementById('searchOverlay');
     const forYouOverlay=document.getElementById('forYouOverlay');
+    const themeOverlay=document.getElementById('themeOverlay');
     const placeOverlay=document.getElementById('placeOverlay');
     const addOverlay=document.getElementById('addOverlay');
     const routeOverlay=document.getElementById('routeOverlay');
@@ -1143,10 +1205,36 @@
       });
     });
 
-    document.getElementById('themeBtn').addEventListener('click',()=>{
-      document.body.classList.toggle('light-preview');
-      showToast('В приложении тема следует системной настройке');
+    const themeLabels={system:'Системная',light:'Светлая',dark:'Тёмная'};
+    const systemThemeMedia=window.matchMedia('(prefers-color-scheme: light)');
+    let previewTheme=localStorage.getItem('spot-preview-theme')||'system';
+
+    function applyPreviewTheme(choice){
+      if(!themeLabels[choice]) choice='system';
+      previewTheme=choice;
+      const light=choice==='light'||(choice==='system'&&systemThemeMedia.matches);
+      document.body.classList.toggle('light-preview',light);
+      document.getElementById('themeValue').textContent=themeLabels[choice]+' ›';
+      document.querySelectorAll('[data-theme-choice]').forEach(button=>{
+        const active=button.dataset.themeChoice===choice;
+        button.classList.toggle('active',active);
+        const check=button.querySelector('.theme-option-check');
+        if(check) check.textContent=active?'✓':'';
+      });
+      localStorage.setItem('spot-preview-theme',choice);
+    }
+
+    applyPreviewTheme(previewTheme);
+    systemThemeMedia.addEventListener?.('change',()=> {
+      if(previewTheme==='system') applyPreviewTheme('system');
     });
+
+    document.getElementById('themeBtn').addEventListener('click',()=>openOverlay(themeOverlay));
+    document.querySelectorAll('[data-theme-choice]').forEach(button=>button.addEventListener('click',()=>{
+      applyPreviewTheme(button.dataset.themeChoice);
+      closeOverlay(themeOverlay);
+      showToast('Тема: '+themeLabels[previewTheme].toLowerCase());
+    }));
   </script>
 </body>
 </html>
