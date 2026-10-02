@@ -23,7 +23,7 @@ import { getSharedPlace } from '../services/libraryApi';
 import { useInboundImport } from '../state/InboundImport';
 import { useSpotStore } from '../state/SpotStore';
 import { colors } from '../theme';
-import type { CitySlug, Spot, SpotCategory } from '../types';
+import type { CitySlug, DiscoveryInterest, Spot, SpotCategory } from '../types';
 import { distanceMeters, spotWithDistance, type Coordinates } from '../utils/geo';
 
 const NEARBY_RADIUS_METERS = 2000;
@@ -84,7 +84,7 @@ export function MapScreen() {
   const mapRef = useRef<MapView | null>(null);
   const skipNextCityResetRef = useRef(false);
   const { pendingPlaceID, consumePendingPlace } = useInboundImport();
-  const { savedSpots, selectedCity, setSelectedCity } = useSpotStore();
+  const { savedSpots, selectedCity, setSelectedCity, interests } = useSpotStore();
   const [category, setCategory] = useState<MapCategory>('all');
   const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -99,6 +99,32 @@ export function MapScreen() {
   const [discoverError, setDiscoverError] = useState<string | null>(null);
   const [lastDiscoveryCenter, setLastDiscoveryCenter] = useState<Coordinates | null>(null);
   const [sharedPlaceError, setSharedPlaceError] = useState<string | null>(null);
+
+  const personalizedCategories = useMemo(() => {
+    const all = categories.find((item) => item.id === 'all');
+    const order = new Map<DiscoveryInterest, number>(
+      interests.map((interest, index) => [interest, index])
+    );
+
+    const sorted = categories
+      .filter((item) => item.id !== 'all')
+      .map((item, index) => ({
+        item,
+        index,
+        interestOrder: order.get(item.id as DiscoveryInterest)
+      }))
+      .sort((a, b) => {
+        if (a.interestOrder !== undefined && b.interestOrder !== undefined) {
+          return a.interestOrder - b.interestOrder;
+        }
+        if (a.interestOrder !== undefined) return -1;
+        if (b.interestOrder !== undefined) return 1;
+        return a.index - b.index;
+      })
+      .map(({ item }) => item);
+
+    return all ? [all, ...sorted] : sorted;
+  }, [interests]);
 
   const citySpots = useMemo(
     () => savedSpots
@@ -385,7 +411,7 @@ export function MapScreen() {
         style={styles.filterScroller}
         contentContainerStyle={styles.filters}
       >
-        {categories.map((item) => (
+        {personalizedCategories.map((item) => (
           <CategoryChip
             key={item.id}
             label={item.label}

@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { appConfig } from '../config';
-import type { CitySlug, Collection, Spot } from '../types';
+import type { CitySlug, Collection, DiscoveryInterest, Spot } from '../types';
 
 const SESSION_TOKEN_KEY = '@spot/cloud-session-token/v1';
 const SESSION_USER_KEY = '@spot/cloud-user-id/v1';
@@ -10,6 +10,7 @@ export type CloudStatePayload = {
   selected_city: CitySlug;
   saved_spots: Spot[];
   collections: Collection[];
+  interests?: DiscoveryInterest[];
 };
 
 export type CloudEnvelope = {
