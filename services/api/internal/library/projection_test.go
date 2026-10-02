@@ -24,6 +24,12 @@ func TestApplyCloudDeltaProjectsPlacesAndCollections(t *testing.T) {
 				"latitude":59.9449,
 				"longitude":30.3596,
 				"rating":4.8,
+				"reviewCount":128,
+				"openingHours":{
+					"is24x7":false,
+					"days":{"mon":[{"from":"09:00","to":"23:00"}]}
+				},
+				"description":"Авторский ресторан",
 				"status":"want",
 				"favorite":true,
 				"note":"ужин"
@@ -51,6 +57,15 @@ func TestApplyCloudDeltaProjectsPlacesAndCollections(t *testing.T) {
 	}
 	if len(places) != 1 || places[0].ID != "sp_1" || !places[0].IsFavorite {
 		t.Fatalf("unexpected places: %#v", places)
+	}
+	if places[0].ReviewCount != 128 || places[0].OpeningHours == nil {
+		t.Fatalf("expected enriched metadata to be projected: %#v", places[0])
+	}
+	if got := places[0].OpeningHours.Days["mon"]; len(got) != 1 || got[0].From != "09:00" || got[0].To != "23:00" {
+		t.Fatalf("unexpected projected hours: %#v", got)
+	}
+	if places[0].Description != "Авторский ресторан" {
+		t.Fatalf("unexpected projected description: %q", places[0].Description)
 	}
 
 	collection, err := store.GetCollection(ctx, "u1", "col_weekend")
