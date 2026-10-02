@@ -42,4 +42,5 @@ export type Collection = {
   cityLabel: string;
   placeIds: string[];
   createdAt: string;
+  sourceCollectionId?: string;
 };
