@@ -13,6 +13,7 @@ import {
 import { PlaceDetailModal } from '../components/PlaceDetailModal';
 import { SpotCard } from '../components/SpotCard';
 import { searchPlaces } from '../services/api';
+import { useSpotStore } from '../state/SpotStore';
 import { colors } from '../theme';
 import type { Spot } from '../types';
 
@@ -23,9 +24,11 @@ const secondaryActions = [
 
 export function AddScreen() {
   const dark = useColorScheme() === 'dark';
+  const { selectedCity, setSelectedCity } = useSpotStore();
   const text = dark ? colors.white : colors.black;
   const muted = dark ? colors.textSecondaryDark : colors.textSecondaryLight;
   const surface = dark ? colors.darkSurface : colors.white;
+  const cityLabel = selectedCity === 'spb' ? 'Петербург' : 'Москва';
 
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Spot[]>([]);
@@ -45,7 +48,7 @@ export function AddScreen() {
     setLoading(true);
 
     const timer = setTimeout(() => {
-      void searchPlaces(normalized)
+      void searchPlaces(normalized, selectedCity)
         .then((places) => {
           if (active) setResults(places);
         })
@@ -58,7 +61,7 @@ export function AddScreen() {
       active = false;
       clearTimeout(timer);
     };
-  }, [query]);
+  }, [query, selectedCity]);
 
   return (
     <View style={[styles.root, { backgroundColor: dark ? colors.black : colors.lightBackground }]}>
@@ -67,10 +70,27 @@ export function AddScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
       >
-        <View style={styles.mark}><Text style={styles.markHeart}>♥</Text></View>
+        <View style={styles.headerRow}>
+          <View style={styles.mark}><Text style={styles.markHeart}>♥</Text></View>
+          <View style={styles.cityToggle}>
+            <Pressable
+              onPress={() => setSelectedCity('spb')}
+              style={[styles.cityChip, selectedCity === 'spb' && styles.cityChipActive]}
+            >
+              <Text style={[styles.cityChipText, selectedCity === 'spb' && styles.cityChipTextActive]}>СПБ</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setSelectedCity('moscow')}
+              style={[styles.cityChip, selectedCity === 'moscow' && styles.cityChipActive]}
+            >
+              <Text style={[styles.cityChipText, selectedCity === 'moscow' && styles.cityChipTextActive]}>МСК</Text>
+            </Pressable>
+          </View>
+        </View>
+
         <Text style={[styles.title, { color: text }]}>Добавить в СПОТ</Text>
         <Text style={[styles.subtitle, { color: muted }]}>
-          Найди место сейчас — вернись к нему, когда окажешься рядом.
+          Ищем в городе: {cityLabel}. Город можно переключить сверху.
         </Text>
 
         <View style={[styles.searchBox, { backgroundColor: surface }]}>
@@ -80,7 +100,7 @@ export function AddScreen() {
             onChangeText={setQuery}
             autoCorrect={false}
             autoCapitalize="none"
-            placeholder="Название или адрес"
+            placeholder={`Название или адрес · ${cityLabel}`}
             placeholderTextColor={muted}
             style={[styles.searchInput, { color: text }]}
             returnKeyType="search"
@@ -152,6 +172,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 125
   },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between'
+  },
   mark: {
     width: 58,
     height: 58,
@@ -161,6 +186,29 @@ const styles = StyleSheet.create({
     justifyContent: 'center'
   },
   markHeart: { color: colors.black, fontSize: 25 },
+  cityToggle: {
+    flexDirection: 'row',
+    gap: 6
+  },
+  cityChip: {
+    height: 38,
+    paddingHorizontal: 14,
+    borderRadius: 15,
+    backgroundColor: colors.darkSurfaceRaised,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  cityChipActive: {
+    backgroundColor: colors.green
+  },
+  cityChipText: {
+    color: '#A7AEA9',
+    fontSize: 12,
+    fontWeight: '900'
+  },
+  cityChipTextActive: {
+    color: colors.black
+  },
   title: {
     marginTop: 22,
     fontSize: 34,
@@ -170,8 +218,8 @@ const styles = StyleSheet.create({
   subtitle: {
     marginTop: 9,
     maxWidth: 330,
-    fontSize: 16,
-    lineHeight: 23
+    fontSize: 15,
+    lineHeight: 22
   },
   searchBox: {
     marginTop: 26,
