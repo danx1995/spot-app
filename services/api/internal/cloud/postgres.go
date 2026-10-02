@@ -57,6 +57,78 @@ func (s *PostgresStore) TouchUser(ctx context.Context, userID string) error {
 	return nil
 }
 
+func (s *PostgresStore) GetUserProfile(ctx context.Context, userID string) (UserProfile, error) {
+	var profile UserProfile
+	err := s.pool.QueryRow(ctx, `
+		SELECT
+			u.id::text,
+			COALESCE(u.is_guest, true),
+			COALESCE(u.display_name, ''),
+			COALESCE(u.email, ''),
+			COALESCE(u.avatar_url, ''),
+			COALESCE(c.slug, ''),
+			COALESCE(u.theme, 'system'),
+			u.created_at,
+			u.updated_at,
+			u.last_seen_at
+		FROM users u
+		LEFT JOIN cities c ON c.id = u.home_city_id
+		WHERE u.id = $1::uuid
+	`, userID).Scan(
+		&profile.ID,
+		&profile.IsGuest,
+		&profile.DisplayName,
+		&profile.Email,
+		&profile.AvatarURL,
+		&profile.HomeCity,
+		&profile.Theme,
+		&profile.CreatedAt,
+		&profile.UpdatedAt,
+		&profile.LastSeenAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return UserProfile{}, ErrUserNotFound
+	}
+	return profile, err
+}
+
+func (s *PostgresStore) PatchUserProfile(ctx context.Context, userID string, patch UserProfilePatch) (UserProfile, error) {
+	current, err := s.GetUserProfile(ctx, userID)
+	if err != nil {
+		return UserProfile{}, err
+	}
+
+	next, err := applyProfilePatch(current, patch)
+	if err != nil {
+		return UserProfile{}, err
+	}
+
+	command, err := s.pool.Exec(ctx, `
+		UPDATE users
+		SET display_name = NULLIF(trim($2), ''),
+		    avatar_url = NULLIF(trim($3), ''),
+		    home_city_id = (SELECT id FROM cities WHERE slug = NULLIF($4, '')),
+		    theme = $5,
+		    last_seen_at = now(),
+		    updated_at = now()
+		WHERE id = $1::uuid
+	`,
+		userID,
+		next.DisplayName,
+		next.AvatarURL,
+		next.HomeCity,
+		next.Theme,
+	)
+	if err != nil {
+		return UserProfile{}, err
+	}
+	if command.RowsAffected() == 0 {
+		return UserProfile{}, ErrUserNotFound
+	}
+
+	return s.GetUserProfile(ctx, userID)
+}
+
 func (s *PostgresStore) GetState(ctx context.Context, userID string) (State, error) {
 	var state State
 	err := s.pool.QueryRow(ctx, `
