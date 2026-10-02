@@ -22,6 +22,7 @@ import (
 	"github.com/danx1995/spot-app/services/api/internal/migrations"
 	"github.com/danx1995/spot-app/services/api/internal/provider/twogis"
 	"github.com/danx1995/spot-app/services/api/internal/resolver"
+	"github.com/danx1995/spot-app/services/api/internal/routing"
 )
 
 type guestSessionResponse struct {
@@ -52,6 +53,7 @@ func main() {
 	twoGIS := twogis.New(os.Getenv("TWO_GIS_API_KEY"))
 	placesResolver := resolver.New(twoGIS)
 	linkImporter := importer.New(twoGIS, placesResolver)
+	routeService := routing.New(twoGIS)
 
 	databaseURL := os.Getenv("DATABASE_URL")
 	if strings.TrimSpace(databaseURL) != "" {
@@ -230,6 +232,7 @@ func main() {
 	registerLibraryRoutes(mux, libraryStore, tokens)
 	registerPublicCollectionRoutes(mux, libraryStore)
 	registerPublicPlaceRoutes(mux, libraryStore)
+	registerRouteRoutes(mux, routeService, tokens)
 
 	mux.HandleFunc("GET /api/v1/cities", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, catalog.Cities)

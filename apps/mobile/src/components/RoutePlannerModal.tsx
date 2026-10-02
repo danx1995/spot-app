@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
+  Linking,
   Modal,
   Pressable,
   ScrollView,
@@ -10,11 +12,19 @@ import {
   useColorScheme,
   View
 } from 'react-native';
+import * as Location from 'expo-location';
 
+import {
+  getRouteSummary,
+  type RouteLegSummary,
+  type RouteSummary,
+  type RouteTransport
+} from '../services/api';
 import { useSpotStore } from '../state/SpotStore';
 import { colors } from '../theme';
 import type { CitySlug, DiscoveryInterest, Spot } from '../types';
-import { distanceMeters } from '../utils/geo';
+import { distanceMeters, type Coordinates } from '../utils/geo';
+import { getSpotOpenState } from '../utils/openingHours';
 
 type Props = {
   visible: boolean;
@@ -39,7 +49,37 @@ const CITY_LABELS: Record<CitySlug, string> = {
   moscow: 'Москва'
 };
 
-function scoreSpot(spot: Spot, interests: DiscoveryInterest[]) {
+const CITY_CENTERS: Record<CitySlug, Coordinates> = {
+  spb: { latitude: 59.9386, longitude: 30.3141 },
+  moscow: { latitude: 55.7558, longitude: 37.6173 }
+};
+
+const MAX_CITY_START_DISTANCE_METERS = 120_000;
+const STOP_DWELL_SECONDS = 45 * 60;
+
+function spotCoordinates(spot: Spot): Coordinates {
+  return {
+    latitude: spot.latitude,
+    longitude: spot.longitude
+  };
+}
+
+function estimateTravelSeconds(
+  from: Coordinates,
+  to: Coordinates,
+  transport: RouteTransport
+) {
+  const straight = distanceMeters(from, to);
+  const roadFactor = transport === 'driving' ? 1.28 : 1.18;
+  const speedMetersPerSecond = transport === 'driving' ? 8.3 : 1.3;
+  return Math.max(0, Math.round((straight * roadFactor) / speedMetersPerSecond));
+}
+
+function scoreSpot(
+  spot: Spot,
+  interests: DiscoveryInterest[],
+  arrival?: Date
+) {
   let score = Math.max(0, spot.rating) * 1.15;
 
   if (spot.favorite) score += 2.4;
@@ -53,6 +93,12 @@ function scoreSpot(spot: Spot, interests: DiscoveryInterest[]) {
   const reviews = Math.max(0, spot.reviewCount ?? 0);
   score += Math.min(1.4, Math.log10(reviews + 1) * 0.35);
 
+  if (arrival) {
+    const openState = getSpotOpenState(spot, arrival);
+    if (openState.kind === 'open') score += 1.8;
+    if (openState.kind === 'closed') score -= 5;
+  }
+
   return score;
 }
 
@@ -60,41 +106,42 @@ function buildRoute(
   spots: Spot[],
   interests: DiscoveryInterest[],
   count: number,
-  variation: number
+  variation: number,
+  transport: RouteTransport,
+  start: Coordinates | null,
+  now: Date
 ) {
-  const candidates = spots
-    .filter((spot) => spot.status !== 'visited')
-    .sort((a, b) => scoreSpot(b, interests) - scoreSpot(a, interests));
-
+  const candidates = spots.filter((spot) => spot.status !== 'visited');
   if (candidates.length === 0) return [];
 
   const route: Spot[] = [];
   const used = new Set<string>();
   const seenCategories = new Set<string>();
-
-  const topWindow = Math.min(3, candidates.length);
-  const first = candidates[variation % topWindow] as Spot;
-  route.push(first);
-  used.add(first.id);
-  seenCategories.add(first.category);
+  let elapsedSeconds = 0;
 
   while (route.length < Math.min(count, candidates.length)) {
-    const previous = route[route.length - 1] as Spot;
+    const previousCoordinates = route.length > 0
+      ? spotCoordinates(route[route.length - 1] as Spot)
+      : start;
     let best: Spot | null = null;
     let bestScore = -Infinity;
+    let bestTravelSeconds = 0;
 
     for (const candidate of candidates) {
       if (used.has(candidate.id)) continue;
 
-      const distance = distanceMeters(
-        { latitude: previous.latitude, longitude: previous.longitude },
-        { latitude: candidate.latitude, longitude: candidate.longitude }
-      );
-      const distancePenalty = Math.min(distance / 1000, 18) * 0.22;
+      const travelSeconds = previousCoordinates
+        ? estimateTravelSeconds(previousCoordinates, spotCoordinates(candidate), transport)
+        : 0;
+      const arrival = new Date(now.getTime() + (elapsedSeconds + travelSeconds) * 1000);
+      const distance = previousCoordinates
+        ? distanceMeters(previousCoordinates, spotCoordinates(candidate))
+        : 0;
+      const distancePenalty = (distance / 1000) * (transport === 'driving' ? 0.08 : 0.3);
       const diversityBonus = seenCategories.has(candidate.category) ? 0 : 1.25;
-      const rerollBias = ((candidate.id.length + variation) % 5) * 0.04;
+      const rerollBias = ((candidate.id.length + variation * 3 + route.length) % 7) * 0.09;
       const candidateScore =
-        scoreSpot(candidate, interests) +
+        scoreSpot(candidate, interests, arrival) +
         diversityBonus +
         rerollBias -
         distancePenalty;
@@ -102,32 +149,108 @@ function buildRoute(
       if (candidateScore > bestScore) {
         bestScore = candidateScore;
         best = candidate;
+        bestTravelSeconds = travelSeconds;
       }
     }
 
     if (!best) break;
+
+    elapsedSeconds += bestTravelSeconds;
     route.push(best);
     used.add(best.id);
     seenCategories.add(best.category);
+    elapsedSeconds += STOP_DWELL_SECONDS;
   }
 
   return route;
 }
 
-function routeDistance(route: Spot[]) {
-  let total = 0;
+function localRouteSummary(
+  points: Coordinates[],
+  transport: RouteTransport
+): RouteSummary | null {
+  if (points.length < 2) return null;
 
-  for (let index = 1; index < route.length; index += 1) {
-    const previous = route[index - 1] as Spot;
-    const current = route[index] as Spot;
+  const legs: RouteLegSummary[] = [];
+  let totalDistanceMeters = 0;
+  let totalDurationSeconds = 0;
 
-    total += distanceMeters(
-      { latitude: previous.latitude, longitude: previous.longitude },
-      { latitude: current.latitude, longitude: current.longitude }
+  for (let index = 1; index < points.length; index += 1) {
+    const from = points[index - 1] as Coordinates;
+    const to = points[index] as Coordinates;
+    const straight = distanceMeters(from, to);
+    const roadFactor = transport === 'driving' ? 1.28 : 1.18;
+    const distance = Math.round(straight * roadFactor);
+    const duration = estimateTravelSeconds(from, to, transport);
+
+    legs.push({
+      distanceMeters: distance,
+      durationSeconds: duration
+    });
+    totalDistanceMeters += distance;
+    totalDurationSeconds += duration;
+  }
+
+  return {
+    transport,
+    source: 'estimate',
+    legs,
+    totalDistanceMeters,
+    totalDurationSeconds
+  };
+}
+
+function formatDistance(value: number) {
+  if (value < 1000) return String(Math.max(0, Math.round(value))) + ' м';
+  const km = value / 1000;
+  return (km >= 10 ? km.toFixed(0) : km.toFixed(1).replace('.', ',')) + ' км';
+}
+
+function formatDuration(seconds: number) {
+  const minutes = Math.max(1, Math.round(seconds / 60));
+  if (minutes < 60) return String(minutes) + ' мин';
+
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest > 0
+    ? String(hours) + ' ч ' + String(rest) + ' мин'
+    : String(hours) + ' ч';
+}
+
+function formatMoscowTime(date: Date) {
+  const local = new Date(date.getTime() + 3 * 60 * 60 * 1000);
+  const hours = String(local.getUTCHours()).padStart(2, '0');
+  const minutes = String(local.getUTCMinutes()).padStart(2, '0');
+  return hours + ':' + minutes;
+}
+
+function buildMapsURL(
+  route: Spot[],
+  start: Coordinates | null,
+  transport: RouteTransport
+) {
+  if (route.length < 2) return null;
+
+  const coordinate = (value: Coordinates) => String(value.latitude) + ',' + String(value.longitude);
+  const destination = spotCoordinates(route[route.length - 1] as Spot);
+  const origin = start ?? spotCoordinates(route[0] as Spot);
+  const waypointSpots = start ? route.slice(0, -1) : route.slice(1, -1);
+
+  const params = new URLSearchParams({
+    api: '1',
+    origin: coordinate(origin),
+    destination: coordinate(destination),
+    travelmode: transport === 'driving' ? 'driving' : 'walking'
+  });
+
+  if (waypointSpots.length > 0) {
+    params.set(
+      'waypoints',
+      waypointSpots.map((spot) => coordinate(spotCoordinates(spot))).join('|')
     );
   }
 
-  return total;
+  return 'https://www.google.com/maps/dir/?' + params.toString();
 }
 
 function routeShareText(city: string, route: Spot[]) {
@@ -158,13 +281,27 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
   const [variation, setVariation] = useState(0);
   const [saved, setSaved] = useState(false);
   const [routeCity, setRouteCity] = useState<CitySlug>(selectedCity);
+  const [transport, setTransport] = useState<RouteTransport>('walking');
+  const [startFromMe, setStartFromMe] = useState(false);
+  const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
+  const [locationBusy, setLocationBusy] = useState(false);
+  const [remoteSummary, setRemoteSummary] = useState<RouteSummary | null>(null);
+  const [routingBusy, setRoutingBusy] = useState(false);
 
   useEffect(() => {
     if (!visible) return;
     setRouteCity(selectedCity);
     setVariation(0);
     setSaved(false);
+    setRemoteSummary(null);
   }, [selectedCity, visible]);
+
+  useEffect(() => {
+    if (!startFromMe || !userLocation) return;
+    if (distanceMeters(userLocation, CITY_CENTERS[routeCity]) > MAX_CITY_START_DISTANCE_METERS) {
+      setStartFromMe(false);
+    }
+  }, [routeCity, startFromMe, userLocation]);
 
   const text = dark ? colors.white : colors.black;
   const muted = dark ? colors.textSecondaryDark : colors.textSecondaryLight;
@@ -172,22 +309,171 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
   const raised = dark ? colors.darkSurfaceRaised : colors.lightMuted;
 
   const option = ROUTE_LENGTHS.find((item) => item.id === length) ?? ROUTE_LENGTHS[1]!;
+  const planBaseTime = useMemo(
+    () => new Date(),
+    [
+      length,
+      routeCity,
+      startFromMe,
+      transport,
+      userLocation?.latitude,
+      userLocation?.longitude,
+      variation,
+      visible
+    ]
+  );
+  const startCoordinate = startFromMe ? userLocation : null;
+
   const eligible = useMemo(
     () => savedSpots.filter((spot) => spot.city === routeCity && spot.status !== 'visited'),
     [routeCity, savedSpots]
   );
   const route = useMemo(
-    () => buildRoute(eligible, interests, option.places, variation),
-    [eligible, interests, option.places, variation]
+    () => buildRoute(
+      eligible,
+      interests,
+      option.places,
+      variation,
+      transport,
+      startCoordinate,
+      planBaseTime
+    ),
+    [
+      eligible,
+      interests,
+      option.places,
+      planBaseTime,
+      startCoordinate,
+      transport,
+      variation
+    ]
   );
-  const totalDistance = useMemo(() => routeDistance(route), [route]);
-  const distanceLabel = totalDistance >= 1000
-    ? `≈ ${(totalDistance / 1000).toFixed(totalDistance >= 10_000 ? 0 : 1)} км между точками`
-    : `≈ ${Math.max(0, totalDistance)} м между точками`;
+
+  const routePoints = useMemo(() => {
+    const points = route.map(spotCoordinates);
+    return startCoordinate ? [startCoordinate, ...points] : points;
+  }, [route, startCoordinate]);
+
+  const fallbackSummary = useMemo(
+    () => localRouteSummary(routePoints, transport),
+    [routePoints, transport]
+  );
+
+  useEffect(() => {
+    let active = true;
+
+    if (!visible || routePoints.length < 2) {
+      setRemoteSummary(null);
+      setRoutingBusy(false);
+      return () => {
+        active = false;
+      };
+    }
+
+    setRemoteSummary(null);
+    setRoutingBusy(true);
+
+    const timer = setTimeout(() => {
+      void getRouteSummary(routePoints, transport)
+        .then((summary) => {
+          if (active) setRemoteSummary(summary);
+        })
+        .finally(() => {
+          if (active) setRoutingBusy(false);
+        });
+    }, 220);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [routePoints, transport, visible]);
+
+  const effectiveSummary = remoteSummary ?? fallbackSummary;
+  const scheduledRoute = useMemo(() => {
+    let elapsedSeconds = 0;
+
+    return route.map((spot, index) => {
+      if (startCoordinate && index === 0) {
+        elapsedSeconds += effectiveSummary?.legs[0]?.durationSeconds ?? 0;
+      } else if (index > 0) {
+        const legIndex = startCoordinate ? index : index - 1;
+        elapsedSeconds += effectiveSummary?.legs[legIndex]?.durationSeconds ?? 0;
+      }
+
+      const arrival = new Date(planBaseTime.getTime() + elapsedSeconds * 1000);
+      const openState = getSpotOpenState(spot, arrival);
+      elapsedSeconds += STOP_DWELL_SECONDS;
+
+      return { spot, arrival, openState };
+    });
+  }, [effectiveSummary, planBaseTime, route, startCoordinate]);
+
+  const transportLabel = transport === 'driving' ? 'На машине' : 'Пешком';
+  const routeSourceLabel = routingBusy
+    ? 'считаем маршрут по улицам…'
+    : remoteSummary?.source === '2gis'
+      ? 'по улицам 2ГИС'
+      : remoteSummary?.source === 'mixed'
+        ? 'частично по улицам 2ГИС'
+        : 'оценка по расстоянию';
 
   function rebuild() {
     setSaved(false);
     setVariation((current) => current + 1);
+  }
+
+  async function toggleStartFromMe() {
+    if (startFromMe) {
+      setStartFromMe(false);
+      return;
+    }
+
+    setLocationBusy(true);
+    try {
+      let permission = await Location.getForegroundPermissionsAsync();
+      if (permission.status !== 'granted') {
+        permission = await Location.requestForegroundPermissionsAsync();
+      }
+
+      if (permission.status !== 'granted') {
+        Alert.alert(
+          'Геопозиция не разрешена',
+          'СПОТ может строить маршрут и без неё. Разрешение запрашивается только для старта от текущего места.'
+        );
+        return;
+      }
+
+      const position = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced
+      });
+      const coordinates: Coordinates = {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude
+      };
+
+      if (distanceMeters(coordinates, CITY_CENTERS[routeCity]) > MAX_CITY_START_DISTANCE_METERS) {
+        Alert.alert(
+          'Вы далеко от выбранного города',
+          'Старт «от меня» работает, когда вы находитесь рядом с выбранным городом.'
+        );
+        setUserLocation(coordinates);
+        setStartFromMe(false);
+        return;
+      }
+
+      setUserLocation(coordinates);
+      setStartFromMe(true);
+      setSaved(false);
+      setVariation(0);
+    } catch {
+      Alert.alert(
+        'Не удалось определить геопозицию',
+        'Маршрут продолжит работать без текущего местоположения.'
+      );
+    } finally {
+      setLocationBusy(false);
+    }
   }
 
   function saveAsCollection() {
@@ -195,7 +481,7 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
 
     const collection = createCollection({
       title: `Маршрут · ${CITY_LABELS[routeCity]}`,
-      subtitle: `${option.label} · ${route.length} мест из моих спотов`,
+      subtitle: option.label + ' · ' + String(route.length) + ' мест · ' + transportLabel,
       city: routeCity
     });
 
@@ -212,10 +498,28 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
 
   async function shareRoute() {
     if (route.length < 2) return;
+
+    const routeMeta = effectiveSummary
+      ? transportLabel + ' · ' +
+        formatDistance(effectiveSummary.totalDistanceMeters) + ' · ' +
+        formatDuration(effectiveSummary.totalDurationSeconds) + ' в пути'
+      : transportLabel;
+
     await Share.share({
-      title: `Маршрут · ${CITY_LABELS[routeCity]}`,
-      message: routeShareText(CITY_LABELS[routeCity], route)
+      title: 'Маршрут · ' + CITY_LABELS[routeCity],
+      message: routeShareText(CITY_LABELS[routeCity], route) + '\n' + routeMeta
     });
+  }
+
+  async function openRouteInMaps() {
+    const url = buildMapsURL(route, startCoordinate, transport);
+    if (!url) return;
+
+    try {
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert('Не удалось открыть карты', 'Попробуйте ещё раз или поделитесь маршрутом.');
+    }
   }
 
   return (
@@ -231,7 +535,7 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
             <Text style={[styles.eyebrow, { color: colors.green }]}>ИЗ МОИХ СПОТОВ</Text>
             <Text style={[styles.title, { color: text }]}>Собрать маршрут</Text>
             <Text style={[styles.subtitle, { color: muted }]}>
-              СПОТ подберёт компактный план по сохранённым местам, любимым категориям и рейтингу.
+              Учитываем интересы, расстояние и часы работы мест к моменту прибытия.
             </Text>
           </View>
           <Pressable onPress={onClose} style={[styles.close, { backgroundColor: surface }]}>
@@ -266,6 +570,60 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
           })}
         </View>
 
+        <View style={styles.transportRow}>
+          {([
+            ['walking', 'Пешком', '⌁'],
+            ['driving', 'На машине', '→']
+          ] as Array<[RouteTransport, string, string]>).map(([value, label, icon]) => {
+            const active = transport === value;
+            return (
+              <Pressable
+                key={value}
+                onPress={() => {
+                  setTransport(value);
+                  setVariation(0);
+                  setSaved(false);
+                }}
+                style={[
+                  styles.transportChip,
+                  { backgroundColor: active ? colors.green : raised }
+                ]}
+              >
+                <Text style={[styles.transportIcon, { color: active ? colors.black : colors.green }]}>
+                  {icon}
+                </Text>
+                <Text style={[styles.transportText, { color: active ? colors.black : text }]}>
+                  {label}
+                </Text>
+              </Pressable>
+            );
+          })}
+
+          <Pressable
+            onPress={() => void toggleStartFromMe()}
+            disabled={locationBusy}
+            style={[
+              styles.locationChip,
+              {
+                backgroundColor: startFromMe ? '#173528' : surface,
+                opacity: locationBusy ? 0.6 : 1
+              }
+            ]}
+          >
+            {locationBusy ? (
+              <ActivityIndicator size="small" color={colors.green} />
+            ) : (
+              <Text style={[styles.locationText, { color: startFromMe ? colors.green : text }]}>
+                {startFromMe ? '✓ От меня' : '⌖ От меня'}
+              </Text>
+            )}
+          </Pressable>
+        </View>
+
+        <Text style={[styles.locationHint, { color: muted }]}>
+          Геопозиция запрашивается только после нажатия «От меня».
+        </Text>
+
         <View style={styles.lengthRow}>
           {ROUTE_LENGTHS.map((item) => {
             const active = item.id === length;
@@ -274,6 +632,7 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
                 key={item.id}
                 onPress={() => {
                   setLength(item.id);
+                  setVariation(0);
                   setSaved(false);
                 }}
                 style={[
@@ -307,7 +666,7 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
           ) : (
             <>
               <View style={[styles.summary, { backgroundColor: surface }]}>
-                <View>
+                <View style={styles.summaryCopy}>
                   <Text style={[styles.summaryCity, { color: colors.green }]}>
                     {CITY_LABELS[routeCity].toUpperCase()}
                   </Text>
@@ -315,7 +674,13 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
                     {option.label} · {route.length} остановки
                   </Text>
                   <Text style={[styles.summaryDistance, { color: muted }]}>
-                    {distanceLabel} · оценка по прямой
+                    {effectiveSummary
+                      ? formatDistance(effectiveSummary.totalDistanceMeters) + ' · ' +
+                        formatDuration(effectiveSummary.totalDurationSeconds) + ' в пути'
+                      : 'Считаем расстояние'}
+                  </Text>
+                  <Text style={[styles.summarySource, { color: muted }]}>
+                    {transportLabel.toLowerCase()} · {routeSourceLabel}
                   </Text>
                 </View>
                 <Pressable onPress={rebuild} style={[styles.rebuild, { backgroundColor: raised }]}>
@@ -324,32 +689,52 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
               </View>
 
               <View style={styles.routeList}>
-                {route.map((spot, index) => (
-                  <View key={spot.id} style={styles.routeRow}>
-                    <View style={styles.timeline}>
-                      <View style={styles.number}>
-                        <Text style={styles.numberText}>{index + 1}</Text>
-                      </View>
-                      {index < route.length - 1 ? <View style={styles.line} /> : null}
-                    </View>
+                {scheduledRoute.map((item, index) => {
+                  const availabilityColor = item.openState.kind === 'open'
+                    ? colors.green
+                    : item.openState.kind === 'closed'
+                      ? '#FF8C8C'
+                      : muted;
 
-                    <View style={[styles.placeCard, { backgroundColor: surface }]}>
-                      <View style={styles.placeTop}>
-                        <View style={styles.placeCopy}>
-                          <Text style={[styles.placeMeta, { color: colors.green }]}>
-                            {spot.categoryLabel.toUpperCase()}
-                            {spot.favorite ? ' · ЛЮБИМОЕ' : ''}
-                          </Text>
-                          <Text style={[styles.placeName, { color: text }]}>{spot.name}</Text>
-                          <Text style={[styles.placeAddress, { color: muted }]} numberOfLines={2}>
-                            {spot.address}
+                  return (
+                    <View key={item.spot.id} style={styles.routeRow}>
+                      <View style={styles.timeline}>
+                        <View style={styles.number}>
+                          <Text style={styles.numberText}>{index + 1}</Text>
+                        </View>
+                        {index < scheduledRoute.length - 1 ? <View style={styles.line} /> : null}
+                      </View>
+
+                      <View style={[styles.placeCard, { backgroundColor: surface }]}>
+                        <View style={styles.placeTop}>
+                          <View style={styles.placeCopy}>
+                            <Text style={[styles.placeMeta, { color: colors.green }]}>
+                              {item.spot.categoryLabel.toUpperCase()}
+                              {item.spot.favorite ? ' · ЛЮБИМОЕ' : ''}
+                            </Text>
+                            <Text style={[styles.placeName, { color: text }]}>{item.spot.name}</Text>
+                            <Text style={[styles.placeAddress, { color: muted }]} numberOfLines={2}>
+                              {item.spot.address}
+                            </Text>
+                            <Text style={[styles.arrival, { color: availabilityColor }]}>
+                              {formatMoscowTime(item.arrival)} · {item.openState.label}
+                            </Text>
+                          </View>
+                          <Text style={[styles.rating, { color: text }]}>
+                            ★ {item.spot.rating.toFixed(1)}
                           </Text>
                         </View>
-                        <Text style={[styles.rating, { color: text }]}>★ {spot.rating.toFixed(1)}</Text>
                       </View>
                     </View>
-                  </View>
-                ))}
+                  );
+                })}
+              </View>
+
+              <View style={[styles.scheduleHint, { backgroundColor: raised }]}>
+                <Text style={[styles.scheduleHintTitle, { color: text }]}>План по времени</Text>
+                <Text style={[styles.scheduleHintText, { color: muted }]}>
+                  На каждую остановку заложено примерно 45 минут. Закрытые к моменту прибытия места получают сильный штраф и обычно уходят из маршрута.
+                </Text>
               </View>
             </>
           )}
@@ -357,21 +742,35 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
 
         <View style={[styles.footer, { backgroundColor: dark ? colors.black : colors.lightBackground }]}>
           <Pressable
-            onPress={() => void shareRoute()}
+            onPress={() => void openRouteInMaps()}
             disabled={route.length < 2}
-            style={[styles.secondary, { backgroundColor: surface }, route.length < 2 && styles.disabled]}
+            style={[styles.mapsButton, route.length < 2 && styles.disabled]}
           >
-            <Text style={[styles.secondaryText, { color: text }]}>↗ Поделиться</Text>
+            <Text style={styles.mapsButtonText}>↗ Открыть маршрут в картах</Text>
           </Pressable>
-          <Pressable
-            onPress={saveAsCollection}
-            disabled={route.length < 2}
-            style={[styles.primary, route.length < 2 && styles.disabled]}
-          >
-            <Text style={styles.primaryText}>
-              {saved ? '✓ Сохранено' : '♥ В подборку'}
-            </Text>
-          </Pressable>
+
+          <View style={styles.footerRow}>
+            <Pressable
+              onPress={() => void shareRoute()}
+              disabled={route.length < 2}
+              style={[
+                styles.secondary,
+                { backgroundColor: surface },
+                route.length < 2 && styles.disabled
+              ]}
+            >
+              <Text style={[styles.secondaryText, { color: text }]}>Поделиться</Text>
+            </Pressable>
+            <Pressable
+              onPress={saveAsCollection}
+              disabled={route.length < 2}
+              style={[styles.primary, route.length < 2 && styles.disabled]}
+            >
+              <Text style={styles.primaryText}>
+                {saved ? '✓ Сохранено' : '♥ В подборку'}
+              </Text>
+            </Pressable>
+          </View>
         </View>
       </View>
     </Modal>
@@ -436,6 +835,48 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '900'
   },
+  transportRow: {
+    paddingHorizontal: 20,
+    marginTop: 10,
+    flexDirection: 'row',
+    gap: 7
+  },
+  transportChip: {
+    flex: 1,
+    minHeight: 42,
+    borderRadius: 15,
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    gap: 5,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  transportIcon: {
+    fontSize: 14,
+    fontWeight: '900'
+  },
+  transportText: {
+    fontSize: 10,
+    fontWeight: '900'
+  },
+  locationChip: {
+    minWidth: 94,
+    minHeight: 42,
+    paddingHorizontal: 11,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  locationText: {
+    fontSize: 10,
+    fontWeight: '900'
+  },
+  locationHint: {
+    paddingHorizontal: 22,
+    marginTop: 6,
+    fontSize: 9,
+    lineHeight: 13
+  },
   lengthRow: {
     paddingHorizontal: 20,
     marginTop: 10,
@@ -461,15 +902,18 @@ const styles = StyleSheet.create({
   scroll: {
     paddingHorizontal: 20,
     paddingTop: 16,
-    paddingBottom: 130
+    paddingBottom: 184
   },
   summary: {
-    minHeight: 86,
+    minHeight: 102,
     borderRadius: 23,
     padding: 17,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12
+  },
+  summaryCopy: {
+    flex: 1
   },
   summaryCity: {
     fontSize: 9,
@@ -483,10 +927,14 @@ const styles = StyleSheet.create({
   },
   summaryDistance: {
     marginTop: 5,
-    fontSize: 10
+    fontSize: 10,
+    fontWeight: '700'
+  },
+  summarySource: {
+    marginTop: 3,
+    fontSize: 9
   },
   rebuild: {
-    marginLeft: 'auto',
     minHeight: 40,
     paddingHorizontal: 13,
     borderRadius: 14,
@@ -524,12 +972,12 @@ const styles = StyleSheet.create({
   line: {
     width: 2,
     flex: 1,
-    minHeight: 58,
+    minHeight: 72,
     backgroundColor: '#2A3A31'
   },
   placeCard: {
     flex: 1,
-    minHeight: 94,
+    minHeight: 112,
     marginBottom: 10,
     borderRadius: 20,
     padding: 15
@@ -556,9 +1004,28 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 16
   },
+  arrival: {
+    marginTop: 7,
+    fontSize: 10,
+    fontWeight: '900'
+  },
   rating: {
     fontSize: 11,
     fontWeight: '900'
+  },
+  scheduleHint: {
+    marginTop: 4,
+    borderRadius: 19,
+    padding: 15
+  },
+  scheduleHintTitle: {
+    fontSize: 11,
+    fontWeight: '900'
+  },
+  scheduleHintText: {
+    marginTop: 4,
+    fontSize: 9,
+    lineHeight: 14
   },
   empty: {
     marginTop: 8,
@@ -589,14 +1056,29 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 28,
+    paddingTop: 10,
+    paddingBottom: 24
+  },
+  mapsButton: {
+    minHeight: 51,
+    borderRadius: 18,
+    backgroundColor: colors.green,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  mapsButtonText: {
+    color: colors.black,
+    fontSize: 12,
+    fontWeight: '900'
+  },
+  footerRow: {
     flexDirection: 'row',
-    gap: 10
+    gap: 8,
+    marginTop: 8
   },
   secondary: {
     flex: 1,
-    minHeight: 54,
+    minHeight: 48,
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center'
@@ -606,15 +1088,15 @@ const styles = StyleSheet.create({
     fontWeight: '900'
   },
   primary: {
-    flex: 1.25,
-    minHeight: 54,
-    borderRadius: 18,
-    backgroundColor: colors.green,
+    flex: 1.2,
+    minHeight: 48,
+    borderRadius: 17,
+    backgroundColor: '#173528',
     alignItems: 'center',
     justifyContent: 'center'
   },
   primaryText: {
-    color: colors.black,
+    color: colors.green,
     fontSize: 12,
     fontWeight: '900'
   },
