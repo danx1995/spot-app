@@ -42,13 +42,26 @@ function normalizedSearchText(value: string) {
     .replace(/\s+/g, ' ');
 }
 
+const sourceSearchLabels: Record<string, string> = {
+  instagram: 'Instagram инстаграм reel reels',
+  tiktok: 'TikTok тикток',
+  telegram: 'Telegram телеграм',
+  '2gis': '2ГИС 2gis',
+  yandex_maps: 'Яндекс Карты Yandex Maps',
+  web: 'сайт web'
+};
+
 function spotSearchText(spot: Spot) {
   return normalizedSearchText([
     spot.name,
     spot.address,
     spot.categoryLabel,
     spot.cityLabel,
-    spot.note ?? ''
+    spot.note ?? '',
+    spot.sourceTitle ?? '',
+    spot.sourceExcerpt ?? '',
+    spot.sourcePlatform ?? '',
+    spot.sourcePlatform ? sourceSearchLabels[spot.sourcePlatform] ?? '' : ''
   ].join(' '));
 }
 
@@ -221,7 +234,7 @@ export function MapSearchSheet({ visible, city, onClose, onSelect }: Props) {
             autoFocus
             autoCorrect={false}
             autoCapitalize="none"
-            placeholder="Название или адрес"
+            placeholder="Название, адрес или почему сохранил"
             placeholderTextColor={muted}
             style={[styles.searchInput, { color: text }]}
             returnKeyType="search"
