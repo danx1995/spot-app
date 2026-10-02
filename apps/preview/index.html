@@ -56,6 +56,8 @@
     .chips::-webkit-scrollbar{display:none}
     .chip{white-space:nowrap;padding:10px 13px;border-radius:15px;background:var(--surface);color:#BEC6C1;font-size:11px;font-weight:850;cursor:pointer}
     .chip.active{background:var(--green);color:var(--black)}
+    .for-you-map-chip{background:var(--green)!important;color:var(--black)!important}
+    .for-you-intro{margin:4px 18px 0;padding:15px;border-radius:20px;background:linear-gradient(145deg,#173528,#111914)}.for-you-intro small{color:var(--green);font-size:8px;font-weight:950;letter-spacing:.12em}.for-you-intro h3{font-size:22px;margin:5px 0 0;letter-spacing:-.04em}.for-you-intro p{font-size:9px;line-height:1.5;color:var(--muted);margin:6px 0 0}.for-you-reason{margin-top:9px;display:flex;gap:6px;flex-wrap:wrap}.for-you-reason span{padding:7px 9px;border-radius:11px;background:#213129;color:#B8C7BE;font-size:8px;font-weight:850}
     .map{position:absolute;inset:0 0 88px;background:
       linear-gradient(30deg, transparent 48%, rgba(255,255,255,.055) 49%, rgba(255,255,255,.055) 51%, transparent 52%) 0 0/92px 92px,
       linear-gradient(120deg, transparent 48%, rgba(255,255,255,.038) 49%, rgba(255,255,255,.038) 51%, transparent 52%) 0 0/132px 132px,
@@ -195,7 +197,7 @@
           <div class="map-ui">
             <div class="topbar"><div><div class="eyebrow">СПОТ</div><div class="city">Санкт-Петербург⌄</div></div><button class="round" id="mapSearchBtn">⌕</button></div>
             <div class="chips mapchips">
-              <button class="chip active">Все</button><button class="chip">Еда</button><button class="chip">Кофе</button><button class="chip">Бары</button><button class="chip">Отели</button>
+              <button class="chip for-you-map-chip" id="previewForYou">✦ Для тебя</button><button class="chip active">Все</button><button class="chip">Еда</button><button class="chip">Кофе</button><button class="chip">Бары</button><button class="chip">Отели</button>
             </div>
           </div>
           <button class="discover" data-toast="Ищем реальные места в этой области">⌖ Найти рядом: Еда</button>
@@ -333,6 +335,39 @@
               <button class="ob-back" data-ob-back>Назад</button>
             </div>
           </section>
+        </div>
+
+        <div class="overlay" id="forYouOverlay">
+          <div class="sheet">
+            <div class="sheet-head">
+              <button class="sheet-close" data-close="forYouOverlay">×</button>
+              <div><div class="sheet-title">Для тебя рядом</div><div class="sheet-sub">персональные рекомендации</div></div>
+              <div></div>
+            </div>
+            <div class="sheet-scroll">
+              <div class="for-you-intro">
+                <small>ПОД ТВОЙ ВКУС</small>
+                <h3>Новые места, которые могут зайти</h3>
+                <p>СПОТ использует выбранные интересы и то, что уже сохранено. Сохранённые места из рекомендаций исключаются.</p>
+                <div class="for-you-reason"><span>🍽 Еда</span><span>☕ Кофе</span><span>★ высокий рейтинг</span><span>⌖ рядом с картой</span></div>
+              </div>
+              <div class="results-wrap">
+                <div class="result-heading"><b>Лучшее совпадение</b><span>не сохранено</span></div>
+                <button class="search-result" data-toast="Recolte откроется на карте">
+                  <div class="thumb">🍽️</div>
+                  <div class="place-copy"><div class="meta">РЕСТОРАН · ДЛЯ ТЕБЯ</div><h4>Recolte</h4><div class="open">● Открыто до 23:00</div><div class="address">наб. реки Мойки · ★ 4.9</div></div>
+                </button>
+                <button class="search-result" data-toast="Civil откроется на карте">
+                  <div class="thumb">☕</div>
+                  <div class="place-copy"><div class="meta">КОФЕЙНЯ · ДЛЯ ТЕБЯ</div><h4>Civil</h4><div class="open">● Открыто до 22:00</div><div class="address">8-я Советская · ★ 4.8</div></div>
+                </button>
+                <button class="search-result" data-toast="Meal откроется на карте">
+                  <div class="thumb">🍽️</div>
+                  <div class="place-copy"><div class="meta">РЕСТОРАН · ДЛЯ ТЕБЯ</div><h4>Meal</h4><div class="open">● Открыто до 00:00</div><div class="address">Литейный проспект · ★ 4.7</div></div>
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="overlay" id="searchOverlay">
@@ -624,6 +659,7 @@
     const nav=[...document.querySelectorAll('[data-nav]')];
     const toast=document.getElementById('toast');
     const searchOverlay=document.getElementById('searchOverlay');
+    const forYouOverlay=document.getElementById('forYouOverlay');
     const placeOverlay=document.getElementById('placeOverlay');
     const addOverlay=document.getElementById('addOverlay');
     const routeOverlay=document.getElementById('routeOverlay');
@@ -807,6 +843,10 @@
       }).join('');
     }
 
+    document.getElementById('previewForYou').addEventListener('click',()=>{
+      openOverlay(forYouOverlay);
+      showToast('Рекомендации собраны по интересам и сохранённым спотам');
+    });
     document.getElementById('mapSearchBtn').addEventListener('click',()=>openOverlay(searchOverlay));
     document.getElementById('openPlaceBtn').addEventListener('click',()=>openOverlay(placeOverlay));
     document.getElementById('addBtn').addEventListener('click',()=>openOverlay(addOverlay));
