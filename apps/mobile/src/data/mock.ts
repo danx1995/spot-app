@@ -9,6 +9,8 @@ export const spots: Spot[] = [
     city: 'spb',
     cityLabel: 'Санкт-Петербург',
     address: 'Кирочная улица, 3',
+    latitude: 59.9449,
+    longitude: 30.3596,
     distanceMeters: 420,
     rating: 4.8,
     priceLevel: 3,
@@ -24,10 +26,13 @@ export const spots: Spot[] = [
     city: 'spb',
     cityLabel: 'Санкт-Петербург',
     address: 'Невский проспект',
+    latitude: 59.9343,
+    longitude: 30.3351,
     distanceMeters: 710,
     rating: 4.7,
     priceLevel: 2,
-    status: 'want'
+    status: 'want',
+    note: 'Хочу попробовать фильтр и завтрак.'
   },
   {
     id: 'wawelberg-spb',
@@ -37,9 +42,12 @@ export const spots: Spot[] = [
     city: 'spb',
     cityLabel: 'Санкт-Петербург',
     address: 'Невский проспект, 7–9',
+    latitude: 59.9361,
+    longitude: 30.3154,
     distanceMeters: 1200,
     rating: 4.9,
-    status: 'booked'
+    status: 'booked',
+    note: 'Посмотреть как вариант на выходные.'
   },
   {
     id: 'new-holland-spb',
@@ -49,6 +57,8 @@ export const spots: Spot[] = [
     city: 'spb',
     cityLabel: 'Санкт-Петербург',
     address: 'наб. Адмиралтейского канала, 2',
+    latitude: 59.9297,
+    longitude: 30.2895,
     distanceMeters: 1800,
     rating: 4.9,
     status: 'visited'
