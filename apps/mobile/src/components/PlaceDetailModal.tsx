@@ -1,5 +1,15 @@
 import React from 'react';
-import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
+import {
+  Linking,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useColorScheme,
+  View
+} from 'react-native';
 
 import { useSpotStore } from '../state/SpotStore';
 import { colors } from '../theme';
@@ -56,6 +66,19 @@ export function PlaceDetailModal({ spot, visible, onClose }: Props) {
     }
   }
 
+  function openRoute() {
+    const label = encodeURIComponent(current.name);
+    const url = Platform.select({
+      ios: `http://maps.apple.com/?daddr=${current.latitude},${current.longitude}&q=${label}`,
+      android: `geo:0,0?q=${current.latitude},${current.longitude}(${label})`,
+      default: `https://www.google.com/maps/dir/?api=1&destination=${current.latitude},${current.longitude}`
+    });
+
+    if (url) {
+      void Linking.openURL(url);
+    }
+  }
+
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <View style={[styles.root, { backgroundColor: dark ? colors.black : colors.lightBackground }]}>
@@ -81,18 +104,24 @@ export function PlaceDetailModal({ spot, visible, onClose }: Props) {
               }}
               style={[styles.primaryButton, saved && styles.primaryButtonSaved]}
             >
-              <Text style={styles.primaryText}>{saved ? '✓ В СПОТ' : isHotel ? '♥ Хочу остановиться' : '♥ Хочу сюда'}</Text>
-            </Pressable>
-
-            <Pressable
-              onPress={() => ensureSaved('visited')}
-              style={[styles.secondaryButton, { backgroundColor: surface }]}
-            >
-              <Text style={[styles.secondaryText, { color: status === 'visited' ? colors.green : text }]}>
-                {status === 'visited' ? '✓ Был' : 'Был здесь'}
+              <Text style={styles.primaryText}>
+                {saved ? '✓ В СПОТ' : isHotel ? '♥ Хочу остановиться' : '♥ Хочу сюда'}
               </Text>
             </Pressable>
+
+            <Pressable onPress={openRoute} style={[styles.secondaryButton, { backgroundColor: surface }]}>
+              <Text style={[styles.secondaryText, { color: text }]}>Маршрут ↗</Text>
+            </Pressable>
           </View>
+
+          <Pressable
+            onPress={() => ensureSaved('visited')}
+            style={[styles.fullSecondary, { backgroundColor: surface }]}
+          >
+            <Text style={[styles.secondaryText, { color: status === 'visited' ? colors.green : text }]}>
+              {status === 'visited' ? '✓ Был здесь' : 'Отметить «Был здесь»'}
+            </Text>
+          </Pressable>
 
           {isHotel ? (
             <Pressable
@@ -162,6 +191,16 @@ export function PlaceDetailModal({ spot, visible, onClose }: Props) {
               <Text style={[styles.infoKey, { color: muted }]}>Адрес</Text>
               <Text style={[styles.infoValue, { color: text }]}>{current.address}</Text>
             </View>
+            {current.distanceMeters > 0 ? (
+              <View style={styles.infoRow}>
+                <Text style={[styles.infoKey, { color: muted }]}>От тебя</Text>
+                <Text style={[styles.infoValue, { color: text }]}>
+                  {current.distanceMeters < 1000
+                    ? `${current.distanceMeters} м`
+                    : `${(current.distanceMeters / 1000).toFixed(1).replace('.', ',')} км`}
+                </Text>
+              </View>
+            ) : null}
             <View style={styles.infoRow}>
               <Text style={[styles.infoKey, { color: muted }]}>Статус</Text>
               <Text style={[styles.infoValue, { color: saved ? colors.green : muted }]}>
@@ -273,7 +312,7 @@ const styles = StyleSheet.create({
     fontWeight: '900'
   },
   secondaryButton: {
-    minWidth: 105,
+    minWidth: 112,
     minHeight: 54,
     borderRadius: 18,
     alignItems: 'center',
