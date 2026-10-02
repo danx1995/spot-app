@@ -676,3 +676,18 @@ body{
 .topbar{padding-top:calc(14px + var(--spot-safe-top))}
 .bottom-nav{bottom:max(9px,var(--spot-safe-bottom))}
 .detail-sheet,.planner-sheet{padding-bottom:calc(22px + var(--spot-safe-bottom))}
+
+.content>section{animation:spot-screen-in .24s cubic-bezier(.2,.75,.3,1)}
+.spot-card,.collection-card,.route-card,.stats>div,.profile-card,.hero-card{will-change:transform}
+.spot-card:active,.collection-card:active,.route-card:active,.city-pill:active,.chips button:active,.nav-item:active{transform:scale(.985)}
+.add-button:active{transform:scale(.94)}
+.nav-item,.add-button,.city-pill,.chips button,.collection-card,.route-card,.spot-card{
+  transition:transform .14s ease,color .16s ease,background .16s ease,border-color .16s ease,box-shadow .16s ease;
+}
+@keyframes spot-screen-in{
+  from{opacity:.35;transform:translateY(5px)}
+  to{opacity:1;transform:none}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*:before,*:after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
+}
