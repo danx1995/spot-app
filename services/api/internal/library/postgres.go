@@ -436,6 +436,108 @@ func (s *PostgresStore) DeletePlace(ctx context.Context, userID, placeID string)
 	return tx.Commit(ctx)
 }
 
+func (s *PostgresStore) PublishPlace(ctx context.Context, userID, placeID string) (SharedPlace, error) {
+	saved, err := s.getPlace(ctx, userID, placeID)
+	if errors.Is(err, ErrNotFound) {
+		return SharedPlace{}, ErrPlaceNotSaved
+	}
+	if err != nil {
+		return SharedPlace{}, err
+	}
+
+	shareID, err := newShareID()
+	if err != nil {
+		return SharedPlace{}, err
+	}
+
+	err = s.pool.QueryRow(ctx, `
+		INSERT INTO place_shares (
+			id,
+			place_id,
+			created_by
+		)
+		SELECT
+			$3,
+			p.id,
+			$1::uuid
+		FROM user_places up
+		JOIN places p ON p.id = up.place_id
+		WHERE up.user_id = $1::uuid
+		  AND p.public_id = $2
+		ON CONFLICT (created_by, place_id) DO UPDATE
+		SET created_by = EXCLUDED.created_by
+		RETURNING id
+	`, userID, placeID, shareID).Scan(&shareID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return SharedPlace{}, ErrPlaceNotSaved
+	}
+	if err != nil {
+		return SharedPlace{}, err
+	}
+
+	return SharedPlace{
+		ShareID: shareID,
+		Place:   saved.Place,
+	}, nil
+}
+
+func (s *PostgresStore) GetSharedPlace(ctx context.Context, shareID string) (SharedPlace, error) {
+	shareID = strings.TrimSpace(shareID)
+	if !validPublicID(shareID) {
+		return SharedPlace{}, ErrNotFound
+	}
+
+	var place Place
+	var openingHoursJSON string
+	err := s.pool.QueryRow(ctx, `
+		SELECT
+			p.public_id,
+			p.name,
+			COALESCE(cat.slug, 'other'),
+			COALESCE(cat.name, 'Другое'),
+			c.slug,
+			c.name,
+			COALESCE(p.address, ''),
+			ST_Y(p.location::geometry),
+			ST_X(p.location::geometry),
+			COALESCE(p.rating::float8, 0),
+			COALESCE(p.rating_count, 0),
+			COALESCE(p.working_hours::text, '{}'),
+			COALESCE(p.attributes->>'description', '')
+		FROM place_shares ps
+		JOIN places p ON p.id = ps.place_id
+		JOIN cities c ON c.id = p.city_id
+		LEFT JOIN categories cat ON cat.id = p.category_id
+		WHERE ps.id = $1
+	`, shareID).Scan(
+		&place.ID,
+		&place.Name,
+		&place.Category,
+		&place.CategoryLabel,
+		&place.City,
+		&place.CityLabel,
+		&place.Address,
+		&place.Latitude,
+		&place.Longitude,
+		&place.Rating,
+		&place.ReviewCount,
+		&openingHoursJSON,
+		&place.Description,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return SharedPlace{}, ErrNotFound
+	}
+	if err != nil {
+		return SharedPlace{}, err
+	}
+
+	place.OpeningHours = decodeOpeningHours(openingHoursJSON)
+	return SharedPlace{
+		ShareID: shareID,
+		Place:   place,
+	}, nil
+}
+
 func (s *PostgresStore) CreateCollection(ctx context.Context, userID string, input CreateCollectionInput) (Collection, error) {
 	title := strings.TrimSpace(input.Title)
 	if title == "" || len([]rune(title)) > 120 {

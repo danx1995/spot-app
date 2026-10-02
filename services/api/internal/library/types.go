@@ -28,6 +28,11 @@ type Place struct {
 	Description   string        `json:"description,omitempty"`
 }
 
+type SharedPlace struct {
+	ShareID string `json:"share_id"`
+	Place   Place  `json:"place"`
+}
+
 type SavedPlace struct {
 	Place
 	Status       string     `json:"status"`

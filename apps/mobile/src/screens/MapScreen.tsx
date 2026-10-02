@@ -19,6 +19,8 @@ import { PlaceDetailModal } from '../components/PlaceDetailModal';
 import { SpotCard } from '../components/SpotCard';
 import { categories } from '../data/mock';
 import { searchPlaces } from '../services/api';
+import { getSharedPlace } from '../services/libraryApi';
+import { useInboundImport } from '../state/InboundImport';
 import { useSpotStore } from '../state/SpotStore';
 import { colors } from '../theme';
 import type { CitySlug, Spot, SpotCategory } from '../types';
@@ -80,6 +82,8 @@ const darkMapStyle = [
 export function MapScreen() {
   const dark = useColorScheme() === 'dark';
   const mapRef = useRef<MapView | null>(null);
+  const skipNextCityResetRef = useRef(false);
+  const { pendingPlaceID, consumePendingPlace } = useInboundImport();
   const { savedSpots, selectedCity, setSelectedCity } = useSpotStore();
   const [category, setCategory] = useState<MapCategory>('all');
   const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
@@ -94,6 +98,7 @@ export function MapScreen() {
   const [discovering, setDiscovering] = useState(false);
   const [discoverError, setDiscoverError] = useState<string | null>(null);
   const [lastDiscoveryCenter, setLastDiscoveryCenter] = useState<Coordinates | null>(null);
+  const [sharedPlaceError, setSharedPlaceError] = useState<string | null>(null);
 
   const citySpots = useMemo(
     () => savedSpots
@@ -158,6 +163,51 @@ export function MapScreen() {
   }, [lastDiscoveryCenter, mapRegion.latitude, mapRegion.longitude]);
 
   useEffect(() => {
+    if (!pendingPlaceID) return;
+
+    let active = true;
+    setSharedPlaceError(null);
+
+    void getSharedPlace(pendingPlaceID)
+      .then((spot) => {
+        if (!active) return;
+
+        if (spot.city !== selectedCity) {
+          skipNextCityResetRef.current = true;
+          setSelectedCity(spot.city);
+        }
+
+        setSelectedSpot(spot);
+        const region = {
+          latitude: spot.latitude,
+          longitude: spot.longitude,
+          latitudeDelta: 0.02,
+          longitudeDelta: 0.02
+        };
+        setMapRegion(region);
+        mapRef.current?.animateToRegion(region, 450);
+      })
+      .catch((reason) => {
+        if (!active) return;
+        setSharedPlaceError(
+          reason instanceof Error ? reason.message : 'Не удалось открыть место'
+        );
+      })
+      .finally(() => {
+        if (active) consumePendingPlace();
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [consumePendingPlace, pendingPlaceID, selectedCity, setSelectedCity]);
+
+  useEffect(() => {
+    if (skipNextCityResetRef.current) {
+      skipNextCityResetRef.current = false;
+      return;
+    }
+
     const region = CITY_REGIONS[selectedCity];
     setSelectedSpot(null);
     setNearbyOpen(false);
@@ -396,6 +446,16 @@ export function MapScreen() {
         </Text>
       </Pressable>
 
+      {sharedPlaceError ? (
+        <Pressable
+          onPress={() => setSharedPlaceError(null)}
+          style={styles.sharedError}
+        >
+          <Text style={styles.sharedErrorTitle}>Ссылка недоступна</Text>
+          <Text style={styles.sharedErrorText}>{sharedPlaceError}</Text>
+        </Pressable>
+      ) : null}
+
       {nearby ? (
         <View style={styles.bottomCard}>
           <SpotCard spot={nearby} compact onPress={() => setSelectedSpot(nearby)} />
@@ -589,6 +649,29 @@ const styles = StyleSheet.create({
     color: '#98A39D',
     fontSize: 11,
     marginTop: 2
+  },
+  sharedError: {
+    position: 'absolute',
+    zIndex: 7,
+    left: 18,
+    right: 18,
+    bottom: 205,
+    borderRadius: 18,
+    backgroundColor: 'rgba(11,15,12,0.95)',
+    borderWidth: 1,
+    borderColor: '#EB575755',
+    padding: 14
+  },
+  sharedErrorTitle: {
+    color: colors.error,
+    fontSize: 12,
+    fontWeight: '900'
+  },
+  sharedErrorText: {
+    marginTop: 3,
+    color: '#A5AEA8',
+    fontSize: 10,
+    lineHeight: 15
   },
   bottomCard: {
     position: 'absolute',

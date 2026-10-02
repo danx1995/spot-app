@@ -40,7 +40,7 @@ const icons: Record<string, string> = {
 function SpotApp() {
   const isDark = useColorScheme() === 'dark';
   const { setSelectedCity } = useSpotStore();
-  const { pendingURL, pendingCollectionID } = useInboundImport();
+  const { pendingURL, pendingCollectionID, pendingPlaceID } = useInboundImport();
   const [onboarded, setOnboarded] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -60,10 +60,14 @@ function SpotApp() {
       navigationRef.navigate('Подборки');
       return;
     }
+    if (pendingPlaceID) {
+      navigationRef.navigate('Карта');
+      return;
+    }
     if (pendingURL) {
       navigationRef.navigate('+');
     }
-  }, [onboarded, pendingCollectionID, pendingURL]);
+  }, [onboarded, pendingCollectionID, pendingPlaceID, pendingURL]);
 
   if (onboarded === null) {
     return (
@@ -118,6 +122,8 @@ function SpotApp() {
       onReady={() => {
         if (pendingCollectionID) {
           navigationRef.navigate('Подборки');
+        } else if (pendingPlaceID) {
+          navigationRef.navigate('Карта');
         } else if (pendingURL) {
           navigationRef.navigate('+');
         }
