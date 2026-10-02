@@ -1151,6 +1151,32 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '800'
   },
+  stayBlock: {
+    paddingHorizontal: 20,
+    marginTop: 10
+  },
+  stayLabel: {
+    marginLeft: 2,
+    marginBottom: 6,
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 1.2
+  },
+  stayRow: {
+    flexDirection: 'row',
+    gap: 7
+  },
+  stayChip: {
+    flex: 1,
+    minHeight: 38,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  stayText: {
+    fontSize: 9,
+    fontWeight: '900'
+  },
   scroll: {
     paddingHorizontal: 20,
     paddingTop: 16,
@@ -1186,6 +1212,9 @@ const styles = StyleSheet.create({
     marginTop: 3,
     fontSize: 9
   },
+  summaryActions: {
+    gap: 7
+  },
   rebuild: {
     minHeight: 40,
     paddingHorizontal: 13,
@@ -1195,6 +1224,49 @@ const styles = StyleSheet.create({
   },
   rebuildText: {
     fontSize: 11,
+    fontWeight: '900'
+  },
+  editOrderButton: {
+    minHeight: 40,
+    paddingHorizontal: 11,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  editOrderText: {
+    fontSize: 9,
+    fontWeight: '900'
+  },
+  manualBanner: {
+    marginTop: 12,
+    borderRadius: 18,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10
+  },
+  manualBannerCopy: {
+    flex: 1
+  },
+  manualBannerTitle: {
+    color: colors.green,
+    fontSize: 10,
+    fontWeight: '900'
+  },
+  manualBannerHint: {
+    marginTop: 3,
+    fontSize: 8,
+    lineHeight: 12
+  },
+  manualReset: {
+    minHeight: 34,
+    paddingHorizontal: 11,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  manualResetText: {
+    fontSize: 9,
     fontWeight: '900'
   },
   routeList: {
@@ -1259,6 +1331,25 @@ const styles = StyleSheet.create({
   arrival: {
     marginTop: 7,
     fontSize: 10,
+    fontWeight: '900'
+  },
+  orderControls: {
+    flexDirection: 'row',
+    gap: 7,
+    marginTop: 9
+  },
+  orderButton: {
+    minHeight: 32,
+    paddingHorizontal: 10,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  orderButtonDisabled: {
+    opacity: 0.28
+  },
+  orderButtonText: {
+    fontSize: 8,
     fontWeight: '900'
   },
   rating: {
