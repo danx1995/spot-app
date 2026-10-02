@@ -19,12 +19,43 @@ export type Spot = {
   note?: string;
 };
 
+export type CollectionRoutePlan = {
+  kind: 'route';
+  transport: 'walking' | 'driving';
+  startPreset: 'now' | 'evening' | 'tomorrow';
+  stopMinutes: 30 | 45 | 60;
+  startMode: 'first_stop' | 'current_location';
+};
+
 export type Collection = {
   id: string;
   title: string;
   subtitle?: string;
-  city: CitySlug;
+  city: CitySlug | 'both';
+  cityLabel?: string;
   placeIds: string[];
+  routePlan?: CollectionRoutePlan;
+  createdAt?: string;
+};
+
+export type RouteTransport = 'walking' | 'driving' | 'bicycle';
+
+export type RoutePoint = {
+  latitude: number;
+  longitude: number;
+};
+
+export type RouteLegSummary = {
+  distanceMeters: number;
+  durationSeconds: number;
+};
+
+export type RouteSummary = {
+  transport: RouteTransport;
+  source: '2gis' | 'mixed' | 'estimate';
+  legs: RouteLegSummary[];
+  totalDistanceMeters: number;
+  totalDurationSeconds: number;
 };
 
 export type CloudPayload = {
@@ -128,10 +159,15 @@ export async function searchPlaces(
   token: string,
   query: string,
   city: CitySlug,
-  category?: string
+  category?: string,
+  coordinates?: RoutePoint
 ): Promise<Spot[]> {
   const params = new URLSearchParams({ q: query, city });
   if (category) params.set('category', category);
+  if (coordinates) {
+    params.set('lat', String(coordinates.latitude));
+    params.set('lng', String(coordinates.longitude));
+  }
 
   const places = await request<CatalogPlace[]>('/api/v1/places?' + params.toString(), {
     headers: { Authorization: `Bearer ${token}` }
@@ -153,6 +189,49 @@ export async function searchPlaces(
     status: 'want',
     favorite: false
   }));
+}
+
+export async function getRouteSummary(
+  token: string,
+  points: RoutePoint[],
+  transport: RouteTransport = 'walking'
+): Promise<RouteSummary | null> {
+  if (points.length < 2) return null;
+
+  const payload = await request<{
+    transport: RouteTransport;
+    source: '2gis' | 'mixed' | 'estimate';
+    legs: Array<{
+      distance_meters: number;
+      duration_seconds: number;
+    }>;
+    total_distance_meters: number;
+    total_duration_seconds: number;
+  }>('/api/v1/routes/summary', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      transport,
+      points: points.map((point) => ({
+        lat: point.latitude,
+        lng: point.longitude
+      }))
+    })
+  });
+
+  return {
+    transport: payload.transport,
+    source: payload.source,
+    legs: payload.legs.map((leg) => ({
+      distanceMeters: leg.distance_meters,
+      durationSeconds: leg.duration_seconds
+    })),
+    totalDistanceMeters: payload.total_distance_meters,
+    totalDurationSeconds: payload.total_duration_seconds
+  };
 }
 
 export async function importPlaceLink(
