@@ -111,6 +111,7 @@ function App() {
   const hydrated = useRef(false);
   const saving = useRef(false);
   const queued = useRef(false);
+  const catalogLoadedForCity = useRef<CitySlug | null>(null);
 
   const user = tg?.initDataUnsafe?.user;
   const city = cloud.selected_city;
@@ -168,10 +169,13 @@ function App() {
   }, [cloud, demoMode, session]);
 
   useEffect(() => {
-    if (tab !== 'map' || searching || searchResults.length > 0 || search || activeCategory) return;
+    if (tab !== 'map' || search || activeCategory) return;
     if (!session && !demoMode) return;
+    if (catalogLoadedForCity.current === city) return;
+
+    catalogLoadedForCity.current = city;
     void runSearch('', '', 1, false);
-  }, [activeCategory, city, demoMode, search, searchResults.length, searching, session, tab]);
+  }, [activeCategory, city, demoMode, search, session, tab]);
 
   async function persistCloud(next: CloudPayload) {
     if (!session) return;
@@ -380,6 +384,7 @@ function App() {
             setActiveCategory('');
             setSearchPage(1);
             setCanLoadMore(false);
+            catalogLoadedForCity.current = null;
             updateCloud((current) => ({
               ...current,
               selected_city: current.selected_city === 'spb' ? 'moscow' : 'spb'
