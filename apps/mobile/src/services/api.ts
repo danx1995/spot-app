@@ -1,7 +1,6 @@
+import { appConfig } from '../config';
 import { spots as fallbackSpots } from '../data/mock';
 import type { Spot, SpotCategory } from '../types';
-
-const API_BASE_URL = 'http://localhost:8080';
 
 type ApiPlace = {
   id: string;
@@ -45,8 +44,9 @@ function fallbackSearch(query: string, city: 'spb' | 'moscow') {
 
 export async function searchPlaces(query: string, city: 'spb' | 'moscow' = 'spb'): Promise<Spot[]> {
   const params = new URLSearchParams({ q: query, city });
+
   try {
-    const response = await fetch(`${API_BASE_URL}/api/v1/places?${params.toString()}`, {
+    const response = await fetch(`${appConfig.apiBaseUrl}/api/v1/places?${params.toString()}`, {
       headers: { Accept: 'application/json' }
     });
 
