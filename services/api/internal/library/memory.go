@@ -270,6 +270,9 @@ func (s *MemoryStore) CreateCollection(_ context.Context, userID string, input C
 	if input.City != "" && input.City != "spb" && input.City != "moscow" {
 		return Collection{}, ErrInvalidInput
 	}
+	if err := validateRoutePlan(input.RoutePlan); err != nil {
+		return Collection{}, err
+	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -300,6 +303,7 @@ func (s *MemoryStore) CreateCollection(_ context.Context, userID string, input C
 		CityLabel:   cityLabel(input.City),
 		Visibility:  visibility,
 		CoverURL:    strings.TrimSpace(input.CoverURL),
+		RoutePlan:   cloneRoutePlan(input.RoutePlan),
 		PlaceIDs:    placeIDs,
 		CreatedAt:   createdAt,
 		UpdatedAt:   now,
@@ -483,6 +487,36 @@ func (s *MemoryStore) SetCollectionPlaceOrder(
 func (s *MemoryStore) Mode() string { return "memory" }
 func (s *MemoryStore) Close()       {}
 
+func validateRoutePlan(plan *RoutePlan) error {
+	if plan == nil {
+		return nil
+	}
+	if strings.TrimSpace(plan.Kind) != "route" {
+		return ErrInvalidInput
+	}
+	switch strings.TrimSpace(plan.Transport) {
+	case "walking", "driving":
+	default:
+		return ErrInvalidInput
+	}
+	switch strings.TrimSpace(plan.StartPreset) {
+	case "now", "evening", "tomorrow":
+	default:
+		return ErrInvalidInput
+	}
+	switch plan.StopMinutes {
+	case 30, 45, 60:
+	default:
+		return ErrInvalidInput
+	}
+	switch strings.TrimSpace(plan.StartMode) {
+	case "first_stop", "current_location":
+	default:
+		return ErrInvalidInput
+	}
+	return nil
+}
+
 func validateSavePlace(input SavePlaceInput) error {
 	if strings.TrimSpace(input.ID) == "" ||
 		strings.TrimSpace(input.Name) == "" ||
@@ -593,8 +627,17 @@ func newPublicID(prefix string) string {
 	return fmt.Sprintf("%s_%d", prefix, time.Now().UTC().UnixNano())
 }
 
+func cloneRoutePlan(plan *RoutePlan) *RoutePlan {
+	if plan == nil {
+		return nil
+	}
+	value := *plan
+	return &value
+}
+
 func cloneCollection(collection Collection) Collection {
 	collection.PlaceIDs = append([]string(nil), collection.PlaceIDs...)
+	collection.RoutePlan = cloneRoutePlan(collection.RoutePlan)
 	return collection
 }
 
