@@ -72,6 +72,11 @@ type Collection struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
+type SharedCollection struct {
+	Collection Collection `json:"collection"`
+	Places     []Place    `json:"places"`
+}
+
 type CreateCollectionInput struct {
 	ID          string `json:"id,omitempty"`
 	Title       string `json:"title"`
