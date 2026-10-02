@@ -25,6 +25,7 @@ export type LinkImportResult = {
   source_url: string;
   message?: string;
   suggestedQuery?: string;
+  suggestedCity?: CitySlug;
   place?: Spot;
   candidates: Spot[];
 };
@@ -104,6 +105,7 @@ export async function importPlaceLink(url: string, city: CitySlug, hint?: string
     source_url: string;
     message?: string;
     suggested_query?: string;
+    suggested_city?: CitySlug;
     place?: ApiPlace;
     candidates?: ApiPlace[];
   };
@@ -120,6 +122,7 @@ export async function importPlaceLink(url: string, city: CitySlug, hint?: string
     source_url: payload.source_url,
     message: payload.message,
     suggestedQuery: payload.suggested_query,
+    suggestedCity: payload.suggested_city,
     place: payload.place ? withSource(payload.place) : undefined,
     candidates: (payload.candidates ?? []).map(withSource)
   };
