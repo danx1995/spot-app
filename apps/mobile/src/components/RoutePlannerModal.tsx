@@ -581,7 +581,7 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
       city: routeCity,
       routePlan: {
         kind: 'route',
-        transport,
+        transport: transport === 'driving' ? 'driving' : 'walking',
         startPreset: routeStart,
         stopMinutes: stopMinutes as 30 | 45 | 60,
         startMode: startFromMe ? 'current_location' : 'first_stop'
