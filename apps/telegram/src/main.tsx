@@ -16,18 +16,19 @@ import {
   type SpotStatus
 } from './api';
 import { RoutePlanner } from './RoutePlanner';
+import { SpotIcon, type IconName } from './SpotIcon';
 import { SpotMap } from './SpotMap';
 import './styles.css';
 
 type Tab = 'map' | 'spots' | 'add' | 'collections' | 'profile';
 
 const categories = [
-  ['restaurant', '🍽', 'Еда'],
-  ['coffee', '☕', 'Кофе'],
-  ['bar', '🍸', 'Бары'],
-  ['hotel', '🏨', 'Отели'],
-  ['culture', '🎭', 'Культура']
-] as const;
+  ['restaurant', 'restaurant', 'Еда'],
+  ['coffee', 'coffee', 'Кофе'],
+  ['bar', 'bar', 'Бары'],
+  ['hotel', 'hotel', 'Отели'],
+  ['culture', 'culture', 'Культура']
+] as const satisfies ReadonlyArray<readonly [string, IconName, string]>;
 
 const demoSpots: Spot[] = [
   {
@@ -310,7 +311,7 @@ function App() {
   if (booting) {
     return (
       <div className="boot">
-        <div className="brand-heart">♥</div>
+        <div className="brand-heart"><SpotIcon name="heart" size={30} strokeWidth={2.2} /></div>
         <div className="boot-title">СПОТ</div>
         <div className="boot-text">Открываем твою карту…</div>
       </div>
@@ -334,7 +335,7 @@ function App() {
     <div className="app-shell">
       <header className="topbar">
         <div>
-          <div className="kicker">♥ ЛИЧНАЯ БИБЛИОТЕКА</div>
+          <div className="kicker"><SpotIcon name="heart" size={10} strokeWidth={2.2} /> ЛИЧНАЯ БИБЛИОТЕКА</div>
           <h1>{tab === 'map' ? 'Карта' : tab === 'spots' ? 'Мои споты' : tab === 'add' ? 'Добавить' : tab === 'collections' ? 'Подборки' : 'Профиль'}</h1>
         </div>
         <button
@@ -344,7 +345,8 @@ function App() {
             selected_city: current.selected_city === 'spb' ? 'moscow' : 'spb'
           }))}
         >
-          {city === 'spb' ? 'СПБ' : 'МСК'} ↕
+          <span>{city === 'spb' ? 'СПБ' : 'МСК'}</span>
+          <span className="city-switch-icon">⇅</span>
         </button>
       </header>
 
@@ -364,7 +366,9 @@ function App() {
                 }}
                 placeholder="Название места"
               />
-              <button onClick={() => void runSearch()}>{searching ? '…' : '⌕'}</button>
+              <button aria-label="Поиск" onClick={() => void runSearch()}>
+                {searching ? <span className="search-loader" /> : <SpotIcon name="search" size={20} strokeWidth={2.1} />}
+              </button>
             </div>
 
             <div className="chips horizontal">
@@ -383,7 +387,7 @@ function App() {
                     setActiveCategory(id);
                     void runSearch(search, id);
                   }}
-                >{icon} {label}</button>
+                ><SpotIcon name={icon} size={14} /> {label}</button>
               ))}
             </div>
 
@@ -425,10 +429,10 @@ function App() {
               ))}
             </div>
 
-            <button className="route-card" onClick={() => setRoutePlannerOpen(true)}>
-              <span className="route-icon">⌁</span>
-              <span><b>Собрать маршрут</b><small>Соединить сохранённые места в готовый план</small></span>
-              <strong>›</strong>
+            <button className="route-card premium-action-card" onClick={() => setRoutePlannerOpen(true)}>
+              <span className="route-icon"><SpotIcon name="route" size={23} strokeWidth={1.8} /></span>
+              <span><b>Собрать маршрут</b><small>СПОТ соединит сохранённые места в готовый план</small></span>
+              <strong><SpotIcon name="chevron" size={18} /></strong>
             </button>
 
             <SpotList spots={visibleSpots} saved={cloud.saved_spots} onSave={saveSpot} onUpdate={updateSpot} onOpen={setSelectedSpot} />
@@ -439,7 +443,7 @@ function App() {
         {tab === 'add' ? (
           <section>
             <div className="hero-card">
-              <span className="hero-icon">＋</span>
+              <span className="hero-icon"><SpotIcon name="plus" size={28} strokeWidth={2} /></span>
               <h2>Сохрани место за секунды</h2>
               <p>Вставь ссылку на Reel, TikTok, Telegram-пост или карточку места.</p>
             </div>
@@ -457,7 +461,7 @@ function App() {
             </div>
 
             <div className="privacy-card">
-              <b>Приватно по умолчанию</b>
+              <b><SpotIcon name="shield" size={15} /> Приватно по умолчанию</b>
               <p>Твои заметки, статусы и сохранения видишь только ты, пока сам не поделишься подборкой.</p>
             </div>
           </section>
@@ -467,7 +471,7 @@ function App() {
           <section>
             <div className="section-heading">
               <div><span>МОИ ПОДБОРКИ</span><h2>Собери места по смыслу</h2></div>
-              <button onClick={() => setSelectedCollection({
+              <button className="section-add" onClick={() => setSelectedCollection({
                 id: '',
                 title: '',
                 subtitle: cityName,
@@ -480,12 +484,12 @@ function App() {
               <Empty text="Пока нет подборок. Маршрут или ручная подборка появятся здесь." />
             ) : cloud.collections.map((collection) => (
               <button className="collection-card" key={collection.id} onClick={() => setSelectedCollection(collection)}>
-                <span>{collection.routePlan ? '⌁' : '♥'}</span>
+                <span><SpotIcon name={collection.routePlan ? 'route' : 'heart'} size={18} /></span>
                 <div>
                   <b>{collection.title}</b>
                   <small>{collection.routePlan ? 'МАРШРУТ · ' : ''}{collection.placeIds.length} мест · {collection.city === 'spb' ? 'СПБ' : collection.city === 'moscow' ? 'МСК' : '2 города'}</small>
                 </div>
-                <strong>›</strong>
+                <strong><SpotIcon name="chevron" size={17} /></strong>
               </button>
             ))}
           </section>
@@ -577,11 +581,13 @@ function App() {
       ) : null}
 
       <nav className="bottom-nav">
-        <NavButton active={tab === 'map'} icon="⌖" label="Карта" onClick={() => switchTab('map')} />
-        <NavButton active={tab === 'spots'} icon="♥" label="Споты" onClick={() => switchTab('spots')} />
-        <button className="add-button" onClick={() => switchTab('add')}>＋</button>
-        <NavButton active={tab === 'collections'} icon="▦" label="Подборки" onClick={() => switchTab('collections')} />
-        <NavButton active={tab === 'profile'} icon="◉" label="Профиль" onClick={() => switchTab('profile')} />
+        <NavButton active={tab === 'map'} icon="map" label="Карта" onClick={() => switchTab('map')} />
+        <NavButton active={tab === 'spots'} icon="heart" label="Споты" onClick={() => switchTab('spots')} />
+        <button className="add-button" aria-label="Добавить место" onClick={() => switchTab('add')}>
+          <SpotIcon name="plus" size={27} strokeWidth={2.1} />
+        </button>
+        <NavButton active={tab === 'collections'} icon="collection" label="Подборки" onClick={() => switchTab('collections')} />
+        <NavButton active={tab === 'profile'} icon="profile" label="Профиль" onClick={() => switchTab('profile')} />
       </nav>
 
       {toast ? <div className="toast">{toast}</div> : null}
@@ -589,10 +595,10 @@ function App() {
   );
 }
 
-function NavButton({ active, icon, label, onClick }: { active: boolean; icon: string; label: string; onClick: () => void }) {
+function NavButton({ active, icon, label, onClick }: { active: boolean; icon: IconName; label: string; onClick: () => void }) {
   return (
     <button className={active ? 'nav-item active' : 'nav-item'} onClick={onClick}>
-      <span>{icon}</span><small>{label}</small>
+      <span><SpotIcon name={icon} size={18} strokeWidth={1.8} /></span><small>{label}</small>
     </button>
   );
 }
@@ -618,7 +624,7 @@ function SpotList({
         const isSaved = savedIDs.has(spot.id);
         return (
           <article className="spot-card" key={spot.id} onClick={() => onOpen?.(spot)}>
-            <div className="spot-thumb">{categoryEmoji(spot.category)}</div>
+            <div className="spot-thumb"><SpotIcon name={categoryIconName(spot.category)} size={27} strokeWidth={1.65} /></div>
             <div className="spot-copy">
               <span>{spot.categoryLabel.toUpperCase()} · {spot.city === 'spb' ? 'СПБ' : 'МОСКВА'}</span>
               <h3>{spot.name}</h3>
@@ -632,12 +638,12 @@ function SpotList({
                   event.stopPropagation();
                   onUpdate(spot.id, { favorite: !spot.favorite });
                 }}
-              >♥</button>
+              ><SpotIcon name="heart" size={16} strokeWidth={1.9} /></button>
             ) : (
               <button className="save-mini" onClick={(event) => {
                 event.stopPropagation();
                 onSave(spot);
-              }}>＋</button>
+              }}><SpotIcon name="plus" size={18} strokeWidth={2} /></button>
             )}
           </article>
         );
@@ -646,9 +652,20 @@ function SpotList({
   );
 }
 
-function categoryEmoji(category: string) {
+function categoryIconName(category: string): IconName {
   const match = categories.find(([id]) => id === category);
-  return match?.[1] || '📍';
+  return match?.[1] || 'location';
+}
+
+function categoryEmoji(category: string) {
+  const fallback: Record<string, string> = {
+    restaurant: '🍽',
+    coffee: '☕',
+    bar: '🍸',
+    hotel: '🏨',
+    culture: '🎭'
+  };
+  return fallback[category] || '📍';
 }
 
 function SpotDetail({
@@ -686,11 +703,11 @@ function SpotDetail({
         </div>
 
         <div className="detail-actions">
-          <button className="secondary-action" onClick={openMaps}>↗ Карты</button>
+          <button className="secondary-action" onClick={openMaps}><SpotIcon name="location" size={15} /> Карты</button>
           {saved ? (
-            <button className="primary-action">♥ Сохранено</button>
+            <button className="primary-action"><SpotIcon name="heart" size={15} /> Сохранено</button>
           ) : (
-            <button className="primary-action" onClick={onSave}>♥ В СПОТ</button>
+            <button className="primary-action" onClick={onSave}><SpotIcon name="heart" size={15} /> В СПОТ</button>
           )}
         </div>
 
@@ -752,7 +769,7 @@ function CollectionEditor({
 
           {collection.routePlan ? (
             <button className="route-card compact" onClick={onOpenRoute}>
-              <span className="route-icon">⌁</span>
+              <span className="route-icon"><SpotIcon name="route" size={22} /></span>
               <span><b>Собрать новый вариант</b><small>{collection.routePlan.transport === 'driving' ? 'На машине' : 'Пешком'} · настройки маршрута сохранены</small></span>
               <strong>›</strong>
             </button>
@@ -821,7 +838,13 @@ function CollectionEditor({
 }
 
 function Empty({ text }: { text: string }) {
-  return <div className="empty"><span>♥</span><b>{text}</b></div>;
+  return (
+    <div className="empty premium-empty">
+      <span><SpotIcon name="heart" size={27} strokeWidth={1.8} /></span>
+      <b>{text}</b>
+      <small>Здесь появится твоя личная коллекция мест.</small>
+    </div>
+  );
 }
 
 createRoot(document.getElementById('root')!).render(
