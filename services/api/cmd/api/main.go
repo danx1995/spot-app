@@ -14,6 +14,7 @@ import (
 	"github.com/danx1995/spot-app/services/api/internal/catalog"
 	"github.com/danx1995/spot-app/services/api/internal/cloud"
 	"github.com/danx1995/spot-app/services/api/internal/importer"
+	"github.com/danx1995/spot-app/services/api/internal/library"
 	"github.com/danx1995/spot-app/services/api/internal/provider/twogis"
 	"github.com/danx1995/spot-app/services/api/internal/resolver"
 )
@@ -46,8 +47,12 @@ func main() {
 	placesResolver := resolver.New(twoGIS)
 	linkImporter := importer.New(twoGIS)
 
-	syncStore := cloud.NewStore(ctx, os.Getenv("DATABASE_URL"))
+	databaseURL := os.Getenv("DATABASE_URL")
+	syncStore := cloud.NewStore(ctx, databaseURL)
 	defer syncStore.Close()
+
+	libraryStore := library.NewStore(ctx, databaseURL)
+	defer libraryStore.Close()
 
 	authSecret := strings.TrimSpace(os.Getenv("AUTH_SECRET"))
 	if len(authSecret) < 16 {
@@ -67,6 +72,7 @@ func main() {
 				"2gis": twoGIS.Enabled(),
 			},
 			"sync_store": syncStore.Mode(),
+			"library_store": libraryStore.Mode(),
 		})
 	})
 
@@ -177,6 +183,8 @@ func main() {
 		writeJSON(w, http.StatusOK, result)
 	})
 
+	registerLibraryRoutes(mux, libraryStore, tokens)
+
 	mux.HandleFunc("GET /api/v1/cities", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, catalog.Cities)
 	})
@@ -226,7 +234,7 @@ func main() {
 		port = "8080"
 	}
 
-	log.Printf("SPOT API listening on :%s (sync=%s)", port, syncStore.Mode())
+	log.Printf("SPOT API listening on :%s (sync=%s, library=%s)", port, syncStore.Mode(), libraryStore.Mode())
 	if err := http.ListenAndServe(":"+port, handler); err != nil {
 		log.Fatal(err)
 	}
