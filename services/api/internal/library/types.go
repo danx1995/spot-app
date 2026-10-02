@@ -125,6 +125,5 @@ type CollectionPatch struct {
 	Description *string `json:"description,omitempty"`
 	City        *string `json:"city,omitempty"`
 	Visibility  *string `json:"visibility,omitempty"`
-	CoverURL    *string     `json:"cover_url,omitempty"`
-	RoutePlan   **RoutePlan `json:"route_plan,omitempty"`
+	CoverURL    *string `json:"cover_url,omitempty"`
 }
