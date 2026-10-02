@@ -38,6 +38,7 @@ type putStateRequest struct {
 type linkImportRequest struct {
 	URL  string `json:"url"`
 	City string `json:"city"`
+	Hint string `json:"hint,omitempty"`
 }
 
 func main() {
@@ -45,7 +46,7 @@ func main() {
 
 	twoGIS := twogis.New(os.Getenv("TWO_GIS_API_KEY"))
 	placesResolver := resolver.New(twoGIS)
-	linkImporter := importer.New(twoGIS)
+	linkImporter := importer.New(twoGIS, placesResolver)
 
 	databaseURL := os.Getenv("DATABASE_URL")
 	syncStore := cloud.NewStore(ctx, databaseURL)
@@ -191,7 +192,7 @@ func main() {
 			request.City = "spb"
 		}
 
-		result, err := linkImporter.Resolve(r.Context(), request.URL, request.City)
+		result, err := linkImporter.Resolve(r.Context(), request.URL, request.City, request.Hint)
 		if err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return

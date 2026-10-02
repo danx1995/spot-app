@@ -11,6 +11,7 @@ import { Linking } from 'react-native';
 
 type InboundImportValue = {
   pendingURL: string | null;
+  pendingHint: string | null;
   consumePendingURL: () => void;
 };
 
@@ -22,7 +23,20 @@ function extractFirstHTTPURL(text: string | null | undefined) {
   return match?.[0]?.replace(/[),.;!?]+$/, '') ?? null;
 }
 
-function extractTargetURL(appURL: string) {
+function cleanSharedHint(text: string | null | undefined, targetURL: string) {
+  if (!text) return null;
+
+  const withoutTarget = text
+    .replace(targetURL, ' ')
+    .replace(/https?:\/\/[^\s<>'"]+/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (withoutTarget.length < 2) return null;
+  return withoutTarget.slice(0, 180);
+}
+
+function extractInboundDeepLink(appURL: string) {
   const normalized = appURL.trim();
   if (!normalized.startsWith('spot://import') && !normalized.startsWith('spot:///import')) {
     return null;
@@ -37,11 +51,13 @@ function extractTargetURL(appURL: string) {
     return null;
   }
 
-  return target;
+  const hint = params.get('hint')?.trim() || null;
+  return { url: target, hint };
 }
 
 export function InboundImportProvider({ children }: { children: React.ReactNode }) {
   const [pendingURL, setPendingURL] = useState<string | null>(null);
+  const [pendingHint, setPendingHint] = useState<string | null>(null);
   const {
     hasShareIntent,
     shareIntent,
@@ -50,9 +66,10 @@ export function InboundImportProvider({ children }: { children: React.ReactNode 
 
   const receive = useCallback((appURL: string | null) => {
     if (!appURL) return;
-    const target = extractTargetURL(appURL);
-    if (target) {
-      setPendingURL(target);
+    const incoming = extractInboundDeepLink(appURL);
+    if (incoming) {
+      setPendingURL(incoming.url);
+      setPendingHint(incoming.hint);
     }
   }, []);
 
@@ -78,7 +95,13 @@ export function InboundImportProvider({ children }: { children: React.ReactNode 
 
     const target = shareIntent.webUrl?.trim() || extractFirstHTTPURL(shareIntent.text);
     if (target) {
+      const metaTitle = shareIntent.meta && typeof shareIntent.meta.title === 'string'
+        ? shareIntent.meta.title
+        : null;
+      const hint = cleanSharedHint(metaTitle || shareIntent.text, target);
+
       setPendingURL(target);
+      setPendingHint(hint);
     }
 
     resetShareIntent();
@@ -86,11 +109,12 @@ export function InboundImportProvider({ children }: { children: React.ReactNode 
 
   const consumePendingURL = useCallback(() => {
     setPendingURL(null);
+    setPendingHint(null);
   }, []);
 
   const value = useMemo(
-    () => ({ pendingURL, consumePendingURL }),
-    [consumePendingURL, pendingURL]
+    () => ({ pendingURL, pendingHint, consumePendingURL }),
+    [consumePendingURL, pendingHint, pendingURL]
   );
 
   return (
