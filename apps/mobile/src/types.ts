@@ -20,6 +20,8 @@ export type Spot = {
   city: CitySlug;
   cityLabel: string;
   address: string;
+  latitude: number;
+  longitude: number;
   distanceMeters: number;
   rating: number;
   priceLevel?: number;
