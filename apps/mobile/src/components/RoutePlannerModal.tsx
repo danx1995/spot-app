@@ -650,6 +650,7 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
               <Pressable
                 key={city}
                 onPress={() => {
+                  clearManualOrder();
                   setRouteCity(city);
                   setVariation(0);
                   setSaved(false);
@@ -677,6 +678,7 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
               <Pressable
                 key={value}
                 onPress={() => {
+                  clearManualOrder();
                   setTransport(value);
                   setVariation(0);
                   setSaved(false);
@@ -734,6 +736,7 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
                 <Pressable
                   key={value}
                   onPress={() => {
+                    clearManualOrder();
                     setRouteStart(value);
                     setVariation(0);
                     setSaved(false);
@@ -764,6 +767,7 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
               <Pressable
                 key={item.id}
                 onPress={() => {
+                  clearManualOrder();
                   setLength(item.id);
                   setVariation(0);
                   setSaved(false);
@@ -782,6 +786,34 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
               </Pressable>
             );
           })}
+        </View>
+
+        <View style={styles.stayBlock}>
+          <Text style={[styles.stayLabel, { color: muted }]}>НА КАЖДОЙ ТОЧКЕ</Text>
+          <View style={styles.stayRow}>
+            {[30, 45, 60].map((minutes) => {
+              const active = stopMinutes === minutes;
+              return (
+                <Pressable
+                  key={minutes}
+                  onPress={() => {
+                    clearManualOrder();
+                    setStopMinutes(minutes);
+                    setVariation(0);
+                    setSaved(false);
+                  }}
+                  style={[
+                    styles.stayChip,
+                    { backgroundColor: active ? '#173528' : surface }
+                  ]}
+                >
+                  <Text style={[styles.stayText, { color: active ? colors.green : text }]}>
+                    {minutes} мин
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
 
         <ScrollView
@@ -816,10 +848,40 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
                     {planStartLabel} · {transportLabel.toLowerCase()} · {routeSourceLabel}
                   </Text>
                 </View>
-                <Pressable onPress={rebuild} style={[styles.rebuild, { backgroundColor: raised }]}>
-                  <Text style={[styles.rebuildText, { color: text }]}>↻ Ещё</Text>
-                </Pressable>
+                <View style={styles.summaryActions}>
+                  <Pressable onPress={rebuild} style={[styles.rebuild, { backgroundColor: raised }]}>
+                    <Text style={[styles.rebuildText, { color: text }]}>↻ Ещё</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setEditOrder((current) => !current)}
+                    style={[
+                      styles.editOrderButton,
+                      { backgroundColor: editOrder ? '#173528' : raised }
+                    ]}
+                  >
+                    <Text style={[styles.editOrderText, { color: editOrder ? colors.green : text }]}>
+                      {editOrder ? '✓ Готово' : '↕ Порядок'}
+                    </Text>
+                  </Pressable>
+                </View>
               </View>
+
+              {hasManualOrder ? (
+                <View style={[styles.manualBanner, { backgroundColor: '#173528' }]}>
+                  <View style={styles.manualBannerCopy}>
+                    <Text style={styles.manualBannerTitle}>Порядок изменён вручную</Text>
+                    <Text style={[styles.manualBannerHint, { color: muted }]}>
+                      Расстояние и время пересчитаны под новый порядок.
+                    </Text>
+                  </View>
+                  <Pressable
+                    onPress={() => setManualOrder([])}
+                    style={[styles.manualReset, { backgroundColor: raised }]}
+                  >
+                    <Text style={[styles.manualResetText, { color: text }]}>Авто</Text>
+                  </Pressable>
+                </View>
+              ) : null}
 
               <View style={styles.routeList}>
                 {scheduledRoute.map((item, index) => {
@@ -852,6 +914,32 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
                             <Text style={[styles.arrival, { color: availabilityColor }]}>
                               {formatMoscowTime(item.arrival)} · {item.openState.label}
                             </Text>
+                            {editOrder ? (
+                              <View style={styles.orderControls}>
+                                <Pressable
+                                  onPress={() => moveRouteStop(index, 'up')}
+                                  disabled={index === 0}
+                                  style={[
+                                    styles.orderButton,
+                                    { backgroundColor: raised },
+                                    index === 0 && styles.orderButtonDisabled
+                                  ]}
+                                >
+                                  <Text style={[styles.orderButtonText, { color: text }]}>↑ Раньше</Text>
+                                </Pressable>
+                                <Pressable
+                                  onPress={() => moveRouteStop(index, 'down')}
+                                  disabled={index === scheduledRoute.length - 1}
+                                  style={[
+                                    styles.orderButton,
+                                    { backgroundColor: raised },
+                                    index === scheduledRoute.length - 1 && styles.orderButtonDisabled
+                                  ]}
+                                >
+                                  <Text style={[styles.orderButtonText, { color: text }]}>↓ Позже</Text>
+                                </Pressable>
+                              </View>
+                            ) : null}
                           </View>
                           <Text style={[styles.rating, { color: text }]}>
                             ★ {item.spot.rating.toFixed(1)}
@@ -866,7 +954,7 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
               <View style={[styles.scheduleHint, { backgroundColor: raised }]}>
                 <Text style={[styles.scheduleHintTitle, { color: text }]}>План по времени</Text>
                 <Text style={[styles.scheduleHintText, { color: muted }]}>
-                  На каждую остановку заложено примерно 45 минут. Закрытые к моменту прибытия места получают сильный штраф и обычно уходят из маршрута.
+                  На каждую остановку заложено примерно {stopMinutes} минут. Закрытые к моменту прибытия места получают сильный штраф и обычно уходят из маршрута.
                 </Text>
               </View>
             </>
