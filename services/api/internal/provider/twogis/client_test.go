@@ -15,6 +15,7 @@ func TestCategoryFromRubrics(t *testing.T) {
 		{name: "Кинотеатр", want: "entertainment"},
 		{name: "Магазин одежды", want: "shop"},
 		{name: "Парк культуры и отдыха", want: "park"},
+		{name: "Достопримечательность", want: "park"},
 		{name: "Квест-комната", want: "entertainment"},
 		{name: "Пекарня", want: "restaurant"},
 		{name: "Неизвестная рубрика", want: "other"},
