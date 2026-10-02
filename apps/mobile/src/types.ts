@@ -13,6 +13,18 @@ export type SpotCategory =
 
 export type SpotStatus = 'want' | 'visited' | 'booked';
 
+export type SpotDay = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+
+export type SpotTimeRange = {
+  from?: string;
+  to?: string;
+};
+
+export type SpotOpeningHours = {
+  is24x7?: boolean;
+  days?: Partial<Record<SpotDay, SpotTimeRange[]>>;
+};
+
 export type Spot = {
   id: string;
   name: string;
@@ -25,6 +37,9 @@ export type Spot = {
   longitude: number;
   distanceMeters: number;
   rating: number;
+  reviewCount?: number;
+  openingHours?: SpotOpeningHours;
+  description?: string;
   priceLevel?: number;
   status: SpotStatus;
   visitedAt?: string;
