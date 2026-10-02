@@ -41,6 +41,7 @@ export function LinkImportModal({ visible, initialURL, initialHint, onClose }: P
   const [result, setResult] = useState<LinkImportResult | null>(null);
   const [placeQuery, setPlaceQuery] = useState('');
   const [placeResults, setPlaceResults] = useState<Spot[]>([]);
+  const [detectedSelection, setDetectedSelection] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -60,6 +61,8 @@ export function LinkImportModal({ visible, initialURL, initialHint, onClose }: P
     setResult(null);
     setPlaceQuery('');
     setPlaceResults([]);
+    setDetectedSelection({});
+    setDetectedSelection({});
     setLoading(false);
     setSearching(false);
     setError(null);
@@ -130,7 +133,16 @@ export function LinkImportModal({ visible, initialURL, initialHint, onClose }: P
       const imported = await importPlaceLink(target, selectedCity, candidateHint);
       setResult(imported);
 
-      if (imported.status === 'needs_context') {
+      if (imported.detected.length > 1) {
+        const selection: Record<number, string> = {};
+        imported.detected.forEach((item, index) => {
+          const first = item.candidates[0];
+          if (first) selection[index] = first.id;
+        });
+        setDetectedSelection(selection);
+      }
+
+      if (imported.status === 'needs_context' && imported.detected.length < 2) {
         if (imported.suggestedQuery) {
           setPlaceQuery(imported.suggestedQuery);
         }
@@ -149,6 +161,39 @@ export function LinkImportModal({ visible, initialURL, initialHint, onClose }: P
     saveSpot(spot, 'want');
     onClose();
   }
+
+
+  function toggleDetectedCandidate(groupIndex: number, spotID: string) {
+    setDetectedSelection((current) => ({
+      ...current,
+      [groupIndex]: current[groupIndex] === spotID ? '' : spotID
+    }));
+  }
+
+  function saveDetectedPlaces() {
+    if (!result || result.detected.length < 2) return;
+
+    const seen = new Set<string>();
+    for (let index = 0; index < result.detected.length; index += 1) {
+      const selectedID = detectedSelection[index];
+      if (!selectedID || seen.has(selectedID)) continue;
+
+      const group = result.detected[index];
+      const spot = group?.candidates.find((candidate) => candidate.id === selectedID);
+      if (!spot) continue;
+
+      seen.add(selectedID);
+      saveSpot(spot, 'want');
+    }
+
+    if (seen.size > 0) {
+      onClose();
+    }
+  }
+
+  const selectedDetectedCount = Object.values(detectedSelection)
+    .filter(Boolean)
+    .length;
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
@@ -225,7 +270,89 @@ export function LinkImportModal({ visible, initialURL, initialHint, onClose }: P
             </View>
           ) : null}
 
-          {result?.status === 'needs_context' ? (
+          {result && result.detected.length > 1 ? (
+            <View style={styles.resultSection}>
+              <View style={styles.sourceRow}>
+                <View style={styles.sourceBadge}>
+                  <Text style={styles.sourceBadgeText}>{sourceLabel}</Text>
+                </View>
+                <Text style={[styles.foundText, { color: muted }]}>
+                  СПОТ распознал несколько мест
+                </Text>
+              </View>
+
+              <View style={[styles.messageCard, { backgroundColor: surface }]}>
+                <Text style={[styles.messageTitle, { color: text }]}>
+                  Нашли {result.detected.length} мест
+                </Text>
+                <Text style={[styles.messageText, { color: muted }]}>
+                  Проверь варианты. Первый результат в каждом блоке выбран автоматически — лишнее можно отключить.
+                </Text>
+              </View>
+
+              {result.detected.map((group, groupIndex) => (
+                <View key={`${group.query}-${groupIndex}`} style={styles.multiGroup}>
+                  <View style={styles.multiGroupHeader}>
+                    <View style={styles.multiNumber}>
+                      <Text style={styles.multiNumberText}>{groupIndex + 1}</Text>
+                    </View>
+                    <Text style={[styles.multiQuery, { color: text }]} numberOfLines={2}>
+                      {group.query}
+                    </Text>
+                  </View>
+
+                  {group.candidates.slice(0, 2).map((spot) => {
+                    const selected = detectedSelection[groupIndex] === spot.id;
+                    return (
+                      <View
+                        key={spot.id}
+                        style={[
+                          styles.multiCandidate,
+                          selected && styles.multiCandidateSelected
+                        ]}
+                      >
+                        <SpotCard
+                          spot={spot}
+                          compact
+                          showCity
+                          onPress={() => toggleDetectedCandidate(groupIndex, spot.id)}
+                        />
+                        <Pressable
+                          onPress={() => toggleDetectedCandidate(groupIndex, spot.id)}
+                          style={[
+                            styles.multiCheck,
+                            selected && styles.multiCheckSelected
+                          ]}
+                        >
+                          <Text style={[
+                            styles.multiCheckText,
+                            selected && styles.multiCheckTextSelected
+                          ]}>
+                            {selected ? '✓' : ''}
+                          </Text>
+                        </Pressable>
+                      </View>
+                    );
+                  })}
+                </View>
+              ))}
+
+              <Pressable
+                onPress={saveDetectedPlaces}
+                disabled={selectedDetectedCount === 0}
+                style={[
+                  styles.saveAllButton,
+                  selectedDetectedCount === 0 && styles.disabled
+                ]}
+              >
+                <Text style={styles.saveText}>
+                  ♥ Сохранить выбранные · {selectedDetectedCount}
+                </Text>
+              </Pressable>
+            </View>
+          ) : null}
+
+          {result?.status === 'needs_context' && result.detected.length < 2 ? (
             <View style={styles.resultSection}>
               <View style={styles.sourceRow}>
                 <View style={styles.sourceBadge}>
@@ -493,5 +620,76 @@ const styles = StyleSheet.create({
   },
   placeResult: {
     marginTop: 10
+  },
+  multiGroup: {
+    marginTop: 18
+  },
+  multiGroupHeader: {
+    marginBottom: 9,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10
+  },
+  multiNumber: {
+    width: 28,
+    height: 28,
+    borderRadius: 10,
+    backgroundColor: '#173528',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  multiNumberText: {
+    color: colors.green,
+    fontSize: 11,
+    fontWeight: '900'
+  },
+  multiQuery: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '800'
+  },
+  multiCandidate: {
+    position: 'relative',
+    marginTop: 8,
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: 'transparent'
+  },
+  multiCandidateSelected: {
+    borderColor: colors.green
+  },
+  multiCheck: {
+    position: 'absolute',
+    top: 9,
+    right: 9,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(11,15,12,0.82)',
+    borderWidth: 1,
+    borderColor: '#78827C66',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  multiCheckSelected: {
+    backgroundColor: colors.green,
+    borderColor: colors.green
+  },
+  multiCheckText: {
+    color: 'transparent',
+    fontSize: 13,
+    fontWeight: '900'
+  },
+  multiCheckTextSelected: {
+    color: colors.black
+  },
+  saveAllButton: {
+    minHeight: 58,
+    marginTop: 22,
+    borderRadius: 18,
+    backgroundColor: colors.green,
+    alignItems: 'center',
+    justifyContent: 'center'
   }
 });
