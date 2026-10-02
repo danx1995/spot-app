@@ -18,6 +18,7 @@ import { useSpotStore } from '../state/SpotStore';
 import { colors } from '../theme';
 import type { Collection, CollectionRoutePlan, Spot } from '../types';
 import { PlaceDetailModal } from './PlaceDetailModal';
+import { RouteRunModal } from './RouteRunModal';
 import { SpotCard } from './SpotCard';
 
 type Props = {
@@ -96,6 +97,7 @@ export function CollectionDetailModal({ collection, visible, onClose }: Props) {
   const [draftSubtitle, setDraftSubtitle] = useState('');
   const [draftCity, setDraftCity] = useState<Collection['city']>('both');
   const [routeEditing, setRouteEditing] = useState(false);
+  const [routeRunning, setRouteRunning] = useState(false);
   const [draftRoutePlan, setDraftRoutePlan] = useState<CollectionRoutePlan | null>(null);
 
   const text = dark ? colors.white : colors.black;
@@ -213,7 +215,7 @@ export function CollectionDetailModal({ collection, visible, onClose }: Props) {
   return (
     <>
       <Modal
-        visible={visible && !selectedSpot}
+        visible={visible && !selectedSpot && !routeRunning}
         animationType="slide"
         presentationStyle="pageSheet"
         onRequestClose={onClose}
@@ -260,6 +262,13 @@ export function CollectionDetailModal({ collection, visible, onClose }: Props) {
                     <Text style={styles.routeBadgeHint}>точек</Text>
                   </View>
                 </View>
+                <Pressable
+                  onPress={() => setRouteRunning(true)}
+                  disabled={spots.length < 1}
+                  style={[styles.routeStartButton, spots.length < 1 && styles.routeOpenButtonDisabled]}
+                >
+                  <Text style={styles.routeStartButtonText}>▶ Начать маршрут</Text>
+                </Pressable>
                 <Pressable
                   onPress={() => void openSavedRoute()}
                   disabled={spots.length < 2}
@@ -536,6 +545,13 @@ export function CollectionDetailModal({ collection, visible, onClose }: Props) {
         </View>
       </Modal>
 
+      <RouteRunModal
+        collection={activeCollection}
+        spots={spots}
+        visible={routeRunning}
+        onClose={() => setRouteRunning(false)}
+      />
+
       <PlaceDetailModal
         spot={selectedSpot}
         visible={Boolean(selectedSpot)}
@@ -691,9 +707,22 @@ const styles = StyleSheet.create({
     fontSize: 8,
     fontWeight: '800'
   },
+  routeStartButton: {
+    minHeight: 52,
+    marginTop: 14,
+    borderRadius: 17,
+    backgroundColor: '#173528',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  routeStartButtonText: {
+    color: colors.green,
+    fontSize: 12,
+    fontWeight: '900'
+  },
   routeOpenButton: {
     minHeight: 49,
-    marginTop: 14,
+    marginTop: 8,
     borderRadius: 16,
     backgroundColor: colors.green,
     alignItems: 'center',
