@@ -58,3 +58,20 @@ func TestCategoryDiscoveryQueryCoversTelegramCatalog(t *testing.T) {
 		t.Fatalf("unknown category returned %q", query)
 	}
 }
+
+func TestCategoryDiscoveryPageRotatesQueryVariants(t *testing.T) {
+	query, providerPage := categoryDiscoveryPage("culture", 1)
+	if query != "музеи" || providerPage != 1 {
+		t.Fatalf("culture page 1 = (%q,%d)", query, providerPage)
+	}
+
+	query, providerPage = categoryDiscoveryPage("culture", 5)
+	if query != "библиотеки" || providerPage != 1 {
+		t.Fatalf("culture page 5 = (%q,%d)", query, providerPage)
+	}
+
+	query, providerPage = categoryDiscoveryPage("culture", 6)
+	if query != "музеи" || providerPage != 2 {
+		t.Fatalf("culture page 6 = (%q,%d)", query, providerPage)
+	}
+}
