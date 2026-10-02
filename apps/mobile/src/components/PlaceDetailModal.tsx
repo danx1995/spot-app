@@ -19,7 +19,15 @@ const statusCopy: Record<SpotStatus, string> = {
 
 export function PlaceDetailModal({ spot, visible, onClose }: Props) {
   const dark = useColorScheme() === 'dark';
-  const { getSavedSpot, saveSpot, removeSpot, updateStatus, toggleFavorite } = useSpotStore();
+  const {
+    collections,
+    getSavedSpot,
+    saveSpot,
+    removeSpot,
+    updateStatus,
+    toggleFavorite,
+    togglePlaceInCollection
+  } = useSpotStore();
   const text = dark ? colors.white : colors.black;
   const muted = dark ? colors.textSecondaryDark : colors.textSecondaryLight;
   const surface = dark ? colors.darkSurface : colors.white;
@@ -94,6 +102,28 @@ export function PlaceDetailModal({ spot, visible, onClose }: Props) {
               {current.note ?? 'Добавь заметку, чтобы потом вспомнить, почему захотелось сюда попасть.'}
             </Text>
           </View>
+
+          {saved && collections.length > 0 ? (
+            <View style={[styles.block, { backgroundColor: surface }]}>
+              <Text style={[styles.blockLabel, { color: muted }]}>ПОДБОРКИ</Text>
+              <View style={styles.collectionList}>
+                {collections.map((collection) => {
+                  const active = collection.placeIds.includes(current.id);
+                  return (
+                    <Pressable
+                      key={collection.id}
+                      onPress={() => togglePlaceInCollection(collection.id, current.id)}
+                      style={[styles.collectionChip, active && styles.collectionChipActive]}
+                    >
+                      <Text style={[styles.collectionChipText, { color: active ? colors.black : text }]}>
+                        {active ? '✓ ' : '+ '}{collection.title}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          ) : null}
 
           <View style={[styles.block, { backgroundColor: surface }]}>
             <Text style={[styles.blockLabel, { color: muted }]}>О МЕСТЕ</Text>
@@ -250,6 +280,27 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 23,
     fontWeight: '600'
+  },
+  collectionList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12
+  },
+  collectionChip: {
+    minHeight: 38,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.darkSurfaceRaised
+  },
+  collectionChipActive: {
+    backgroundColor: colors.green
+  },
+  collectionChipText: {
+    fontSize: 12,
+    fontWeight: '800'
   },
   infoRow: {
     marginTop: 13,
