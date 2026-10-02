@@ -349,3 +349,121 @@ func TestRejectJavascriptScheme(t *testing.T) {
 		t.Fatal("expected unsupported scheme error")
 	}
 }
+
+
+type listSearcher struct{}
+
+func (s *listSearcher) Search(_ context.Context, query, city, _ string) ([]catalog.Place, error) {
+	label := "Санкт-Петербург"
+	if city == "moscow" {
+		label = "Москва"
+	}
+
+	lower := strings.ToLower(query)
+	switch {
+	case strings.Contains(lower, "birch"):
+		return []catalog.Place{{
+			ID:            "sp_birch_" + city,
+			Name:          "Birch",
+			City:          city,
+			CityLabel:     label,
+			Category:      "restaurant",
+			CategoryLabel: "Ресторан",
+			Address:       "Кирочная улица, 3",
+		}}, nil
+	case strings.Contains(lower, "aster"):
+		return []catalog.Place{{
+			ID:            "sp_aster_" + city,
+			Name:          "Aster",
+			City:          city,
+			CityLabel:     label,
+			Category:      "coffee",
+			CategoryLabel: "Кофейня",
+			Address:       "Улица Маяковского, 23",
+		}}, nil
+	case strings.Contains(lower, "noor"):
+		return []catalog.Place{{
+			ID:            "sp_noor_" + city,
+			Name:          "Noor",
+			City:          city,
+			CityLabel:     label,
+			Category:      "bar",
+			CategoryLabel: "Бар",
+			Address:       "Тверская улица, 23",
+		}}, nil
+	default:
+		return nil, nil
+	}
+}
+
+func TestPlaceQueriesFromNumberedCaption(t *testing.T) {
+	queries := placeQueriesFromText("5 мест в Петербурге: 1. Birch — Кирочная 3 2. Aster — Маяковского 23 3. Noor — бар")
+	if len(queries) != 3 {
+		t.Fatalf("expected 3 list queries, got %#v", queries)
+	}
+	if !strings.Contains(strings.ToLower(queries[0]), "birch") {
+		t.Fatalf("expected Birch first, got %#v", queries)
+	}
+	if !strings.Contains(strings.ToLower(queries[1]), "aster") {
+		t.Fatalf("expected Aster second, got %#v", queries)
+	}
+	if !strings.Contains(strings.ToLower(queries[2]), "noor") {
+		t.Fatalf("expected Noor third, got %#v", queries)
+	}
+}
+
+func TestPlaceQueriesIgnoreOrdinarySentence(t *testing.T) {
+	queries := placeQueriesFromText("Birch — ресторан на Кирочной улице, который хочется попробовать вечером.")
+	if len(queries) != 0 {
+		t.Fatalf("ordinary caption must not become multi-place list: %#v", queries)
+	}
+}
+
+func TestInstagramNumberedCaptionResolvesMultiplePlaces(t *testing.T) {
+	resolver := NewWithMetadata(nil, &listSearcher{}, &fakeMetadataFetcher{})
+
+	result, err := resolver.Resolve(
+		context.Background(),
+		"https://www.instagram.com/reel/abc123/",
+		"spb",
+		"1. Birch — Кирочная 3 2. Aster — Маяковского 23 3. Noor — Тверская 23",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Detected) != 3 {
+		t.Fatalf("expected 3 detected places, got %#v", result.Detected)
+	}
+	if len(result.Candidates) != 3 {
+		t.Fatalf("expected one compatibility candidate per detected place, got %#v", result.Candidates)
+	}
+	if result.Detected[0].Candidates[0].Name != "Birch" {
+		t.Fatalf("unexpected first detection: %#v", result.Detected[0])
+	}
+	if result.Detected[1].Candidates[0].Name != "Aster" {
+		t.Fatalf("unexpected second detection: %#v", result.Detected[1])
+	}
+	if result.Detected[2].Candidates[0].Name != "Noor" {
+		t.Fatalf("unexpected third detection: %#v", result.Detected[2])
+	}
+	if !strings.Contains(result.Message, "3 мест") {
+		t.Fatalf("unexpected multi-place message: %q", result.Message)
+	}
+}
+
+func TestDuplicateTopMatchesDoNotFakeMultiPlaceResult(t *testing.T) {
+	resolver := NewWithMetadata(nil, &fakeSearcher{}, &fakeMetadataFetcher{})
+
+	result, err := resolver.Resolve(
+		context.Background(),
+		"https://www.instagram.com/reel/abc123/",
+		"spb",
+		"1. Birch 2. Birch restaurant",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Detected) != 0 {
+		t.Fatalf("duplicate place must not become multi import: %#v", result.Detected)
+	}
+}

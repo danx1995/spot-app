@@ -25,6 +25,11 @@ type ApiPlace = {
   distance_meters?: number;
 };
 
+export type DetectedPlaceImport = {
+  query: string;
+  candidates: Spot[];
+};
+
 export type LinkImportResult = {
   status: 'resolved' | 'needs_context';
   platform: string;
@@ -34,6 +39,7 @@ export type LinkImportResult = {
   suggestedCity?: CitySlug;
   place?: Spot;
   candidates: Spot[];
+  detected: DetectedPlaceImport[];
 };
 
 function fromApiPlace(place: ApiPlace): Spot {
@@ -148,6 +154,10 @@ export async function importPlaceLink(url: string, city: CitySlug, hint?: string
     suggested_city?: CitySlug;
     place?: ApiPlace;
     candidates?: ApiPlace[];
+    detected?: Array<{
+      query: string;
+      candidates?: ApiPlace[];
+    }>;
   };
 
   const withSource = (place: ApiPlace): Spot => ({
@@ -166,6 +176,10 @@ export async function importPlaceLink(url: string, city: CitySlug, hint?: string
     suggestedQuery: payload.suggested_query,
     suggestedCity: payload.suggested_city,
     place: payload.place ? withSource(payload.place) : undefined,
-    candidates: (payload.candidates ?? []).map(withSource)
+    candidates: (payload.candidates ?? []).map(withSource),
+    detected: (payload.detected ?? []).map((item) => ({
+      query: item.query,
+      candidates: (item.candidates ?? []).map(withSource)
+    }))
   };
 }

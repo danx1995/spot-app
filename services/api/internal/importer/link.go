@@ -28,6 +28,11 @@ type Resolver struct {
 	metadata PageMetadataFetcher
 }
 
+type DetectedPlace struct {
+	Query      string          `json:"query"`
+	Candidates []catalog.Place `json:"candidates,omitempty"`
+}
+
 type Result struct {
 	Status         string          `json:"status"`
 	Platform       string          `json:"platform"`
@@ -39,12 +44,14 @@ type Result struct {
 	SuggestedCity  string          `json:"suggested_city,omitempty"`
 	Place          *catalog.Place  `json:"place,omitempty"`
 	Candidates     []catalog.Place `json:"candidates,omitempty"`
+	Detected       []DetectedPlace `json:"detected,omitempty"`
 }
 
 var (
 	firmPattern      = regexp.MustCompile(`/firm/([0-9A-Za-z_-]+)`)
 	yandexOrgPattern = regexp.MustCompile(`/org/([^/]+)`)
 	urlPattern       = regexp.MustCompile(`https?://\S+`)
+	listNumberPattern = regexp.MustCompile(`(?m)(^|\s)(?:\d{1,2}[.)])\s+`)
 )
 
 func New(twoGIS TwoGISLookup, searcher PlaceSearcher) *Resolver {
@@ -101,6 +108,7 @@ func (r *Resolver) Resolve(ctx context.Context, rawURL, city, hint string) (Resu
 	}
 
 	query := suggestedQuery(parsed, platform, hint)
+	sourceText := hint
 	cleanedHint := cleanHint(hint)
 	if cleanedHint != "" {
 		result.SourceExcerpt = limitRunes(cleanedHint, 280)
@@ -111,8 +119,45 @@ func (r *Resolver) Resolve(ctx context.Context, rawURL, city, hint string) (Resu
 		if metadataErr == nil {
 			result.SourceTitle = limitRunes(stripPlatformBoilerplate(pageMetadata.Title, platform), 180)
 			result.SourceExcerpt = limitRunes(stripPlatformBoilerplate(pageMetadata.Description, platform), 500)
+			sourceText = strings.TrimSpace(pageMetadata.Title + "\n" + pageMetadata.Description)
 			query = metadataSearchQuery(pageMetadata, platform)
 			metadataUsed = query != ""
+		}
+	}
+
+	if r.searcher != nil {
+		queries := placeQueriesFromText(sourceText)
+		if len(queries) >= 2 {
+			detected := r.searchDetectedPlaces(ctx, queries, city)
+			if len(detected) >= 2 {
+				result.Detected = detected
+				result.SuggestedQuery = detected[0].Query
+				result.Candidates = make([]catalog.Place, 0, len(detected))
+
+				sharedCity := ""
+				sameCity := true
+				for _, item := range detected {
+					if len(item.Candidates) == 0 {
+						continue
+					}
+					best := item.Candidates[0]
+					result.Candidates = append(result.Candidates, best)
+					if sharedCity == "" {
+						sharedCity = best.City
+					} else if sharedCity != best.City {
+						sameCity = false
+					}
+				}
+				if sameCity && sharedCity != "" && sharedCity != city {
+					result.SuggestedCity = sharedCity
+				}
+
+				result.Message = fmt.Sprintf(
+					"СПОТ распознал список и нашёл %d мест. Проверь варианты и сохрани нужные.",
+					len(detected),
+				)
+				return result, nil
+			}
 		}
 	}
 
@@ -151,6 +196,169 @@ func (r *Resolver) Resolve(ctx context.Context, rawURL, city, hint string) (Resu
 	}
 
 	return result, nil
+}
+
+func (r *Resolver) searchDetectedPlaces(
+	ctx context.Context,
+	queries []string,
+	selectedCity string,
+) []DetectedPlace {
+	type indexedResult struct {
+		index int
+		item  DetectedPlace
+	}
+
+	results := make(chan indexedResult, len(queries))
+	sem := make(chan struct{}, 3)
+	var wg sync.WaitGroup
+
+	for index, query := range queries {
+		index := index
+		query := query
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			select {
+			case sem <- struct{}{}:
+				defer func() { <-sem }()
+			case <-ctx.Done():
+				return
+			}
+
+			candidates := r.searchCandidates(
+				ctx,
+				query,
+				selectedCity,
+				cityFromText(query),
+			)
+			if len(candidates) > 3 {
+				candidates = candidates[:3]
+			}
+			if len(candidates) == 0 {
+				return
+			}
+
+			results <- indexedResult{
+				index: index,
+				item: DetectedPlace{
+					Query:      query,
+					Candidates: candidates,
+				},
+			}
+		}()
+	}
+
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	ordered := make([]*DetectedPlace, len(queries))
+	for result := range results {
+		item := result.item
+		ordered[result.index] = &item
+	}
+
+	seenBest := make(map[string]struct{})
+	out := make([]DetectedPlace, 0, len(queries))
+	for _, item := range ordered {
+		if item == nil || len(item.Candidates) == 0 {
+			continue
+		}
+
+		best := item.Candidates[0]
+		key := best.ID
+		if key == "" {
+			key = normalizeText(best.Name) + "|" + normalizeText(best.Address) + "|" + best.City
+		}
+		if _, exists := seenBest[key]; exists {
+			continue
+		}
+		seenBest[key] = struct{}{}
+		out = append(out, *item)
+	}
+
+	return out
+}
+
+func placeQueriesFromText(value string) []string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+
+	normalized := strings.NewReplacer(
+		"\r\n", "\n",
+		"\r", "\n",
+	).Replace(value)
+
+	firstMarker := -1
+	if match := listNumberPattern.FindStringIndex(normalized); match != nil {
+		firstMarker = match[0]
+	}
+	if bullet := strings.IndexAny(normalized, "•●▪◦"); bullet >= 0 && (firstMarker < 0 || bullet < firstMarker) {
+		firstMarker = bullet
+	}
+	if firstMarker > 0 {
+		normalized = normalized[firstMarker:]
+	}
+
+	withBullets := strings.NewReplacer(
+		"•", "\n",
+		"●", "\n",
+		"▪", "\n",
+		"◦", "\n",
+	).Replace(normalized)
+
+	numbered := listNumberPattern.ReplaceAllString(withBullets, "\n")
+	hasStrongSeparator := numbered != withBullets ||
+		strings.Contains(withBullets, "\n") ||
+		withBullets != normalized
+
+	if strings.Count(numbered, ";") >= 1 {
+		numbered = strings.ReplaceAll(numbered, ";", "\n")
+		hasStrongSeparator = true
+	}
+	if !hasStrongSeparator {
+		return nil
+	}
+
+	parts := strings.Split(numbered, "\n")
+	seen := make(map[string]struct{})
+	queries := make([]string, 0, len(parts))
+
+	for _, part := range parts {
+		query := cleanHint(part)
+		if query == "" {
+			continue
+		}
+
+		wordCount := len(strings.Fields(query))
+		if wordCount > 18 {
+			continue
+		}
+
+		key := normalizeText(query)
+		if key == "" {
+			continue
+		}
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+
+		queries = append(queries, query)
+		if len(queries) == 6 {
+			break
+		}
+	}
+
+	if len(queries) < 2 {
+		return nil
+	}
+	return queries
 }
 
 func (r *Resolver) searchCandidates(ctx context.Context, query, selectedCity, hintedCity string) []catalog.Place {
