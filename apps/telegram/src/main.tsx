@@ -167,6 +167,12 @@ function App() {
     return () => window.clearTimeout(timer);
   }, [cloud, demoMode, session]);
 
+  useEffect(() => {
+    if (tab !== 'map' || searching || searchResults.length > 0 || search || activeCategory) return;
+    if (!session && !demoMode) return;
+    void runSearch('', '', 1, false);
+  }, [activeCategory, city, demoMode, search, searchResults.length, searching, session, tab]);
+
   async function persistCloud(next: CloudPayload) {
     if (!session) return;
     if (saving.current) {
@@ -411,11 +417,10 @@ function App() {
                 className={!activeCategory ? 'active' : ''}
                 onClick={() => {
                   setActiveCategory('');
-                  setSearchResults([]);
                   setSearchPage(1);
-                  setCanLoadMore(false);
+                  void runSearch(search, '', 1, false);
                 }}
-              >Мои на карте</button>
+              ><SpotIcon name="sparkles" size={14} /> Каталог</button>
               {categories.map(([id, icon, label]) => (
                 <button
                   key={id}
