@@ -10,9 +10,12 @@
     "mobile": "npm --workspace apps/mobile start",
     "mobile:ios": "npm --workspace apps/mobile run ios",
     "mobile:android": "npm --workspace apps/mobile run android",
-    "typecheck": "npm --workspace apps/mobile run typecheck",
+    "typecheck": "npm --workspace apps/mobile run typecheck && npm --workspace apps/telegram run typecheck",
     "mobile:dev-client": "npm --workspace apps/mobile run start:dev-client",
     "build:dev:ios": "npm --workspace apps/mobile run build:dev:ios",
-    "build:dev:android": "npm --workspace apps/mobile run build:dev:android"
+    "build:dev:android": "npm --workspace apps/mobile run build:dev:android",
+    "telegram": "npm --workspace apps/telegram run dev",
+    "telegram:build": "npm --workspace apps/telegram run build",
+    "telegram:typecheck": "npm --workspace apps/telegram run typecheck"
   }
 }
