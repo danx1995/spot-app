@@ -56,7 +56,7 @@ const CITY_CENTERS: Record<CitySlug, Coordinates> = {
 };
 
 const MAX_CITY_START_DISTANCE_METERS = 120_000;
-const STOP_DWELL_SECONDS = 45 * 60;
+const DEFAULT_STOP_MINUTES = 45;
 const MOSCOW_UTC_OFFSET_MS = 3 * 60 * 60 * 1000;
 
 function moscowClockTarget(
@@ -157,7 +157,8 @@ function buildRoute(
   variation: number,
   transport: RouteTransport,
   start: Coordinates | null,
-  now: Date
+  now: Date,
+  stopMinutes: number
 ) {
   const candidates = spots.filter((spot) => spot.status !== 'visited');
   if (candidates.length === 0) return [];
@@ -207,7 +208,7 @@ function buildRoute(
     route.push(best);
     used.add(best.id);
     seenCategories.add(best.category);
-    elapsedSeconds += STOP_DWELL_SECONDS;
+    elapsedSeconds += stopMinutes * 60;
   }
 
   return route;
@@ -331,6 +332,9 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
   const [routeCity, setRouteCity] = useState<CitySlug>(selectedCity);
   const [transport, setTransport] = useState<RouteTransport>('walking');
   const [routeStart, setRouteStart] = useState<RouteStartPreset>('now');
+  const [stopMinutes, setStopMinutes] = useState(DEFAULT_STOP_MINUTES);
+  const [manualOrder, setManualOrder] = useState<string[]>([]);
+  const [editOrder, setEditOrder] = useState(false);
   const [startFromMe, setStartFromMe] = useState(false);
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
   const [locationBusy, setLocationBusy] = useState(false);
@@ -341,6 +345,9 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
     if (!visible) return;
     setRouteCity(selectedCity);
     setRouteStart('now');
+    setStopMinutes(DEFAULT_STOP_MINUTES);
+    setManualOrder([]);
+    setEditOrder(false);
     setVariation(0);
     setSaved(false);
     setRemoteSummary(null);
@@ -380,7 +387,7 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
     () => savedSpots.filter((spot) => spot.city === routeCity && spot.status !== 'visited'),
     [routeCity, savedSpots]
   );
-  const route = useMemo(
+  const generatedRoute = useMemo(
     () => buildRoute(
       eligible,
       interests,
@@ -388,7 +395,8 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
       variation,
       transport,
       startCoordinate,
-      planBaseTime
+      planBaseTime,
+      stopMinutes
     ),
     [
       eligible,
@@ -396,9 +404,27 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
       option.places,
       planBaseTime,
       startCoordinate,
+      stopMinutes,
       transport,
       variation
     ]
+  );
+
+  const route = useMemo(() => {
+    if (manualOrder.length !== generatedRoute.length) return generatedRoute;
+
+    const byID = new Map(generatedRoute.map((spot) => [spot.id, spot]));
+    const ordered = manualOrder
+      .map((id) => byID.get(id))
+      .filter((spot): spot is Spot => Boolean(spot));
+
+    if (ordered.length !== generatedRoute.length) return generatedRoute;
+    return ordered;
+  }, [generatedRoute, manualOrder]);
+
+  const hasManualOrder = useMemo(
+    () => route.some((spot, index) => spot.id !== generatedRoute[index]?.id),
+    [generatedRoute, route]
   );
 
   const routePoints = useMemo(() => {
@@ -455,11 +481,11 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
 
       const arrival = new Date(planBaseTime.getTime() + elapsedSeconds * 1000);
       const openState = getSpotOpenState(spot, arrival);
-      elapsedSeconds += STOP_DWELL_SECONDS;
+      elapsedSeconds += stopMinutes * 60;
 
       return { spot, arrival, openState };
     });
-  }, [effectiveSummary, planBaseTime, route, startCoordinate]);
+  }, [effectiveSummary, planBaseTime, route, startCoordinate, stopMinutes]);
 
   const transportLabel = transport === 'driving' ? 'На машине' : 'Пешком';
   const routeSourceLabel = routingBusy
@@ -470,13 +496,30 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
         ? 'частично по улицам 2ГИС'
         : 'оценка по расстоянию';
 
+  function clearManualOrder() {
+    setManualOrder([]);
+    setEditOrder(false);
+  }
+
   function rebuild() {
+    clearManualOrder();
     setSaved(false);
     setVariation((current) => current + 1);
   }
 
+  function moveRouteStop(index: number, direction: 'up' | 'down') {
+    const target = direction === 'up' ? index - 1 : index + 1;
+    if (target < 0 || target >= route.length) return;
+
+    const next = route.map((spot) => spot.id);
+    [next[index], next[target]] = [next[target] as string, next[index] as string];
+    setManualOrder(next);
+    setSaved(false);
+  }
+
   async function toggleStartFromMe() {
     if (startFromMe) {
+      clearManualOrder();
       setStartFromMe(false);
       return;
     }
@@ -515,6 +558,7 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
       }
 
       setUserLocation(coordinates);
+      clearManualOrder();
       setStartFromMe(true);
       setSaved(false);
       setVariation(0);
@@ -533,7 +577,7 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
 
     const collection = createCollection({
       title: `Маршрут · ${CITY_LABELS[routeCity]}`,
-      subtitle: planStartLabel + ' · ' + option.label + ' · ' + String(route.length) + ' мест · ' + transportLabel,
+      subtitle: planStartLabel + ' · ' + option.label + ' · ' + String(route.length) + ' мест · ' + transportLabel + ' · ' + String(stopMinutes) + ' мин/место',
       city: routeCity
     });
 
@@ -554,8 +598,9 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
     const routeMeta = effectiveSummary
       ? planStartLabel + ' · ' + transportLabel + ' · ' +
         formatDistance(effectiveSummary.totalDistanceMeters) + ' · ' +
-        formatDuration(effectiveSummary.totalDurationSeconds) + ' в пути'
-      : planStartLabel + ' · ' + transportLabel;
+        formatDuration(effectiveSummary.totalDurationSeconds) + ' в пути · ' +
+        String(stopMinutes) + ' мин/место'
+      : planStartLabel + ' · ' + transportLabel + ' · ' + String(stopMinutes) + ' мин/место';
 
     await Share.share({
       title: 'Маршрут · ' + CITY_LABELS[routeCity],
@@ -605,6 +650,7 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
               <Pressable
                 key={city}
                 onPress={() => {
+                  clearManualOrder();
                   setRouteCity(city);
                   setVariation(0);
                   setSaved(false);
@@ -632,6 +678,7 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
               <Pressable
                 key={value}
                 onPress={() => {
+                  clearManualOrder();
                   setTransport(value);
                   setVariation(0);
                   setSaved(false);
@@ -689,6 +736,7 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
                 <Pressable
                   key={value}
                   onPress={() => {
+                    clearManualOrder();
                     setRouteStart(value);
                     setVariation(0);
                     setSaved(false);
@@ -719,6 +767,7 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
               <Pressable
                 key={item.id}
                 onPress={() => {
+                  clearManualOrder();
                   setLength(item.id);
                   setVariation(0);
                   setSaved(false);
@@ -737,6 +786,34 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
               </Pressable>
             );
           })}
+        </View>
+
+        <View style={styles.stayBlock}>
+          <Text style={[styles.stayLabel, { color: muted }]}>НА КАЖДОЙ ТОЧКЕ</Text>
+          <View style={styles.stayRow}>
+            {[30, 45, 60].map((minutes) => {
+              const active = stopMinutes === minutes;
+              return (
+                <Pressable
+                  key={minutes}
+                  onPress={() => {
+                    clearManualOrder();
+                    setStopMinutes(minutes);
+                    setVariation(0);
+                    setSaved(false);
+                  }}
+                  style={[
+                    styles.stayChip,
+                    { backgroundColor: active ? '#173528' : surface }
+                  ]}
+                >
+                  <Text style={[styles.stayText, { color: active ? colors.green : text }]}>
+                    {minutes} мин
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
 
         <ScrollView
@@ -771,10 +848,40 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
                     {planStartLabel} · {transportLabel.toLowerCase()} · {routeSourceLabel}
                   </Text>
                 </View>
-                <Pressable onPress={rebuild} style={[styles.rebuild, { backgroundColor: raised }]}>
-                  <Text style={[styles.rebuildText, { color: text }]}>↻ Ещё</Text>
-                </Pressable>
+                <View style={styles.summaryActions}>
+                  <Pressable onPress={rebuild} style={[styles.rebuild, { backgroundColor: raised }]}>
+                    <Text style={[styles.rebuildText, { color: text }]}>↻ Ещё</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setEditOrder((current) => !current)}
+                    style={[
+                      styles.editOrderButton,
+                      { backgroundColor: editOrder ? '#173528' : raised }
+                    ]}
+                  >
+                    <Text style={[styles.editOrderText, { color: editOrder ? colors.green : text }]}>
+                      {editOrder ? '✓ Готово' : '↕ Порядок'}
+                    </Text>
+                  </Pressable>
+                </View>
               </View>
+
+              {hasManualOrder ? (
+                <View style={[styles.manualBanner, { backgroundColor: '#173528' }]}>
+                  <View style={styles.manualBannerCopy}>
+                    <Text style={styles.manualBannerTitle}>Порядок изменён вручную</Text>
+                    <Text style={[styles.manualBannerHint, { color: muted }]}>
+                      Расстояние и время пересчитаны под новый порядок.
+                    </Text>
+                  </View>
+                  <Pressable
+                    onPress={() => setManualOrder([])}
+                    style={[styles.manualReset, { backgroundColor: raised }]}
+                  >
+                    <Text style={[styles.manualResetText, { color: text }]}>Авто</Text>
+                  </Pressable>
+                </View>
+              ) : null}
 
               <View style={styles.routeList}>
                 {scheduledRoute.map((item, index) => {
@@ -807,6 +914,32 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
                             <Text style={[styles.arrival, { color: availabilityColor }]}>
                               {formatMoscowTime(item.arrival)} · {item.openState.label}
                             </Text>
+                            {editOrder ? (
+                              <View style={styles.orderControls}>
+                                <Pressable
+                                  onPress={() => moveRouteStop(index, 'up')}
+                                  disabled={index === 0}
+                                  style={[
+                                    styles.orderButton,
+                                    { backgroundColor: raised },
+                                    index === 0 && styles.orderButtonDisabled
+                                  ]}
+                                >
+                                  <Text style={[styles.orderButtonText, { color: text }]}>↑ Раньше</Text>
+                                </Pressable>
+                                <Pressable
+                                  onPress={() => moveRouteStop(index, 'down')}
+                                  disabled={index === scheduledRoute.length - 1}
+                                  style={[
+                                    styles.orderButton,
+                                    { backgroundColor: raised },
+                                    index === scheduledRoute.length - 1 && styles.orderButtonDisabled
+                                  ]}
+                                >
+                                  <Text style={[styles.orderButtonText, { color: text }]}>↓ Позже</Text>
+                                </Pressable>
+                              </View>
+                            ) : null}
                           </View>
                           <Text style={[styles.rating, { color: text }]}>
                             ★ {item.spot.rating.toFixed(1)}
@@ -821,7 +954,7 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
               <View style={[styles.scheduleHint, { backgroundColor: raised }]}>
                 <Text style={[styles.scheduleHintTitle, { color: text }]}>План по времени</Text>
                 <Text style={[styles.scheduleHintText, { color: muted }]}>
-                  На каждую остановку заложено примерно 45 минут. Закрытые к моменту прибытия места получают сильный штраф и обычно уходят из маршрута.
+                  На каждую остановку заложено примерно {stopMinutes} минут. Закрытые к моменту прибытия места получают сильный штраф и обычно уходят из маршрута.
                 </Text>
               </View>
             </>
@@ -1018,6 +1151,32 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '800'
   },
+  stayBlock: {
+    paddingHorizontal: 20,
+    marginTop: 10
+  },
+  stayLabel: {
+    marginLeft: 2,
+    marginBottom: 6,
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 1.2
+  },
+  stayRow: {
+    flexDirection: 'row',
+    gap: 7
+  },
+  stayChip: {
+    flex: 1,
+    minHeight: 38,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  stayText: {
+    fontSize: 9,
+    fontWeight: '900'
+  },
   scroll: {
     paddingHorizontal: 20,
     paddingTop: 16,
@@ -1053,6 +1212,9 @@ const styles = StyleSheet.create({
     marginTop: 3,
     fontSize: 9
   },
+  summaryActions: {
+    gap: 7
+  },
   rebuild: {
     minHeight: 40,
     paddingHorizontal: 13,
@@ -1062,6 +1224,49 @@ const styles = StyleSheet.create({
   },
   rebuildText: {
     fontSize: 11,
+    fontWeight: '900'
+  },
+  editOrderButton: {
+    minHeight: 40,
+    paddingHorizontal: 11,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  editOrderText: {
+    fontSize: 9,
+    fontWeight: '900'
+  },
+  manualBanner: {
+    marginTop: 12,
+    borderRadius: 18,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10
+  },
+  manualBannerCopy: {
+    flex: 1
+  },
+  manualBannerTitle: {
+    color: colors.green,
+    fontSize: 10,
+    fontWeight: '900'
+  },
+  manualBannerHint: {
+    marginTop: 3,
+    fontSize: 8,
+    lineHeight: 12
+  },
+  manualReset: {
+    minHeight: 34,
+    paddingHorizontal: 11,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  manualResetText: {
+    fontSize: 9,
     fontWeight: '900'
   },
   routeList: {
@@ -1126,6 +1331,25 @@ const styles = StyleSheet.create({
   arrival: {
     marginTop: 7,
     fontSize: 10,
+    fontWeight: '900'
+  },
+  orderControls: {
+    flexDirection: 'row',
+    gap: 7,
+    marginTop: 9
+  },
+  orderButton: {
+    minHeight: 32,
+    paddingHorizontal: 10,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  orderButtonDisabled: {
+    opacity: 0.28
+  },
+  orderButtonText: {
+    fontSize: 8,
     fontWeight: '900'
   },
   rating: {

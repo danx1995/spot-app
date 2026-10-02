@@ -98,12 +98,15 @@
     .route-time-row{display:flex;gap:7px}.route-time{min-height:44px}.route-time b{display:block;font-size:9px}.route-time span{display:block;font-size:7px;margin-top:2px;opacity:.72}.route-time.active{background:#173528;color:var(--green)}
     .route-length{min-height:55px}.route-length b{display:block;color:inherit;font-size:10px}.route-length span{display:block;font-size:8px;margin-top:3px;opacity:.72}
     .route-length.active{background:var(--green);color:var(--black)}
+    .route-duration-row{display:flex;gap:7px}.route-duration{min-height:38px}.route-duration.active{background:#173528;color:var(--green)}
     .route-summary{margin:14px 18px 0;padding:15px 16px;border-radius:21px;background:var(--surface);display:flex;align-items:center;gap:10px}
     .route-summary-copy{min-width:0;flex:1}.route-summary-copy small{color:var(--green);font-size:8px;font-weight:950;letter-spacing:.11em}.route-summary-copy b{display:block;font-size:14px;margin-top:4px}.route-summary-copy span{display:block;color:var(--muted);font-size:9px;margin-top:4px}.route-summary-copy .route-source{font-size:8px}
-    .route-reroll{min-height:38px;padding:0 12px;border-radius:13px;background:var(--raised);font-size:10px;font-weight:900;cursor:pointer}
+    .route-summary-actions{display:grid;gap:6px}.route-reroll,.route-order-toggle{min-height:36px;padding:0 10px;border-radius:13px;background:var(--raised);font-size:9px;font-weight:900;cursor:pointer}.route-order-toggle.active{background:#173528;color:var(--green)}
+    .route-manual-banner{display:none;margin:10px 18px 0;padding:11px 12px;border-radius:17px;background:#173528;align-items:center;gap:10px}.route-manual-banner.show{display:flex}.route-manual-copy{min-width:0;flex:1}.route-manual-copy b{display:block;color:var(--green);font-size:9px}.route-manual-copy span{display:block;color:var(--muted);font-size:8px;margin-top:3px}.route-auto{min-height:32px;padding:0 10px;border-radius:11px;background:var(--raised);font-size:8px;font-weight:900}
     .route-stops{padding:13px 18px 4px}.route-stop{display:grid;grid-template-columns:31px 1fr;gap:9px;align-items:stretch}
     .route-timeline{display:flex;flex-direction:column;align-items:center}.route-num{width:29px;height:29px;border-radius:50%;background:var(--green);color:var(--black);display:grid;place-items:center;font-size:10px;font-weight:950}.route-line{width:2px;min-height:64px;flex:1;background:#29362F}
     .route-stop-card{background:var(--surface);border-radius:19px;padding:13px 14px;margin-bottom:9px;display:flex;gap:10px}.route-stop-copy{min-width:0;flex:1}.route-stop-copy small{display:block;color:var(--green);font-size:7px;font-weight:950;letter-spacing:.08em}.route-stop-copy b{display:block;font-size:14px;margin-top:4px}.route-stop-copy span{display:block;color:var(--muted);font-size:9px;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.route-stop-copy .route-arrival{color:var(--green);font-weight:900;overflow:visible}.route-stop-rating{font-size:9px;font-weight:900;white-space:nowrap}
+    .route-order-controls{display:flex;gap:6px;margin-top:8px}.route-order-btn{min-height:30px;padding:0 9px;border-radius:10px;background:var(--raised);font-size:8px;font-weight:900}.route-order-btn:disabled{opacity:.28}
     .route-schedule-note{margin:0 18px 9px;padding:12px 13px;border-radius:17px;background:var(--raised);font-size:8px;color:var(--muted);line-height:1.5}.route-schedule-note b{display:block;color:#fff;font-size:9px;margin-bottom:3px}
     .route-actions{position:sticky;bottom:0;padding:10px 18px 18px;background:linear-gradient(180deg,rgba(13,18,15,0),#0D120F 28%)}
     .route-actions button{min-height:48px;border-radius:17px;font-size:10px;font-weight:950;cursor:pointer}.route-map-open{width:100%;background:var(--green);color:var(--black)}.route-action-row{display:grid;grid-template-columns:1fr 1.2fr;gap:8px;margin-top:8px}.route-share{background:var(--surface)}.route-save{background:#173528;color:var(--green)}
@@ -400,13 +403,26 @@
                   <button class="route-choice route-length active" data-route-length="4"><b>Полдня</b><span>4 места</span></button>
                   <button class="route-choice route-length" data-route-length="5"><b>Весь день</b><span>5 мест</span></button>
                 </div>
+                <div class="route-time-label">НА КАЖДОЙ ТОЧКЕ</div>
+                <div class="route-duration-row">
+                  <button class="route-choice route-duration" data-route-duration="30">30 мин</button>
+                  <button class="route-choice route-duration active" data-route-duration="45">45 мин</button>
+                  <button class="route-choice route-duration" data-route-duration="60">60 мин</button>
+                </div>
               </div>
               <div class="route-summary">
                 <div class="route-summary-copy"><small id="routeCityLabel">САНКТ-ПЕТЕРБУРГ</small><b id="routePlanLabel">Полдня · 4 остановки</b><span id="routeDistanceLabel">5,8 км · 1 ч 14 мин в пути</span><span class="route-source" id="routeSourceLabel">пешком · по улицам 2ГИС</span></div>
-                <button class="route-reroll" id="routeReroll">↻ Ещё</button>
+                <div class="route-summary-actions">
+                  <button class="route-reroll" id="routeReroll">↻ Ещё</button>
+                  <button class="route-order-toggle" id="routeOrderToggle">↕ Порядок</button>
+                </div>
+              </div>
+              <div class="route-manual-banner" id="routeManualBanner">
+                <div class="route-manual-copy"><b>Порядок изменён вручную</b><span>Время и расстояние пересчитываются.</span></div>
+                <button class="route-auto" id="routeOrderAuto">Авто</button>
               </div>
               <div class="route-stops" id="routeStops"></div>
-              <div class="route-schedule-note"><b>План по времени</b>На каждую остановку заложено около 45 минут. Закрытые к моменту прибытия места уходят вниз при подборе.</div>
+              <div class="route-schedule-note"><b>План по времени</b><span id="routeScheduleText">На каждую остановку заложено около 45 минут. Закрытые к моменту прибытия места уходят вниз при подборе.</span></div>
               <div class="route-actions">
                 <button class="route-map-open" id="routeMaps">↗ Открыть маршрут в картах</button>
                 <div class="route-action-row">
@@ -644,6 +660,9 @@
     let routeTransport='walking';
     let routeFromMe=false;
     let routeStart='now';
+    let routeStopMinutes=45;
+    let routeEditOrder=false;
+    let routeManualOrder=null;
 
     function routeMetric(city,length,transport,fromMe){
       const base={
@@ -677,10 +696,29 @@
       return hours+':'+minutes;
     }
 
-    function renderRoutePreview(){
+    function resetRouteManualOrder(){
+      routeManualOrder=null;
+      routeEditOrder=false;
+      document.getElementById('routeOrderToggle').classList.remove('active');
+      document.getElementById('routeOrderToggle').textContent='↕ Порядок';
+    }
+
+    function routeBaseOrder(){
       const source=routeDemo[routeCity];
       const shift=routeVariation%source.length;
-      const ordered=[...source.slice(shift),...source.slice(0,shift)].slice(0,routeLength);
+      return [...source.slice(shift),...source.slice(0,shift)].slice(0,routeLength);
+    }
+
+    function routeCurrentOrder(){
+      const base=routeBaseOrder();
+      if(!routeManualOrder || routeManualOrder.length!==base.length) return base;
+      const byName=new Map(base.map(spot=>[spot.name,spot]));
+      const ordered=routeManualOrder.map(name=>byName.get(name)).filter(Boolean);
+      return ordered.length===base.length?ordered:base;
+    }
+
+    function renderRoutePreview(){
+      const ordered=routeCurrentOrder();
       const plan=routeLength===3?'2–3 часа':routeLength===4?'Полдня':'Весь день';
       const metric=routeMetric(routeCity,routeLength,routeTransport,routeFromMe);
       const routeLabel=routeTransport==='walking'?'пешком':'на машине';
@@ -694,12 +732,21 @@
       document.getElementById('routePlanLabel').textContent=plan+' · '+routeLength+' остановки';
       document.getElementById('routeDistanceLabel').textContent=metric.distance.toFixed(1).replace('.',',')+' км · '+formatRouteMinutes(metric.minutes)+' в пути';
       document.getElementById('routeSourceLabel').textContent=startLabel+' · '+routeLabel+' · по улицам 2ГИС';
+      document.getElementById('routeScheduleText').textContent='На каждую остановку заложено около '+routeStopMinutes+' минут. Закрытые к моменту прибытия места уходят вниз при подборе.';
+      document.getElementById('routeManualBanner').classList.toggle('show',Boolean(routeManualOrder));
+
       document.getElementById('routeStops').innerHTML=ordered.map((spot,index)=>{
-        if(index>0) arrival+=legMinutes+45;
+        if(index>0) arrival+=legMinutes+routeStopMinutes;
+        const orderControls=routeEditOrder
+          ? '<div class="route-order-controls">'+
+              '<button class="route-order-btn" data-route-up="'+index+'" '+(index===0?'disabled':'')+'>↑ Раньше</button>'+
+              '<button class="route-order-btn" data-route-down="'+index+'" '+(index===ordered.length-1?'disabled':'')+'>↓ Позже</button>'+
+            '</div>'
+          : '';
         return '<div class="route-stop">'+
           '<div class="route-timeline"><div class="route-num">'+(index+1)+'</div>'+(index<ordered.length-1?'<div class="route-line"></div>':'')+'</div>'+
           '<div class="route-stop-card">'+
-            '<div class="route-stop-copy"><small>'+spot.meta+'</small><b>'+spot.name+'</b><span>'+spot.address+'</span><span class="route-arrival">'+formatPreviewTime(arrival)+' · '+spot.hours+'</span></div>'+
+            '<div class="route-stop-copy"><small>'+spot.meta+'</small><b>'+spot.name+'</b><span>'+spot.address+'</span><span class="route-arrival">'+formatPreviewTime(arrival)+' · '+spot.hours+'</span>'+orderControls+'</div>'+
             '<div class="route-stop-rating">★ '+spot.rating+'</div>'+
           '</div>'+
         '</div>';
