@@ -85,6 +85,7 @@ export function CollectionDetailModal({ collection, visible, onClose }: Props) {
     togglePlaceInCollection,
     deleteCollection,
     updateCollection,
+    updateCollectionRoutePlan,
     reorderCollectionPlace,
     syncNow
   } = useSpotStore();
@@ -94,6 +95,8 @@ export function CollectionDetailModal({ collection, visible, onClose }: Props) {
   const [draftTitle, setDraftTitle] = useState('');
   const [draftSubtitle, setDraftSubtitle] = useState('');
   const [draftCity, setDraftCity] = useState<Collection['city']>('both');
+  const [routeEditing, setRouteEditing] = useState(false);
+  const [draftRoutePlan, setDraftRoutePlan] = useState<CollectionRoutePlan | null>(null);
 
   const text = dark ? colors.white : colors.black;
   const muted = dark ? colors.textSecondaryDark : colors.textSecondaryLight;
@@ -110,6 +113,22 @@ export function CollectionDetailModal({ collection, visible, onClose }: Props) {
   if (!collection) return null;
   const activeCollection: Collection = collection;
   const routePlan = activeCollection.routePlan;
+
+  function openRouteEditor() {
+    if (!routePlan) return;
+    setDraftRoutePlan({ ...routePlan });
+    setRouteEditing(true);
+  }
+
+  function patchDraftRoutePlan(patch: Partial<CollectionRoutePlan>) {
+    setDraftRoutePlan((current) => current ? { ...current, ...patch } : current);
+  }
+
+  function saveRoutePlanChanges() {
+    if (!draftRoutePlan) return;
+    updateCollectionRoutePlan(activeCollection.id, draftRoutePlan);
+    setRouteEditing(false);
+  }
 
   function removePlace(placeID: string) {
     togglePlaceInCollection(activeCollection.id, placeID);
@@ -248,6 +267,17 @@ export function CollectionDetailModal({ collection, visible, onClose }: Props) {
                 >
                   <Text style={styles.routeOpenButtonText}>↗ Открыть весь маршрут в картах</Text>
                 </Pressable>
+                <Pressable
+                  onPress={openRouteEditor}
+                  style={[
+                    styles.routeEditButton,
+                    { backgroundColor: dark ? colors.darkSurfaceRaised : colors.lightMuted }
+                  ]}
+                >
+                  <Text style={[styles.routeEditButtonText, { color: text }]}>
+                    ⚙ Настроить маршрут
+                  </Text>
+                </Pressable>
                 <Text style={[styles.routePrivacy, { color: muted }]}>
                   {routePlan.startMode === 'current_location'
                     ? 'Текущая геопозиция не хранится — карты возьмут её только при открытии маршрута.'
@@ -381,6 +411,124 @@ export function CollectionDetailModal({ collection, visible, onClose }: Props) {
                 disabled={!draftTitle.trim()}
                 style={[styles.editorSave, !draftTitle.trim() && styles.editorSaveDisabled]}
               >
+                <Text style={styles.editorSaveText}>Сохранить</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={routeEditing && Boolean(draftRoutePlan)}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setRouteEditing(false)}
+      >
+        <View style={styles.editorBackdrop}>
+          <View style={[styles.routeEditorCard, { backgroundColor: dark ? '#151B17' : colors.white }]}>
+            <Text style={[styles.editorTitle, { color: text }]}>Настроить маршрут</Text>
+            <Text style={[styles.editorHint, { color: muted }]}>
+              Настройки сохраняются вместе с маршрутом. Порядок точек меняется стрелками в списке.
+            </Text>
+
+            {draftRoutePlan ? (
+              <>
+                <Text style={[styles.editorLabel, { color: muted }]}>ТРАНСПОРТ</Text>
+                <View style={styles.routeOptions}>
+                  {([
+                    ['walking', '⌁ Пешком'],
+                    ['driving', '→ На машине']
+                  ] as Array<[CollectionRoutePlan['transport'], string]>).map(([value, label]) => {
+                    const active = draftRoutePlan.transport === value;
+                    return (
+                      <Pressable
+                        key={value}
+                        onPress={() => patchDraftRoutePlan({ transport: value })}
+                        style={[styles.routeOption, active && styles.routeOptionActive]}
+                      >
+                        <Text style={[styles.routeOptionText, active && styles.routeOptionTextActive]}>
+                          {label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                <Text style={[styles.editorLabel, { color: muted }]}>КОГДА</Text>
+                <View style={styles.routeOptions}>
+                  {([
+                    ['now', 'Сейчас'],
+                    ['evening', 'Вечером · 19:00'],
+                    ['tomorrow', 'Завтра · 12:00']
+                  ] as Array<[CollectionRoutePlan['startPreset'], string]>).map(([value, label]) => {
+                    const active = draftRoutePlan.startPreset === value;
+                    return (
+                      <Pressable
+                        key={value}
+                        onPress={() => patchDraftRoutePlan({ startPreset: value })}
+                        style={[styles.routeOption, active && styles.routeOptionActive]}
+                      >
+                        <Text
+                          numberOfLines={1}
+                          style={[styles.routeOptionText, active && styles.routeOptionTextActive]}
+                        >
+                          {label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                <Text style={[styles.editorLabel, { color: muted }]}>НА КАЖДОЙ ТОЧКЕ</Text>
+                <View style={styles.routeOptions}>
+                  {([30, 45, 60] as Array<CollectionRoutePlan['stopMinutes']>).map((minutes) => {
+                    const active = draftRoutePlan.stopMinutes === minutes;
+                    return (
+                      <Pressable
+                        key={minutes}
+                        onPress={() => patchDraftRoutePlan({ stopMinutes: minutes })}
+                        style={[styles.routeOption, active && styles.routeOptionActive]}
+                      >
+                        <Text style={[styles.routeOptionText, active && styles.routeOptionTextActive]}>
+                          {minutes} мин
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                <Text style={[styles.editorLabel, { color: muted }]}>СТАРТ</Text>
+                <View style={styles.routeOptions}>
+                  {([
+                    ['first_stop', 'С первой точки'],
+                    ['current_location', '⌖ От меня']
+                  ] as Array<[CollectionRoutePlan['startMode'], string]>).map(([value, label]) => {
+                    const active = draftRoutePlan.startMode === value;
+                    return (
+                      <Pressable
+                        key={value}
+                        onPress={() => patchDraftRoutePlan({ startMode: value })}
+                        style={[styles.routeOption, active && styles.routeOptionActive]}
+                      >
+                        <Text style={[styles.routeOptionText, active && styles.routeOptionTextActive]}>
+                          {label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                <Text style={[styles.routeEditorPrivacy, { color: muted }]}>
+                  Для «От меня» точная геопозиция не сохраняется. Карты возьмут текущее местоположение только при открытии маршрута.
+                </Text>
+              </>
+            ) : null}
+
+            <View style={styles.editorActions}>
+              <Pressable onPress={() => setRouteEditing(false)} style={styles.editorCancel}>
+                <Text style={[styles.editorCancelText, { color: muted }]}>Отмена</Text>
+              </Pressable>
+              <Pressable onPress={saveRoutePlanChanges} style={styles.editorSave}>
                 <Text style={styles.editorSaveText}>Сохранить</Text>
               </Pressable>
             </View>
@@ -559,6 +707,17 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '900'
   },
+  routeEditButton: {
+    minHeight: 45,
+    marginTop: 8,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  routeEditButtonText: {
+    fontSize: 11,
+    fontWeight: '900'
+  },
   routePrivacy: {
     marginTop: 8,
     fontSize: 9,
@@ -665,6 +824,12 @@ const styles = StyleSheet.create({
     padding: 22,
     paddingBottom: 38
   },
+  routeEditorCard: {
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    padding: 22,
+    paddingBottom: 34
+  },
   editorTitle: {
     fontSize: 25,
     fontWeight: '900',
@@ -698,6 +863,37 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
     marginTop: 9
+  },
+  routeOptions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 9
+  },
+  routeOption: {
+    flex: 1,
+    minHeight: 43,
+    paddingHorizontal: 8,
+    borderRadius: 15,
+    backgroundColor: colors.darkSurfaceRaised,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  routeOptionActive: {
+    backgroundColor: colors.green
+  },
+  routeOptionText: {
+    color: '#A8B0AB',
+    fontSize: 10,
+    fontWeight: '900',
+    textAlign: 'center'
+  },
+  routeOptionTextActive: {
+    color: colors.black
+  },
+  routeEditorPrivacy: {
+    marginTop: 14,
+    fontSize: 9,
+    lineHeight: 14
   },
   editorCity: {
     flex: 1,

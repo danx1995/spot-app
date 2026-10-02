@@ -114,6 +114,7 @@ type SpotStoreValue = {
   toggleFavorite: (id: string) => void;
   createCollection: (input: NewCollectionInput) => Collection;
   updateCollection: (id: string, input: UpdateCollectionInput) => void;
+  updateCollectionRoutePlan: (id: string, routePlan: CollectionRoutePlan) => void;
   reorderCollectionPlace: (collectionId: string, placeId: string, direction: 'up' | 'down') => void;
   importSharedCollection: (input: SharedCollectionImport) => void;
   deleteCollection: (id: string) => void;
@@ -527,6 +528,17 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
     )));
   }, []);
 
+  const updateCollectionRoutePlan = useCallback((id: string, routePlan: CollectionRoutePlan) => {
+    setCollections((current) => current.map((collection) => (
+      collection.id === id
+        ? {
+            ...collection,
+            routePlan: { ...routePlan }
+          }
+        : collection
+    )));
+  }, []);
+
   const reorderCollectionPlace = useCallback((
     collectionId: string,
     placeId: string,
@@ -660,6 +672,7 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
     toggleFavorite,
     createCollection,
     updateCollection,
+    updateCollectionRoutePlan,
     reorderCollectionPlace,
     importSharedCollection,
     deleteCollection,
@@ -684,6 +697,7 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
     toggleFavorite,
     createCollection,
     updateCollection,
+    updateCollectionRoutePlan,
     reorderCollectionPlace,
     importSharedCollection,
     deleteCollection,
