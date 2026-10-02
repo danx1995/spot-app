@@ -1,0 +1,17 @@
+{
+  "expo": {
+    "name": "СПОТ",
+    "slug": "spot",
+    "scheme": "spot",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "app.spot.mobile"
+    },
+    "android": {
+      "package": "app.spot.mobile"
+    }
+  }
+}
