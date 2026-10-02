@@ -9,7 +9,7 @@ func normalizeIdentity(identity VerifiedIdentity) (VerifiedIdentity, error) {
 	identity.DisplayName = strings.TrimSpace(identity.DisplayName)
 	identity.AvatarURL = strings.TrimSpace(identity.AvatarURL)
 
-	if identity.Provider != "google" && identity.Provider != "apple" {
+	if identity.Provider != "google" && identity.Provider != "apple" && identity.Provider != "telegram" {
 		return VerifiedIdentity{}, ErrInvalidProfile
 	}
 	if identity.Subject == "" || len(identity.Subject) > 512 {
