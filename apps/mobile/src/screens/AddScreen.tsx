@@ -23,7 +23,7 @@ import type { Spot } from '../types';
 export function AddScreen() {
   const dark = useColorScheme() === 'dark';
   const { selectedCity, setSelectedCity } = useSpotStore();
-  const { pendingURL, consumePendingURL } = useInboundImport();
+  const { pendingURL, pendingHint, consumePendingURL } = useInboundImport();
   const text = dark ? colors.white : colors.black;
   const muted = dark ? colors.textSecondaryDark : colors.textSecondaryLight;
   const surface = dark ? colors.darkSurface : colors.white;
@@ -183,6 +183,7 @@ export function AddScreen() {
       <LinkImportModal
         visible={linkOpen}
         initialURL={pendingURL ?? undefined}
+        initialHint={pendingHint ?? undefined}
         onClose={() => {
           setLinkOpen(false);
           if (pendingURL) {
