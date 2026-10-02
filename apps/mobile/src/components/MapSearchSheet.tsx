@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -14,6 +14,7 @@ import {
 import { searchPlaces } from '../services/api';
 import { colors } from '../theme';
 import type { CitySlug, Spot } from '../types';
+import { getSpotOpenState } from '../utils/openingHours';
 import { SpotCard } from './SpotCard';
 
 type Props = {
@@ -33,6 +34,8 @@ export function MapSearchSheet({ visible, city, onClose, onSelect }: Props) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Spot[]>([]);
   const [loading, setLoading] = useState(false);
+  const [openNowOnly, setOpenNowOnly] = useState(false);
+  const [highRatedOnly, setHighRatedOnly] = useState(false);
 
   const text = dark ? colors.white : colors.black;
   const muted = dark ? colors.textSecondaryDark : colors.textSecondaryLight;
@@ -43,6 +46,8 @@ export function MapSearchSheet({ visible, city, onClose, onSelect }: Props) {
       setQuery('');
       setResults([]);
       setLoading(false);
+      setOpenNowOnly(false);
+      setHighRatedOnly(false);
     }
   }, [visible]);
 
@@ -74,6 +79,17 @@ export function MapSearchSheet({ visible, city, onClose, onSelect }: Props) {
       clearTimeout(timer);
     };
   }, [city, query, visible]);
+
+  const visibleResults = useMemo(
+    () => results.filter((spot) => {
+      if (openNowOnly && getSpotOpenState(spot).kind !== 'open') return false;
+      if (highRatedOnly && spot.rating < 4.5) return false;
+      return true;
+    }),
+    [highRatedOnly, openNowOnly, results]
+  );
+
+  const filtersActive = openNowOnly || highRatedOnly;
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
@@ -110,6 +126,37 @@ export function MapSearchSheet({ visible, city, onClose, onSelect }: Props) {
           {loading ? <ActivityIndicator color={colors.green} size="small" /> : null}
         </View>
 
+        <View style={styles.quickFilters}>
+          <Pressable
+            onPress={() => setOpenNowOnly((current) => !current)}
+            style={[
+              styles.quickFilter,
+              { backgroundColor: openNowOnly ? colors.green : surface }
+            ]}
+          >
+            <Text style={[
+              styles.quickFilterText,
+              { color: openNowOnly ? colors.black : text }
+            ]}>
+              ● Открыто сейчас
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setHighRatedOnly((current) => !current)}
+            style={[
+              styles.quickFilter,
+              { backgroundColor: highRatedOnly ? colors.green : surface }
+            ]}
+          >
+            <Text style={[
+              styles.quickFilterText,
+              { color: highRatedOnly ? colors.black : text }
+            ]}>
+              ★ 4.5+
+            </Text>
+          </Pressable>
+        </View>
+
         <ScrollView
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
@@ -125,22 +172,26 @@ export function MapSearchSheet({ visible, city, onClose, onSelect }: Props) {
             </View>
           ) : null}
 
-          {!loading && query.trim().length >= 2 && results.length === 0 ? (
+          {!loading && query.trim().length >= 2 && visibleResults.length === 0 ? (
             <View style={styles.emptyState}>
-              <Text style={[styles.emptyTitle, { color: text }]}>Ничего не нашли</Text>
+              <Text style={[styles.emptyTitle, { color: text }]}>
+                {results.length > 0 && filtersActive ? 'Нет мест по фильтрам' : 'Ничего не нашли'}
+              </Text>
               <Text style={[styles.emptyText, { color: muted }]}>
-                Попробуй название без лишних слов или добавь место вручную через «+».
+                {results.length > 0 && filtersActive
+                  ? 'Отключи один из фильтров — покажем остальные найденные места.'
+                  : 'Попробуй название без лишних слов или добавь место вручную через «+».'}
               </Text>
             </View>
           ) : null}
 
-          {results.length > 0 ? (
+          {visibleResults.length > 0 ? (
             <View style={styles.results}>
               <View style={styles.resultsHeader}>
                 <Text style={[styles.resultsTitle, { color: text }]}>Места</Text>
-                <Text style={[styles.resultsCount, { color: muted }]}>{results.length}</Text>
+                <Text style={[styles.resultsCount, { color: muted }]}>{visibleResults.length}</Text>
               </View>
-              {results.map((spot) => (
+              {visibleResults.map((spot) => (
                 <View key={spot.id} style={styles.resultCard}>
                   <SpotCard
                     spot={spot}
@@ -223,6 +274,23 @@ const styles = StyleSheet.create({
   },
   clearText: {
     fontSize: 22
+  },
+  quickFilters: {
+    marginTop: 10,
+    paddingHorizontal: 18,
+    flexDirection: 'row',
+    gap: 8
+  },
+  quickFilter: {
+    minHeight: 38,
+    paddingHorizontal: 13,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  quickFilterText: {
+    fontSize: 11,
+    fontWeight: '900'
   },
   content: {
     padding: 18,
