@@ -45,12 +45,40 @@ function proxyToApi(req, res) {
   req.pipe(upstream);
 }
 
+function healthz(res) {
+  const probe = httpRequest({
+    host: '127.0.0.1',
+    port: apiPort,
+    method: 'GET',
+    path: '/health',
+    timeout: 1500
+  }, (apiRes) => {
+    apiRes.resume();
+    if (apiRes.statusCode === 200) {
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ status: 'ok', service: 'spot-telegram', api: 'ok' }));
+      return;
+    }
+
+    res.writeHead(503, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ status: 'starting', service: 'spot-telegram', api: 'unhealthy' }));
+  });
+
+  probe.on('timeout', () => probe.destroy());
+  probe.on('error', () => {
+    if (!res.headersSent) {
+      res.writeHead(503, { 'Content-Type': 'application/json; charset=utf-8' });
+    }
+    res.end(JSON.stringify({ status: 'starting', service: 'spot-telegram', api: 'unavailable' }));
+  });
+  probe.end();
+}
+
 createServer((req, res) => {
   const pathname = (req.url || '/').split('?')[0];
 
   if (pathname === '/healthz') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ status: 'ok', service: 'spot-telegram' }));
+    healthz(res);
     return;
   }
 
