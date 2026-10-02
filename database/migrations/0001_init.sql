@@ -1,7 +1,7 @@
 CREATE EXTENSION IF NOT EXISTS postgis;
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
-CREATE TABLE cities (
+CREATE TABLE IF NOT EXISTS cities (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   slug text UNIQUE NOT NULL,
   name text NOT NULL,
@@ -11,14 +11,14 @@ CREATE TABLE cities (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE TABLE categories (
+CREATE TABLE IF NOT EXISTS categories (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   slug text UNIQUE NOT NULL,
   name text NOT NULL,
   sort_order integer NOT NULL DEFAULT 0
 );
 
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   display_name text,
   avatar_url text,
@@ -29,7 +29,7 @@ CREATE TABLE users (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE TABLE places (
+CREATE TABLE IF NOT EXISTS places (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   public_id text UNIQUE NOT NULL,
   city_id uuid NOT NULL REFERENCES cities(id),
@@ -54,11 +54,11 @@ CREATE TABLE places (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX places_location_idx ON places USING gist(location);
-CREATE INDEX places_city_idx ON places(city_id);
-CREATE INDEX places_normalized_name_idx ON places(normalized_name);
+CREATE INDEX IF NOT EXISTS places_location_idx ON places USING gist(location);
+CREATE INDEX IF NOT EXISTS places_city_idx ON places(city_id);
+CREATE INDEX IF NOT EXISTS places_normalized_name_idx ON places(normalized_name);
 
-CREATE TABLE user_places (
+CREATE TABLE IF NOT EXISTS user_places (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   place_id uuid NOT NULL REFERENCES places(id) ON DELETE CASCADE,
@@ -74,7 +74,7 @@ CREATE TABLE user_places (
   UNIQUE(user_id, place_id)
 );
 
-CREATE TABLE collections (
+CREATE TABLE IF NOT EXISTS collections (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   public_id text UNIQUE NOT NULL,
   owner_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -87,7 +87,7 @@ CREATE TABLE collections (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE TABLE collection_places (
+CREATE TABLE IF NOT EXISTS collection_places (
   collection_id uuid NOT NULL REFERENCES collections(id) ON DELETE CASCADE,
   place_id uuid NOT NULL REFERENCES places(id) ON DELETE CASCADE,
   added_by uuid REFERENCES users(id),
@@ -97,7 +97,11 @@ CREATE TABLE collection_places (
 
 INSERT INTO cities (slug, name, center, is_active) VALUES
 ('spb', 'Санкт-Петербург', ST_SetSRID(ST_Point(30.3141, 59.9386), 4326)::geography, true),
-('moscow', 'Москва', ST_SetSRID(ST_Point(37.6173, 55.7558), 4326)::geography, true);
+('moscow', 'Москва', ST_SetSRID(ST_Point(37.6173, 55.7558), 4326)::geography, true)
+ON CONFLICT (slug) DO UPDATE
+SET name = EXCLUDED.name,
+    center = EXCLUDED.center,
+    is_active = EXCLUDED.is_active;
 
 INSERT INTO categories (slug, name, sort_order) VALUES
 ('restaurant', 'Рестораны', 10),
@@ -108,4 +112,7 @@ INSERT INTO categories (slug, name, sort_order) VALUES
 ('entertainment', 'Развлечения', 60),
 ('shop', 'Магазины', 70),
 ('park', 'Места', 80),
-('other', 'Другое', 90);
+('other', 'Другое', 90)
+ON CONFLICT (slug) DO UPDATE
+SET name = EXCLUDED.name,
+    sort_order = EXCLUDED.sort_order;
