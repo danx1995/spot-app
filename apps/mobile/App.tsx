@@ -4,6 +4,7 @@ import { NavigationContainer, DarkTheme, DefaultTheme } from '@react-navigation/
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StatusBar } from 'expo-status-bar';
 
+import { SpotStoreProvider } from './src/state/SpotStore';
 import { colors } from './src/theme';
 import { AddScreen } from './src/screens/AddScreen';
 import { CollectionsScreen } from './src/screens/CollectionsScreen';
@@ -22,7 +23,7 @@ const icons: Record<string, string> = {
   'Профиль': '●'
 };
 
-export default function App() {
+function SpotApp() {
   const isDark = useColorScheme() === 'dark';
   const [onboarded, setOnboarded] = useState(false);
 
@@ -104,15 +105,19 @@ export default function App() {
       >
         <Tab.Screen name="Карта" component={MapScreen} />
         <Tab.Screen name="Споты" component={SpotsScreen} />
-        <Tab.Screen
-          name="+"
-          component={AddScreen}
-          options={{ tabBarLabel: 'Добавить' }}
-        />
+        <Tab.Screen name="+" component={AddScreen} options={{ tabBarLabel: 'Добавить' }} />
         <Tab.Screen name="Подборки" component={CollectionsScreen} />
         <Tab.Screen name="Профиль" component={ProfileScreen} />
       </Tab.Navigator>
     </NavigationContainer>
+  );
+}
+
+export default function App() {
+  return (
+    <SpotStoreProvider>
+      <SpotApp />
+    </SpotStoreProvider>
   );
 }
 
