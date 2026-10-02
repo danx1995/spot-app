@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { NavigationContainer, DarkTheme, DefaultTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StatusBar } from 'expo-status-bar';
 
-import { SpotStoreProvider } from './src/state/SpotStore';
+import { SpotStoreProvider, useSpotStore } from './src/state/SpotStore';
 import { colors } from './src/theme';
 import { AddScreen } from './src/screens/AddScreen';
 import { CollectionsScreen } from './src/screens/CollectionsScreen';
@@ -14,6 +15,7 @@ import { ProfileScreen } from './src/screens/ProfileScreen';
 import { SpotsScreen } from './src/screens/SpotsScreen';
 
 const Tab = createBottomTabNavigator();
+const ONBOARDING_KEY = '@spot/onboarding-complete/v1';
 
 const icons: Record<string, string> = {
   'Карта': '⌖',
@@ -25,13 +27,39 @@ const icons: Record<string, string> = {
 
 function SpotApp() {
   const isDark = useColorScheme() === 'dark';
-  const [onboarded, setOnboarded] = useState(false);
+  const { setSelectedCity } = useSpotStore();
+  const [onboarded, setOnboarded] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void AsyncStorage.getItem(ONBOARDING_KEY).then((value) => {
+      if (active) setOnboarded(value === '1');
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (onboarded === null) {
+    return (
+      <View style={styles.loading}>
+        <StatusBar style="light" />
+        <View style={styles.loadingMark}><Text style={styles.loadingHeart}>♥</Text></View>
+      </View>
+    );
+  }
 
   if (!onboarded) {
     return (
       <>
         <StatusBar style="light" />
-        <OnboardingScreen onComplete={() => setOnboarded(true)} />
+        <OnboardingScreen
+          onComplete={(city) => {
+            setSelectedCity(city === 'moscow' ? 'moscow' : 'spb');
+            setOnboarded(true);
+            void AsyncStorage.setItem(ONBOARDING_KEY, '1');
+          }}
+        />
       </>
     );
   }
@@ -122,6 +150,25 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
+  loading: {
+    flex: 1,
+    backgroundColor: colors.black,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  loadingMark: {
+    width: 74,
+    height: 74,
+    borderRadius: 37,
+    backgroundColor: colors.green,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  loadingHeart: {
+    color: colors.black,
+    fontSize: 32,
+    fontWeight: '900'
+  },
   tabIcon: {
     width: 30,
     height: 28,
