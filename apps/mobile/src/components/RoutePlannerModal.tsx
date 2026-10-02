@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
+  Linking,
   Modal,
   Pressable,
   ScrollView,
@@ -10,11 +12,19 @@ import {
   useColorScheme,
   View
 } from 'react-native';
+import * as Location from 'expo-location';
 
+import {
+  getRouteSummary,
+  type RouteLegSummary,
+  type RouteSummary,
+  type RouteTransport
+} from '../services/api';
 import { useSpotStore } from '../state/SpotStore';
 import { colors } from '../theme';
 import type { CitySlug, DiscoveryInterest, Spot } from '../types';
-import { distanceMeters } from '../utils/geo';
+import { distanceMeters, type Coordinates } from '../utils/geo';
+import { getSpotOpenState } from '../utils/openingHours';
 
 type Props = {
   visible: boolean;
@@ -39,7 +49,37 @@ const CITY_LABELS: Record<CitySlug, string> = {
   moscow: 'Москва'
 };
 
-function scoreSpot(spot: Spot, interests: DiscoveryInterest[]) {
+const CITY_CENTERS: Record<CitySlug, Coordinates> = {
+  spb: { latitude: 59.9386, longitude: 30.3141 },
+  moscow: { latitude: 55.7558, longitude: 37.6173 }
+};
+
+const MAX_CITY_START_DISTANCE_METERS = 120_000;
+const STOP_DWELL_SECONDS = 45 * 60;
+
+function spotCoordinates(spot: Spot): Coordinates {
+  return {
+    latitude: spot.latitude,
+    longitude: spot.longitude
+  };
+}
+
+function estimateTravelSeconds(
+  from: Coordinates,
+  to: Coordinates,
+  transport: RouteTransport
+) {
+  const straight = distanceMeters(from, to);
+  const roadFactor = transport === 'driving' ? 1.28 : 1.18;
+  const speedMetersPerSecond = transport === 'driving' ? 8.3 : 1.3;
+  return Math.max(0, Math.round((straight * roadFactor) / speedMetersPerSecond));
+}
+
+function scoreSpot(
+  spot: Spot,
+  interests: DiscoveryInterest[],
+  arrival?: Date
+) {
   let score = Math.max(0, spot.rating) * 1.15;
 
   if (spot.favorite) score += 2.4;
@@ -53,6 +93,12 @@ function scoreSpot(spot: Spot, interests: DiscoveryInterest[]) {
   const reviews = Math.max(0, spot.reviewCount ?? 0);
   score += Math.min(1.4, Math.log10(reviews + 1) * 0.35);
 
+  if (arrival) {
+    const openState = getSpotOpenState(spot, arrival);
+    if (openState.kind === 'open') score += 1.8;
+    if (openState.kind === 'closed') score -= 5;
+  }
+
   return score;
 }
 
@@ -60,41 +106,42 @@ function buildRoute(
   spots: Spot[],
   interests: DiscoveryInterest[],
   count: number,
-  variation: number
+  variation: number,
+  transport: RouteTransport,
+  start: Coordinates | null,
+  now: Date
 ) {
-  const candidates = spots
-    .filter((spot) => spot.status !== 'visited')
-    .sort((a, b) => scoreSpot(b, interests) - scoreSpot(a, interests));
-
+  const candidates = spots.filter((spot) => spot.status !== 'visited');
   if (candidates.length === 0) return [];
 
   const route: Spot[] = [];
   const used = new Set<string>();
   const seenCategories = new Set<string>();
-
-  const topWindow = Math.min(3, candidates.length);
-  const first = candidates[variation % topWindow] as Spot;
-  route.push(first);
-  used.add(first.id);
-  seenCategories.add(first.category);
+  let elapsedSeconds = 0;
 
   while (route.length < Math.min(count, candidates.length)) {
-    const previous = route[route.length - 1] as Spot;
+    const previousCoordinates = route.length > 0
+      ? spotCoordinates(route[route.length - 1] as Spot)
+      : start;
     let best: Spot | null = null;
     let bestScore = -Infinity;
+    let bestTravelSeconds = 0;
 
     for (const candidate of candidates) {
       if (used.has(candidate.id)) continue;
 
-      const distance = distanceMeters(
-        { latitude: previous.latitude, longitude: previous.longitude },
-        { latitude: candidate.latitude, longitude: candidate.longitude }
-      );
-      const distancePenalty = Math.min(distance / 1000, 18) * 0.22;
+      const travelSeconds = previousCoordinates
+        ? estimateTravelSeconds(previousCoordinates, spotCoordinates(candidate), transport)
+        : 0;
+      const arrival = new Date(now.getTime() + (elapsedSeconds + travelSeconds) * 1000);
+      const distance = previousCoordinates
+        ? distanceMeters(previousCoordinates, spotCoordinates(candidate))
+        : 0;
+      const distancePenalty = (distance / 1000) * (transport === 'driving' ? 0.08 : 0.3);
       const diversityBonus = seenCategories.has(candidate.category) ? 0 : 1.25;
-      const rerollBias = ((candidate.id.length + variation) % 5) * 0.04;
+      const rerollBias = ((candidate.id.length + variation * 3 + route.length) % 7) * 0.09;
       const candidateScore =
-        scoreSpot(candidate, interests) +
+        scoreSpot(candidate, interests, arrival) +
         diversityBonus +
         rerollBias -
         distancePenalty;
@@ -102,32 +149,108 @@ function buildRoute(
       if (candidateScore > bestScore) {
         bestScore = candidateScore;
         best = candidate;
+        bestTravelSeconds = travelSeconds;
       }
     }
 
     if (!best) break;
+
+    elapsedSeconds += bestTravelSeconds;
     route.push(best);
     used.add(best.id);
     seenCategories.add(best.category);
+    elapsedSeconds += STOP_DWELL_SECONDS;
   }
 
   return route;
 }
 
-function routeDistance(route: Spot[]) {
-  let total = 0;
+function localRouteSummary(
+  points: Coordinates[],
+  transport: RouteTransport
+): RouteSummary | null {
+  if (points.length < 2) return null;
 
-  for (let index = 1; index < route.length; index += 1) {
-    const previous = route[index - 1] as Spot;
-    const current = route[index] as Spot;
+  const legs: RouteLegSummary[] = [];
+  let totalDistanceMeters = 0;
+  let totalDurationSeconds = 0;
 
-    total += distanceMeters(
-      { latitude: previous.latitude, longitude: previous.longitude },
-      { latitude: current.latitude, longitude: current.longitude }
+  for (let index = 1; index < points.length; index += 1) {
+    const from = points[index - 1] as Coordinates;
+    const to = points[index] as Coordinates;
+    const straight = distanceMeters(from, to);
+    const roadFactor = transport === 'driving' ? 1.28 : 1.18;
+    const distance = Math.round(straight * roadFactor);
+    const duration = estimateTravelSeconds(from, to, transport);
+
+    legs.push({
+      distanceMeters: distance,
+      durationSeconds: duration
+    });
+    totalDistanceMeters += distance;
+    totalDurationSeconds += duration;
+  }
+
+  return {
+    transport,
+    source: 'estimate',
+    legs,
+    totalDistanceMeters,
+    totalDurationSeconds
+  };
+}
+
+function formatDistance(value: number) {
+  if (value < 1000) return String(Math.max(0, Math.round(value))) + ' м';
+  const km = value / 1000;
+  return (km >= 10 ? km.toFixed(0) : km.toFixed(1).replace('.', ',')) + ' км';
+}
+
+function formatDuration(seconds: number) {
+  const minutes = Math.max(1, Math.round(seconds / 60));
+  if (minutes < 60) return String(minutes) + ' мин';
+
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest > 0
+    ? String(hours) + ' ч ' + String(rest) + ' мин'
+    : String(hours) + ' ч';
+}
+
+function formatMoscowTime(date: Date) {
+  const local = new Date(date.getTime() + 3 * 60 * 60 * 1000);
+  const hours = String(local.getUTCHours()).padStart(2, '0');
+  const minutes = String(local.getUTCMinutes()).padStart(2, '0');
+  return hours + ':' + minutes;
+}
+
+function buildMapsURL(
+  route: Spot[],
+  start: Coordinates | null,
+  transport: RouteTransport
+) {
+  if (route.length < 2) return null;
+
+  const coordinate = (value: Coordinates) => String(value.latitude) + ',' + String(value.longitude);
+  const destination = spotCoordinates(route[route.length - 1] as Spot);
+  const origin = start ?? spotCoordinates(route[0] as Spot);
+  const waypointSpots = start ? route.slice(0, -1) : route.slice(1, -1);
+
+  const params = new URLSearchParams({
+    api: '1',
+    origin: coordinate(origin),
+    destination: coordinate(destination),
+    travelmode: transport === 'driving' ? 'driving' : 'walking'
+  });
+
+  if (waypointSpots.length > 0) {
+    params.set(
+      'waypoints',
+      waypointSpots.map((spot) => coordinate(spotCoordinates(spot))).join('|')
     );
   }
 
-  return total;
+  return 'https://www.google.com/maps/dir/?' + params.toString();
 }
 
 function routeShareText(city: string, route: Spot[]) {
