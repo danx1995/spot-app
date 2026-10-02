@@ -877,6 +877,7 @@ func (s *PostgresStore) SetCollectionPlace(ctx context.Context, userID, collecti
 
 func (s *PostgresStore) getPlace(ctx context.Context, userID, placeID string) (SavedPlace, error) {
 	var place SavedPlace
+	var openingHoursJSON string
 	err := s.pool.QueryRow(ctx, `
 		SELECT
 			p.public_id,
@@ -932,7 +933,11 @@ func (s *PostgresStore) getPlace(ctx context.Context, userID, placeID string) (S
 	if errors.Is(err, pgx.ErrNoRows) {
 		return SavedPlace{}, ErrNotFound
 	}
-	return place, err
+	if err != nil {
+		return SavedPlace{}, err
+	}
+	place.OpeningHours = decodeOpeningHours(openingHoursJSON)
+	return place, nil
 }
 
 type rowScanner interface {
