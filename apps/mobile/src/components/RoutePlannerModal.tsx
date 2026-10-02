@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Modal,
@@ -157,6 +157,14 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
   const [length, setLength] = useState<RouteLength>('half');
   const [variation, setVariation] = useState(0);
   const [saved, setSaved] = useState(false);
+  const [routeCity, setRouteCity] = useState<CitySlug>(selectedCity);
+
+  useEffect(() => {
+    if (!visible) return;
+    setRouteCity(selectedCity);
+    setVariation(0);
+    setSaved(false);
+  }, [selectedCity, visible]);
 
   const text = dark ? colors.white : colors.black;
   const muted = dark ? colors.textSecondaryDark : colors.textSecondaryLight;
@@ -165,8 +173,8 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
 
   const option = ROUTE_LENGTHS.find((item) => item.id === length) ?? ROUTE_LENGTHS[1]!;
   const eligible = useMemo(
-    () => savedSpots.filter((spot) => spot.city === selectedCity && spot.status !== 'visited'),
-    [savedSpots, selectedCity]
+    () => savedSpots.filter((spot) => spot.city === routeCity && spot.status !== 'visited'),
+    [routeCity, savedSpots]
   );
   const route = useMemo(
     () => buildRoute(eligible, interests, option.places, variation),
@@ -186,9 +194,9 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
     if (route.length < 2) return;
 
     const collection = createCollection({
-      title: `Маршрут · ${CITY_LABELS[selectedCity]}`,
+      title: `Маршрут · ${CITY_LABELS[routeCity]}`,
       subtitle: `${option.label} · ${route.length} мест из моих спотов`,
-      city: selectedCity
+      city: routeCity
     });
 
     for (const spot of route) {
@@ -205,8 +213,8 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
   async function shareRoute() {
     if (route.length < 2) return;
     await Share.share({
-      title: `Маршрут · ${CITY_LABELS[selectedCity]}`,
-      message: routeShareText(CITY_LABELS[selectedCity], route)
+      title: `Маршрут · ${CITY_LABELS[routeCity]}`,
+      message: routeShareText(CITY_LABELS[routeCity], route)
     });
   }
 
@@ -229,6 +237,33 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
           <Pressable onPress={onClose} style={[styles.close, { backgroundColor: surface }]}>
             <Text style={[styles.closeText, { color: text }]}>×</Text>
           </Pressable>
+        </View>
+
+        <View style={styles.cityRow}>
+          {([
+            ['spb', 'СПБ'],
+            ['moscow', 'Москва']
+          ] as Array<[CitySlug, string]>).map(([city, label]) => {
+            const active = routeCity === city;
+            return (
+              <Pressable
+                key={city}
+                onPress={() => {
+                  setRouteCity(city);
+                  setVariation(0);
+                  setSaved(false);
+                }}
+                style={[
+                  styles.cityChip,
+                  { backgroundColor: active ? '#173528' : surface }
+                ]}
+              >
+                <Text style={[styles.cityChipText, { color: active ? colors.green : muted }]}>
+                  {label}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
 
         <View style={styles.lengthRow}>
@@ -266,7 +301,7 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
               <Text style={styles.emptyMark}>⌁</Text>
               <Text style={[styles.emptyTitle, { color: text }]}>Нужно хотя бы два спота</Text>
               <Text style={[styles.emptyText, { color: muted }]}>
-                Сохрани ещё места со статусом «Хочу» или «Бронь» в {CITY_LABELS[selectedCity]}, и СПОТ соберёт маршрут.
+                Сохрани ещё места со статусом «Хочу» или «Бронь» в {CITY_LABELS[routeCity]}, и СПОТ соберёт маршрут.
               </Text>
             </View>
           ) : (
@@ -274,7 +309,7 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
               <View style={[styles.summary, { backgroundColor: surface }]}>
                 <View>
                   <Text style={[styles.summaryCity, { color: colors.green }]}>
-                    {CITY_LABELS[selectedCity].toUpperCase()}
+                    {CITY_LABELS[routeCity].toUpperCase()}
                   </Text>
                   <Text style={[styles.summaryTitle, { color: text }]}>
                     {option.label} · {route.length} остановки
@@ -384,9 +419,26 @@ const styles = StyleSheet.create({
     fontSize: 25,
     lineHeight: 28
   },
+  cityRow: {
+    paddingHorizontal: 20,
+    marginTop: 18,
+    flexDirection: 'row',
+    gap: 8
+  },
+  cityChip: {
+    minHeight: 38,
+    paddingHorizontal: 15,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  cityChipText: {
+    fontSize: 10,
+    fontWeight: '900'
+  },
   lengthRow: {
     paddingHorizontal: 20,
-    marginTop: 20,
+    marginTop: 10,
     flexDirection: 'row',
     gap: 8
   },
