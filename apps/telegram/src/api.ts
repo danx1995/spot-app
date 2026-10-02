@@ -1,6 +1,11 @@
 export type CitySlug = 'spb' | 'moscow';
 export type SpotStatus = 'want' | 'visited' | 'booked';
 
+export type OpeningHours = {
+  is_24x7?: boolean;
+  days?: Record<string, Array<{ from?: string; to?: string }>>;
+};
+
 export type Spot = {
   id: string;
   name: string;
@@ -14,6 +19,8 @@ export type Spot = {
   rating: number;
   reviewCount?: number;
   distanceMeters?: number;
+  openingHours?: OpeningHours;
+  description?: string;
   status: SpotStatus;
   favorite: boolean;
   note?: string;
@@ -98,6 +105,8 @@ type CatalogPlace = {
   rating: number;
   review_count?: number;
   distance_meters?: number;
+  opening_hours?: OpeningHours;
+  description?: string;
 };
 
 const apiBaseUrl = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
@@ -189,6 +198,8 @@ export async function searchPlaces(
     rating: place.rating,
     reviewCount: place.review_count,
     distanceMeters: place.distance_meters,
+    openingHours: place.opening_hours,
+    description: place.description,
     status: 'want',
     favorite: false
   }));
