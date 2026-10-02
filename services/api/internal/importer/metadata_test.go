@@ -33,7 +33,7 @@ func TestParsePageMetadataDecodesEntitiesAndWhitespace(t *testing.T) {
 	if metadata.Title != "Birch & Friends" {
 		t.Fatalf("unexpected title: %q", metadata.Title)
 	}
-	if metadata.Description != "Кирочная улица, 3 Санкт-Петербург" {
+	if metadata.Description != "Кирочная улица, 3 Санкт-Петербург" {
 		t.Fatalf("unexpected description: %q", metadata.Description)
 	}
 }
