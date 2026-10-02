@@ -9,6 +9,9 @@ func TestEmbeddedVersionsSorted(t *testing.T) {
 	}
 
 	expected := []string{
+		"0001_init.sql",
+		"0002_cloud_sync.sql",
+		"0003_normalized_library.sql",
 		"0004_account_profiles.sql",
 		"0005_account_transfer_codes.sql",
 		"0006_auth_identities.sql",
