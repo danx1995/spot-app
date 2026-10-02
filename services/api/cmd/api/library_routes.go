@@ -32,6 +32,21 @@ func registerLibraryRoutes(mux *http.ServeMux, store library.Store, tokens *auth
 		writeJSON(w, http.StatusOK, place)
 	})
 
+	mux.HandleFunc("POST /api/v1/me/places/{id}/share", func(w http.ResponseWriter, r *http.Request) {
+		userID, ok := requireUser(w, r, tokens)
+		if !ok {
+			return
+		}
+
+		shared, err := store.PublishPlace(r.Context(), userID, r.PathValue("id"))
+		if err != nil {
+			writeLibraryError(w, err)
+			return
+		}
+
+		writeJSON(w, http.StatusCreated, shared)
+	})
+
 	mux.HandleFunc("GET /api/v1/me/places", func(w http.ResponseWriter, r *http.Request) {
 		userID, ok := requireUser(w, r, tokens)
 		if !ok {
