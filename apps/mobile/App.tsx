@@ -1,32 +1,68 @@
-import React from 'react';
-import { Text, View, StyleSheet, useColorScheme } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, Text, useColorScheme, View } from 'react-native';
 import { NavigationContainer, DarkTheme, DefaultTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StatusBar } from 'expo-status-bar';
+
+import { SpotStoreProvider, useSpotStore } from './src/state/SpotStore';
 import { colors } from './src/theme';
+import { AddScreen } from './src/screens/AddScreen';
+import { CollectionsScreen } from './src/screens/CollectionsScreen';
+import { MapScreen } from './src/screens/MapScreen';
+import { OnboardingScreen } from './src/screens/OnboardingScreen';
+import { ProfileScreen } from './src/screens/ProfileScreen';
+import { SpotsScreen } from './src/screens/SpotsScreen';
 
 const Tab = createBottomTabNavigator();
+const ONBOARDING_KEY = '@spot/onboarding-complete/v1';
 
-function Screen({ title, subtitle }: { title: string; subtitle: string }) {
-  const dark = useColorScheme() === 'dark';
-  return (
-    <View style={[styles.screen, { backgroundColor: dark ? colors.black : colors.lightBackground }]}>
-      <Text style={[styles.title, { color: dark ? colors.white : colors.black }]}>{title}</Text>
-      <Text style={[styles.subtitle, { color: dark ? colors.textSecondaryDark : colors.textSecondaryLight }]}>
-        {subtitle}
-      </Text>
-    </View>
-  );
-}
+const icons: Record<string, string> = {
+  'Карта': '⌖',
+  'Споты': '♥',
+  '+': '+',
+  'Подборки': '▦',
+  'Профиль': '●'
+};
 
-const MapScreen = () => <Screen title="Санкт-Петербург" subtitle="Твои споты появятся на карте здесь." />;
-const SpotsScreen = () => <Screen title="Мои споты" subtitle="Все места, куда хочется попасть." />;
-const AddScreen = () => <Screen title="Добавить спот" subtitle="Найти место · Вставить ссылку · Добавить вручную" />;
-const CollectionsScreen = () => <Screen title="Подборки" subtitle="Собирай места по настроению и поездкам." />;
-const ProfileScreen = () => <Screen title="Профиль" subtitle="Аккаунт, тема и настройки СПОТ." />;
-
-export default function App() {
+function SpotApp() {
   const isDark = useColorScheme() === 'dark';
+  const { setSelectedCity } = useSpotStore();
+  const [onboarded, setOnboarded] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void AsyncStorage.getItem(ONBOARDING_KEY).then((value) => {
+      if (active) setOnboarded(value === '1');
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (onboarded === null) {
+    return (
+      <View style={styles.loading}>
+        <StatusBar style="light" />
+        <View style={styles.loadingMark}><Text style={styles.loadingHeart}>♥</Text></View>
+      </View>
+    );
+  }
+
+  if (!onboarded) {
+    return (
+      <>
+        <StatusBar style="light" />
+        <OnboardingScreen
+          onComplete={(city) => {
+            setSelectedCity(city === 'moscow' ? 'moscow' : 'spb');
+            setOnboarded(true);
+            void AsyncStorage.setItem(ONBOARDING_KEY, '1');
+          }}
+        />
+      </>
+    );
+  }
 
   const navigationTheme = isDark
     ? {
@@ -54,21 +90,50 @@ export default function App() {
     <NavigationContainer theme={navigationTheme}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <Tab.Navigator
-        screenOptions={{
+        initialRouteName="Карта"
+        screenOptions={({ route }) => ({
           headerShown: false,
           tabBarActiveTintColor: colors.green,
-          tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+          tabBarInactiveTintColor: isDark ? '#7E8983' : '#7B837E',
+          tabBarLabelStyle: {
+            fontSize: 10,
+            fontWeight: '700',
+            marginTop: 1
+          },
+          tabBarIcon: ({ color, focused }) => {
+            const isAdd = route.name === '+';
+            return (
+              <View style={[
+                styles.tabIcon,
+                isAdd && styles.addIcon,
+                isAdd && { backgroundColor: colors.green }
+              ]}>
+                <Text style={[
+                  styles.tabSymbol,
+                  { color: isAdd ? colors.black : color },
+                  focused && !isAdd && styles.tabSymbolActive
+                ]}>
+                  {icons[route.name]}
+                </Text>
+              </View>
+            );
+          },
           tabBarStyle: {
-            height: 72,
-            paddingTop: 8,
+            height: 78,
+            paddingTop: 7,
             paddingBottom: 10,
-            borderTopWidth: 0
+            borderTopWidth: 0,
+            backgroundColor: isDark ? '#101512' : colors.white,
+            elevation: 0,
+            shadowOpacity: 0.08,
+            shadowRadius: 18,
+            shadowOffset: { width: 0, height: -5 }
           }
-        }}
+        })}
       >
         <Tab.Screen name="Карта" component={MapScreen} />
         <Tab.Screen name="Споты" component={SpotsScreen} />
-        <Tab.Screen name="+" component={AddScreen} />
+        <Tab.Screen name="+" component={AddScreen} options={{ tabBarLabel: 'Добавить' }} />
         <Tab.Screen name="Подборки" component={CollectionsScreen} />
         <Tab.Screen name="Профиль" component={ProfileScreen} />
       </Tab.Navigator>
@@ -76,20 +141,51 @@ export default function App() {
   );
 }
 
+export default function App() {
+  return (
+    <SpotStoreProvider>
+      <SpotApp />
+    </SpotStoreProvider>
+  );
+}
+
 const styles = StyleSheet.create({
-  screen: {
+  loading: {
     flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 72
+    backgroundColor: colors.black,
+    alignItems: 'center',
+    justifyContent: 'center'
   },
-  title: {
+  loadingMark: {
+    width: 74,
+    height: 74,
+    borderRadius: 37,
+    backgroundColor: colors.green,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  loadingHeart: {
+    color: colors.black,
     fontSize: 32,
-    fontWeight: '800',
-    letterSpacing: -0.8
+    fontWeight: '900'
   },
-  subtitle: {
-    marginTop: 10,
-    fontSize: 16,
-    lineHeight: 23
+  tabIcon: {
+    width: 30,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  addIcon: {
+    width: 44,
+    height: 44,
+    marginTop: -14,
+    borderRadius: 22
+  },
+  tabSymbol: {
+    fontSize: 19,
+    fontWeight: '800'
+  },
+  tabSymbolActive: {
+    transform: [{ scale: 1.06 }]
   }
 });
