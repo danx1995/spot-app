@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -239,12 +240,38 @@ func main() {
 		q := r.URL.Query().Get("q")
 		city := r.URL.Query().Get("city")
 		category := r.URL.Query().Get("category")
+		rawLat := strings.TrimSpace(r.URL.Query().Get("lat"))
+		rawLng := strings.TrimSpace(r.URL.Query().Get("lng"))
 
 		if city == "" {
 			city = "spb"
 		}
+		if city != "spb" && city != "moscow" {
+			writeError(w, http.StatusBadRequest, "unsupported city")
+			return
+		}
+		if (rawLat == "") != (rawLng == "") {
+			writeError(w, http.StatusBadRequest, "lat and lng must be provided together")
+			return
+		}
 
-		places, err := placesResolver.Search(r.Context(), q, city, category)
+		var (
+			places []catalog.Place
+			err    error
+		)
+
+		if rawLat != "" {
+			lat, latErr := strconv.ParseFloat(rawLat, 64)
+			lng, lngErr := strconv.ParseFloat(rawLng, 64)
+			if latErr != nil || lngErr != nil || lat < -90 || lat > 90 || lng < -180 || lng > 180 {
+				writeError(w, http.StatusBadRequest, "invalid map coordinates")
+				return
+			}
+			places, err = placesResolver.SearchAt(r.Context(), q, city, category, lat, lng)
+		} else {
+			places, err = placesResolver.Search(r.Context(), q, city, category)
+		}
+
 		if err != nil {
 			writeError(w, http.StatusBadGateway, "places search unavailable")
 			return
