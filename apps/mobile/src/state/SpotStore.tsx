@@ -14,7 +14,9 @@ import {
   ensureGuestSession,
   getCloudState,
   putCloudState,
-  type CloudStatePayload
+  replaceGuestSession,
+  type CloudStatePayload,
+  type GuestSession
 } from '../services/cloudSync';
 import type { CitySlug, Collection, Spot, SpotStatus } from '../types';
 
@@ -76,6 +78,7 @@ type SpotStoreValue = {
   lastSyncedAt: string | null;
   setSelectedCity: (city: CitySlug) => void;
   syncNow: () => Promise<void>;
+  adoptSession: (session: GuestSession) => Promise<void>;
   isSaved: (id: string) => boolean;
   getSavedSpot: (id: string) => Spot | undefined;
   saveSpot: (spot: Spot, status?: SpotStatus) => void;
@@ -290,6 +293,42 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
     }
   }, [applyCloudPayload, hydrated]);
 
+  const adoptSession = useCallback(async (session: GuestSession) => {
+    if (syncingRef.current) {
+      throw new Error('sync in progress');
+    }
+
+    syncingRef.current = true;
+    pendingSyncRef.current = false;
+    setSyncStatus('syncing');
+
+    try {
+      await replaceGuestSession(session);
+      const remote = await getCloudState(session.token);
+
+      cloudRevisionRef.current = remote.revision;
+      cloudReadyRef.current = true;
+
+      if (isCloudPayload(remote.state)) {
+        applyCloudPayload(remote.state);
+      } else {
+        applyCloudPayload({
+          selected_city: snapshotRef.current.selectedCity,
+          saved_spots: [],
+          collections: []
+        });
+      }
+
+      setLastSyncedAt(new Date().toISOString());
+      setSyncStatus('synced');
+    } catch (error) {
+      setSyncStatus('offline');
+      throw error;
+    } finally {
+      syncingRef.current = false;
+    }
+  }, [applyCloudPayload]);
+
   useEffect(() => {
     if (!hydrated) return;
     void syncNow();
@@ -467,6 +506,7 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
     lastSyncedAt,
     setSelectedCity,
     syncNow,
+    adoptSession,
     isSaved,
     getSavedSpot,
     saveSpot,
@@ -486,6 +526,7 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
     syncStatus,
     lastSyncedAt,
     syncNow,
+    adoptSession,
     isSaved,
     getSavedSpot,
     saveSpot,
