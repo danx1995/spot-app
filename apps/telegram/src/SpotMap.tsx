@@ -58,8 +58,7 @@ export function SpotMap({
 
     const map = L.map(nodeRef.current, {
       zoomControl: false,
-      attributionControl: true,
-      tap: true
+      attributionControl: true
     }).setView(cityCenters[city], city === 'spb' ? 12 : 11);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
