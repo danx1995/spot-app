@@ -25,6 +25,7 @@ type PlaceSearcher interface {
 type Resolver struct {
 	twoGIS   TwoGISLookup
 	searcher PlaceSearcher
+	metadata PageMetadataFetcher
 }
 
 type Result struct {
@@ -45,7 +46,19 @@ var (
 )
 
 func New(twoGIS TwoGISLookup, searcher PlaceSearcher) *Resolver {
-	return &Resolver{twoGIS: twoGIS, searcher: searcher}
+	return NewWithMetadata(twoGIS, searcher, NewHTTPMetadataFetcher())
+}
+
+func NewWithMetadata(
+	twoGIS TwoGISLookup,
+	searcher PlaceSearcher,
+	metadata PageMetadataFetcher,
+) *Resolver {
+	return &Resolver{
+		twoGIS:   twoGIS,
+		searcher: searcher,
+		metadata: metadata,
+	}
 }
 
 func (r *Resolver) Resolve(ctx context.Context, rawURL, city, hint string) (Result, error) {
@@ -86,6 +99,15 @@ func (r *Resolver) Resolve(ctx context.Context, rawURL, city, hint string) (Resu
 	}
 
 	query := suggestedQuery(parsed, platform, hint)
+	metadataUsed := false
+	if query == "" && r.metadata != nil && metadataPlatformSupported(platform) {
+		pageMetadata, metadataErr := r.metadata.Fetch(ctx, parsed, platform)
+		if metadataErr == nil {
+			query = metadataSearchQuery(pageMetadata, platform)
+			metadataUsed = query != ""
+		}
+	}
+
 	if query != "" {
 		result.SuggestedQuery = query
 		hintedCity := cityFromText(query)
@@ -104,10 +126,16 @@ func (r *Resolver) Resolve(ctx context.Context, rawURL, city, hint string) (Resu
 	}
 
 	switch {
+	case len(result.Candidates) > 0 && result.SuggestedCity != "" && metadataUsed:
+		result.Message = "СПОТ прочитал данные страницы и нашёл подходящее место в другом городе. Проверь вариант перед сохранением."
+	case len(result.Candidates) > 0 && metadataUsed:
+		result.Message = "СПОТ прочитал данные страницы и уже нашёл подходящие места. Выбери нужное."
 	case len(result.Candidates) > 0 && result.SuggestedCity != "":
 		result.Message = "СПОТ нашёл подходящее место в другом городе. Проверь вариант перед сохранением."
 	case len(result.Candidates) > 0:
 		result.Message = "СПОТ нашёл подходящие места по данным из ссылки. Выбери нужное."
+	case query != "" && metadataUsed:
+		result.Message = "СПОТ прочитал подпись страницы, но не смог уверенно сопоставить её с местом. Проверь запрос или уточни название."
 	case platform == "2gis":
 		result.Message = "Ссылка 2ГИС распознана, но место не удалось определить автоматически."
 	default:
