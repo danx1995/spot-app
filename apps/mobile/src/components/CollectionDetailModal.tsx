@@ -56,22 +56,23 @@ export function CollectionDetailModal({ collection, visible, onClose }: Props) {
   }, [collection, savedSpots]);
 
   if (!collection) return null;
+  const activeCollection: Collection = collection;
 
   function removePlace(placeID: string) {
-    togglePlaceInCollection(collection.id, placeID);
+    togglePlaceInCollection(activeCollection.id, placeID);
   }
 
   function confirmDelete() {
     Alert.alert(
       'Удалить подборку?',
-      `«${collection.title}» исчезнет, но сами споты останутся сохранены.`,
+      `«${activeCollection.title}» исчезнет, но сами споты останутся сохранены.`,
       [
         { text: 'Отмена', style: 'cancel' },
         {
           text: 'Удалить',
           style: 'destructive',
           onPress: () => {
-            deleteCollection(collection.id);
+            deleteCollection(activeCollection.id);
             onClose();
           }
         }
@@ -81,8 +82,8 @@ export function CollectionDetailModal({ collection, visible, onClose }: Props) {
 
   async function shareCollection() {
     await Share.share({
-      message: buildShareText(collection, spots),
-      title: collection.title
+      message: buildShareText(activeCollection, spots),
+      title: activeCollection.title
     });
   }
 
@@ -106,9 +107,9 @@ export function CollectionDetailModal({ collection, visible, onClose }: Props) {
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
             <View style={styles.titleRow}>
               <View style={styles.titleCopy}>
-                <Text style={[styles.city, { color: colors.green }]}>{collection.cityLabel.toUpperCase()}</Text>
-                <Text style={[styles.title, { color: text }]}>{collection.title}</Text>
-                <Text style={[styles.subtitle, { color: muted }]}>{collection.subtitle}</Text>
+                <Text style={[styles.city, { color: colors.green }]}>{activeCollection.cityLabel.toUpperCase()}</Text>
+                <Text style={[styles.title, { color: text }]}>{activeCollection.title}</Text>
+                <Text style={[styles.subtitle, { color: muted }]}>{activeCollection.subtitle}</Text>
               </View>
               <View style={[styles.count, { backgroundColor: surface }]}>
                 <Text style={[styles.countValue, { color: text }]}>{spots.length}</Text>
