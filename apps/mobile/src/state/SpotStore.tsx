@@ -84,7 +84,7 @@ type SpotStoreValue = {
   updateNote: (id: string, note: string) => void;
   toggleFavorite: (id: string) => void;
   createCollection: (input: NewCollectionInput) => Collection;
-  importSharedCollection: (input: SharedCollectionImport) => Collection;
+  importSharedCollection: (input: SharedCollectionImport) => void;
   deleteCollection: (id: string) => void;
   togglePlaceInCollection: (collectionId: string, placeId: string) => void;
 };
@@ -408,14 +408,13 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
       return [...imported, ...rest];
     });
 
-    let result: Collection | null = null;
     setCollections((current) => {
       const existing = current.find(
         (collection) => collection.sourceCollectionId === input.sourceCollectionId
       );
 
       if (existing) {
-        result = {
+        const updated: Collection = {
           ...existing,
           title: input.title.trim(),
           subtitle: input.subtitle.trim() || 'Подборка из СПОТ',
@@ -424,10 +423,10 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
           placeIds: input.spots.map((spot) => spot.id)
         };
 
-        return current.map((collection) => collection.id === existing.id ? result as Collection : collection);
+        return current.map((collection) => collection.id === existing.id ? updated : collection);
       }
 
-      result = {
+      const importedCollection: Collection = {
         id: newCollectionId(),
         title: input.title.trim(),
         subtitle: input.subtitle.trim() || 'Подборка из СПОТ',
@@ -438,19 +437,8 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
         sourceCollectionId: input.sourceCollectionId
       };
 
-      return [result, ...current];
+      return [importedCollection, ...current];
     });
-
-    return result ?? {
-      id: newCollectionId(),
-      title: input.title.trim(),
-      subtitle: input.subtitle.trim() || 'Подборка из СПОТ',
-      city: input.city,
-      cityLabel: input.cityLabel,
-      placeIds: input.spots.map((spot) => spot.id),
-      createdAt: new Date().toISOString(),
-      sourceCollectionId: input.sourceCollectionId
-    };
   }, []);
 
   const deleteCollection = useCallback((id: string) => {
