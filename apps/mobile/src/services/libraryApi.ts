@@ -1,4 +1,5 @@
 import { appConfig } from '../config';
+import type { CitySlug, Spot, SpotCategory } from '../types';
 import { ensureGuestSession, resetGuestSession } from './cloudSync';
 
 async function patchShared(collectionID: string, token: string) {
@@ -37,4 +38,89 @@ export async function publishCollection(collectionID: string): Promise<string> {
   }
 
   return `${appConfig.shareBaseUrl}/s/${encodeURIComponent(collectionID)}`;
+}
+
+type PublicApiPlace = {
+  id: string;
+  name: string;
+  category: SpotCategory;
+  category_label: string;
+  city: CitySlug;
+  city_label: string;
+  address: string;
+  lat: number;
+  lng: number;
+  rating: number;
+};
+
+type PublicApiCollection = {
+  id: string;
+  title: string;
+  description?: string;
+  city?: CitySlug;
+  city_label?: string;
+  place_ids: string[];
+};
+
+export type SharedCollectionPreview = {
+  id: string;
+  title: string;
+  subtitle: string;
+  city: CitySlug | 'both';
+  cityLabel: string;
+  spots: Spot[];
+};
+
+export async function getSharedCollection(collectionID: string): Promise<SharedCollectionPreview> {
+  const response = await fetch(
+    `${appConfig.apiBaseUrl}/api/v1/public/collections/${encodeURIComponent(collectionID)}`,
+    {
+      headers: { Accept: 'application/json' }
+    }
+  );
+
+  if (response.status === 404) {
+    throw new Error('Подборка недоступна');
+  }
+  if (!response.ok) {
+    throw new Error(`shared collection failed with ${response.status}`);
+  }
+
+  const payload = await response.json() as {
+    collection: PublicApiCollection;
+    places: PublicApiPlace[];
+  };
+
+  const spots: Spot[] = payload.places.map((place) => ({
+    id: place.id,
+    name: place.name,
+    category: place.category,
+    categoryLabel: place.category_label,
+    city: place.city,
+    cityLabel: place.city_label,
+    address: place.address,
+    latitude: place.lat,
+    longitude: place.lng,
+    distanceMeters: 0,
+    rating: place.rating,
+    status: 'want'
+  }));
+
+  const uniqueCities = new Set(spots.map((spot) => spot.city));
+  const collectionCity: CitySlug | 'both' = payload.collection.city
+    ?? (uniqueCities.size === 1 ? spots[0]?.city ?? 'both' : 'both');
+
+  return {
+    id: payload.collection.id,
+    title: payload.collection.title,
+    subtitle: payload.collection.description?.trim() || 'Подборка из СПОТ',
+    city: collectionCity,
+    cityLabel: payload.collection.city_label?.trim()
+      || (collectionCity === 'spb'
+        ? 'Санкт-Петербург'
+        : collectionCity === 'moscow'
+          ? 'Москва'
+          : 'Москва · Петербург'),
+    spots
+  };
 }
