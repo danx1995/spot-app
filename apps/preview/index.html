@@ -128,7 +128,7 @@
     .memory-excerpt{margin-top:10px;padding:12px;border-radius:15px;background:#1A211D}.memory-excerpt b{display:block;color:#89948E;font-size:8px;letter-spacing:.13em}.memory-excerpt strong{display:block;margin-top:6px;font-size:11px}.memory-excerpt p{margin:5px 0 0;color:#C9D1CC;font-size:11px;line-height:1.45}
     .add-intro{padding:4px 20px 2px}.add-intro h3{font-size:28px;line-height:1.02;letter-spacing:-.04em;margin:6px 0 0}.add-intro p{font-size:11px;color:var(--muted);line-height:1.5;margin:7px 0 0}
     .add-actions{display:grid;gap:8px;margin:14px 18px 0}.add-action{min-height:66px;border-radius:19px;background:var(--surface);padding:12px;display:flex;align-items:center;gap:11px;color:#fff;text-align:left;cursor:pointer}.add-action-icon{width:42px;height:42px;border-radius:15px;background:#173528;color:var(--green);display:grid;place-items:center;font-size:19px;font-weight:950}.add-action-copy{min-width:0;flex:1}.add-action-copy b{display:block;font-size:12px}.add-action-copy span{display:block;margin-top:3px;color:var(--muted);font-size:9px;line-height:1.4}.add-action-arrow{color:#78847D;font-size:19px}
-    .import-card{margin:12px 18px 0;padding:15px;border-radius:22px;background:#101813;border:1px solid rgba(25,195,125,.16)}.import-label{font-size:8px;color:var(--green);font-weight:950;letter-spacing:.13em}.import-card h4{margin:7px 0 0;font-size:14px}.import-card p{margin:5px 0 0;color:var(--muted);font-size:10px;line-height:1.5}.import-url{margin-top:11px;display:flex;gap:7px}.import-url input{min-width:0;flex:1;height:43px;border:0;outline:0;border-radius:14px;background:var(--surface);color:#D9DFDB;padding:0 12px;font-size:10px}.import-url button{min-width:88px;border-radius:14px;background:var(--green);color:var(--black);font-size:9px;font-weight:950;cursor:pointer}.import-result{display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}.import-result.show{display:block}.import-status{display:flex;align-items:center;gap:7px;color:#B9C2BC;font-size:9px}.import-status .badge{background:var(--green);color:var(--black);padding:6px 8px;border-radius:10px;font-weight:950}.import-save{width:100%;min-height:46px;margin-top:9px;border-radius:15px;background:var(--green);color:var(--black);font-size:11px;font-weight:950;cursor:pointer}.privacy-note{margin:12px 18px 0;padding:12px 14px;border-radius:17px;background:rgba(255,255,255,.035);color:#849088;font-size:9px;line-height:1.5}
+    .import-card{margin:12px 18px 0;padding:15px;border-radius:22px;background:#101813;border:1px solid rgba(25,195,125,.16)}.import-label{font-size:8px;color:var(--green);font-weight:950;letter-spacing:.13em}.import-card h4{margin:7px 0 0;font-size:14px}.import-card p{margin:5px 0 0;color:var(--muted);font-size:10px;line-height:1.5}.import-url{margin-top:11px;display:flex;gap:7px}.import-url input{min-width:0;flex:1;height:43px;border:0;outline:0;border-radius:14px;background:var(--surface);color:#D9DFDB;padding:0 12px;font-size:10px}.import-url button{min-width:88px;border-radius:14px;background:var(--green);color:var(--black);font-size:9px;font-weight:950;cursor:pointer}.import-result{display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}.import-result.show{display:block}.import-status{display:flex;align-items:center;gap:7px;color:#B9C2BC;font-size:9px}.import-status .badge{background:var(--green);color:var(--black);padding:6px 8px;border-radius:10px;font-weight:950}.import-summary{margin-top:10px;padding:11px 12px;border-radius:15px;background:var(--surface)}.import-summary b{display:block;font-size:12px}.import-summary span{display:block;margin-top:3px;color:var(--muted);font-size:9px;line-height:1.4}.multi-import{margin-top:10px;display:grid;gap:8px}.multi-import-item{position:relative;border:2px solid var(--green);border-radius:20px;overflow:hidden}.multi-import-item.off{border-color:transparent;opacity:.62}.multi-check{position:absolute;z-index:3;right:8px;top:8px;width:25px;height:25px;border-radius:50%;background:var(--green);color:var(--black);display:grid;place-items:center;font-size:11px;font-weight:950;cursor:pointer}.multi-import-item.off .multi-check{background:#222B26;color:#738078}.multi-import-query{padding:8px 10px 0;color:#AEB7B1;font-size:8px;font-weight:850;line-height:1.35}.import-save{width:100%;min-height:46px;margin-top:9px;border-radius:15px;background:var(--green);color:var(--black);font-size:11px;font-weight:950;cursor:pointer}.privacy-note{margin:12px 18px 0;padding:12px 14px;border-radius:17px;background:rgba(255,255,255,.035);color:#849088;font-size:9px;line-height:1.5}
     @media(max-width:850px){
       body{background:var(--black)}
       .page{display:block;padding:0;max-width:none}.intro{display:none}.device-wrap{display:block}.phone{width:100vw;height:100dvh;min-height:0;max-height:none;border:0;border-radius:0;box-shadow:none}.phone:before{display:none}.preview-ribbon{top:9px}
@@ -353,12 +353,38 @@
                   <button id="demoImportBtn">Найти</button>
                 </div>
                 <div class="import-result" id="demoImportResult">
-                  <div class="import-status"><span class="badge">Instagram</span><span>Подпись страницы распознана</span></div>
-                  <button class="search-result" id="demoImportPlace" style="margin-top:9px">
-                    <div class="thumb">🍽️</div>
-                    <div class="place-copy"><div class="meta">НАЙДЕНО АВТОМАТИЧЕСКИ · СПБ</div><h4>Birch</h4><div class="open">● Открыто до 23:00</div><div class="address">Кирочная улица, 3 · ★ 4.8</div></div>
-                  </button>
-                  <button class="import-save" id="demoSaveImported">♥ Сохранить в СПОТ</button>
+                  <div class="import-status"><span class="badge">Instagram</span><span>СПОТ распознал список мест</span></div>
+                  <div class="import-summary">
+                    <b>Нашли 3 места</b>
+                    <span>Первый вариант выбран автоматически. Ненужное можно отключить перед сохранением.</span>
+                  </div>
+                  <div class="multi-import">
+                    <div class="multi-import-item" data-multi-import>
+                      <div class="multi-import-query">1 · Birch — Кирочная улица</div>
+                      <button class="multi-check" aria-label="Выбрать Birch">✓</button>
+                      <button class="search-result" style="margin:6px 0 0">
+                        <div class="thumb">🍽️</div>
+                        <div class="place-copy"><div class="meta">РЕСТОРАН · СПБ</div><h4>Birch</h4><div class="open">● Открыто до 23:00</div><div class="address">Кирочная, 3 · ★ 4.8</div></div>
+                      </button>
+                    </div>
+                    <div class="multi-import-item" data-multi-import>
+                      <div class="multi-import-query">2 · Aster — Маяковского</div>
+                      <button class="multi-check" aria-label="Выбрать Aster">✓</button>
+                      <button class="search-result" style="margin:6px 0 0">
+                        <div class="thumb">☕</div>
+                        <div class="place-copy"><div class="meta">КОФЕЙНЯ · СПБ</div><h4>Aster</h4><div class="open">● Открыто до 22:00</div><div class="address">Маяковского, 23 · ★ 4.7</div></div>
+                      </button>
+                    </div>
+                    <div class="multi-import-item" data-multi-import>
+                      <div class="multi-import-query">3 · Noor — бар</div>
+                      <button class="multi-check" aria-label="Выбрать Noor">✓</button>
+                      <button class="search-result" style="margin:6px 0 0">
+                        <div class="thumb">🍸</div>
+                        <div class="place-copy"><div class="meta">БАР · МОСКВА</div><h4>Noor</h4><div class="open">● Открыто до 02:00</div><div class="address">Тверская, 23 · ★ 4.6</div></div>
+                      </button>
+                    </div>
+                  </div>
+                  <button class="import-save" id="demoSaveImported">♥ Сохранить выбранные · 3</button>
                 </div>
               </div>
 
@@ -472,17 +498,36 @@
         return;
       }
       document.getElementById('demoImportResult').classList.add('show');
-      showToast('Публичная подпись прочитана · найден Birch');
+      showToast('Подпись распознана · найдено 3 места');
     });
 
-    document.getElementById('demoImportPlace').addEventListener('click',()=>{
-      closeOverlay(addOverlay);
-      openOverlay(placeOverlay);
+    function updateDemoImportCount(){
+      const selected=[...document.querySelectorAll('[data-multi-import]')].filter(item=>!item.classList.contains('off')).length;
+      document.getElementById('demoSaveImported').textContent=`♥ Сохранить выбранные · ${selected}`;
+      document.getElementById('demoSaveImported').style.opacity=selected===0?'.35':'1';
+    }
+
+    document.querySelectorAll('[data-multi-import]').forEach(item=>{
+      const toggle=()=> {
+        item.classList.toggle('off');
+        item.querySelector('.multi-check').textContent=item.classList.contains('off')?'':'✓';
+        updateDemoImportCount();
+      };
+      item.querySelector('.multi-check').addEventListener('click',(event)=>{
+        event.stopPropagation();
+        toggle();
+      });
+      item.querySelector('.search-result').addEventListener('click',toggle);
     });
 
     document.getElementById('demoSaveImported').addEventListener('click',()=>{
+      const selected=[...document.querySelectorAll('[data-multi-import]')].filter(item=>!item.classList.contains('off')).length;
+      if(selected===0){
+        showToast('Выбери хотя бы одно место');
+        return;
+      }
       closeOverlay(addOverlay);
-      showToast('Birch сохранён · источник тоже запомнен');
+      showToast(`Сохранено мест: ${selected} · источник запомнен у каждого`);
     });
 
     nav.forEach(button=>button.addEventListener('click',()=>{
