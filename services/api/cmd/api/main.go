@@ -7,8 +7,10 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/danx1995/spot-app/services/api/internal/accounttransfer"
@@ -303,9 +305,42 @@ func main() {
 		port = "8080"
 	}
 
+	server := &http.Server{
+		Addr:              ":" + port,
+		Handler:           handler,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      20 * time.Second,
+		IdleTimeout:       75 * time.Second,
+		MaxHeaderBytes:    1 << 20,
+	}
+
 	log.Printf("SPOT API listening on :%s (sync=%s, library=%s, transfer=%s)", port, syncStore.Mode(), libraryStore.Mode(), transferStore.Mode())
-	if err := http.ListenAndServe(":"+port, handler); err != nil {
-		log.Fatal(err)
+
+	serverErrors := make(chan error, 1)
+	go func() {
+		serverErrors <- server.ListenAndServe()
+	}()
+
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(signals)
+
+	select {
+	case err := <-serverErrors:
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Printf("SPOT API stopped unexpectedly: %v", err)
+		}
+	case sig := <-signals:
+		log.Printf("SPOT API received %s; draining requests", sig)
+
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			log.Printf("SPOT API graceful shutdown failed: %v", err)
+			_ = server.Close()
+		}
 	}
 }
 
