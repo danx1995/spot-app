@@ -12,6 +12,7 @@ import * as Location from 'expo-location';
 import MapView, { Marker, type Region } from 'react-native-maps';
 
 import { CategoryChip } from '../components/CategoryChip';
+import { DiscoverySheet } from '../components/DiscoverySheet';
 import { MapSearchSheet } from '../components/MapSearchSheet';
 import { NearbySheet } from '../components/NearbySheet';
 import { PlaceDetailModal } from '../components/PlaceDetailModal';
@@ -21,7 +22,7 @@ import { searchPlaces } from '../services/api';
 import { useSpotStore } from '../state/SpotStore';
 import { colors } from '../theme';
 import type { CitySlug, Spot, SpotCategory } from '../types';
-import { spotWithDistance, type Coordinates } from '../utils/geo';
+import { distanceMeters, spotWithDistance, type Coordinates } from '../utils/geo';
 
 const NEARBY_RADIUS_METERS = 2000;
 
@@ -84,6 +85,7 @@ export function MapScreen() {
   const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [nearbyOpen, setNearbyOpen] = useState(false);
+  const [discoveryOpen, setDiscoveryOpen] = useState(false);
   const [locationBusy, setLocationBusy] = useState(false);
   const [locationDenied, setLocationDenied] = useState(false);
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
@@ -91,6 +93,7 @@ export function MapScreen() {
   const [discoveredSpots, setDiscoveredSpots] = useState<Spot[]>([]);
   const [discovering, setDiscovering] = useState(false);
   const [discoverError, setDiscoverError] = useState<string | null>(null);
+  const [lastDiscoveryCenter, setLastDiscoveryCenter] = useState<Coordinates | null>(null);
 
   const citySpots = useMemo(
     () => savedSpots
@@ -145,12 +148,23 @@ export function MapScreen() {
 
   const nearby = selectedSpotWithDistance ?? filtered[0] ?? visibleDiscovered[0];
 
+
+  const mapMovedSinceDiscovery = useMemo(() => {
+    if (!lastDiscoveryCenter) return false;
+    return distanceMeters(lastDiscoveryCenter, {
+      latitude: mapRegion.latitude,
+      longitude: mapRegion.longitude
+    }) > 250;
+  }, [lastDiscoveryCenter, mapRegion.latitude, mapRegion.longitude]);
+
   useEffect(() => {
     const region = CITY_REGIONS[selectedCity];
     setSelectedSpot(null);
     setNearbyOpen(false);
+    setDiscoveryOpen(false);
     setDiscoveredSpots([]);
     setDiscoverError(null);
+    setLastDiscoveryCenter(null);
     setMapRegion(region);
     mapRef.current?.animateToRegion(region, 450);
   }, [selectedCity]);
@@ -197,20 +211,26 @@ export function MapScreen() {
     setDiscoverError(null);
 
     try {
+      const center = {
+        latitude: mapRegion.latitude,
+        longitude: mapRegion.longitude
+      };
       const places = await searchPlaces(
         DISCOVERY_QUERIES[category],
         selectedCity,
         {
-          latitude: mapRegion.latitude,
-          longitude: mapRegion.longitude,
+          latitude: center.latitude,
+          longitude: center.longitude,
           category: category as SpotCategory
         }
       );
+      const withDistance = places.map((spot) => spotWithDistance(spot, center));
 
-      setDiscoveredSpots(places);
+      setDiscoveredSpots(withDistance);
+      setLastDiscoveryCenter(center);
 
-      if (places.length > 0) {
-        const first = places[0];
+      if (withDistance.length > 0) {
+        const first = withDistance[0];
         if (first) setSelectedSpot(first);
       } else {
         setSelectedSpot(null);
@@ -251,9 +271,11 @@ export function MapScreen() {
     ? ''
     : discoverError
       ? 'Повторить поиск здесь'
-      : discoveredSpots.length > 0
-        ? `Найдено ${discoveredSpots.length} · обновить здесь`
-        : `Найти рядом: ${DISCOVERY_LABELS[category]}`;
+      : discoveredSpots.length > 0 && !mapMovedSinceDiscovery
+        ? `${discoveredSpots.length} мест · посмотреть`
+        : mapMovedSinceDiscovery
+          ? 'Искать в этой области'
+          : `Найти рядом: ${DISCOVERY_LABELS[category]}`;
 
   return (
     <View style={[styles.root, { backgroundColor: dark ? colors.black : colors.lightBackground }]}>
@@ -321,8 +343,10 @@ export function MapScreen() {
             onPress={() => {
               setCategory(item.id);
               setSelectedSpot(null);
+              setDiscoveryOpen(false);
               setDiscoveredSpots([]);
               setDiscoverError(null);
+              setLastDiscoveryCenter(null);
             }}
           />
         ))}
@@ -330,7 +354,13 @@ export function MapScreen() {
 
       {category !== 'all' ? (
         <Pressable
-          onPress={() => void discoverHere()}
+          onPress={() => {
+            if (discoveredSpots.length > 0 && !mapMovedSinceDiscovery && !discoverError) {
+              setDiscoveryOpen(true);
+              return;
+            }
+            void discoverHere();
+          }}
           disabled={discovering}
           style={[styles.discoverButton, discovering && styles.discoverButtonBusy]}
         >
@@ -378,6 +408,14 @@ export function MapScreen() {
           </Text>
         </View>
       )}
+
+      <DiscoverySheet
+        visible={discoveryOpen}
+        spots={visibleDiscovered}
+        categoryLabel={category === 'all' ? 'Места' : DISCOVERY_LABELS[category]}
+        onClose={() => setDiscoveryOpen(false)}
+        onSelect={focusSpot}
+      />
 
       <MapSearchSheet
         visible={searchOpen}
