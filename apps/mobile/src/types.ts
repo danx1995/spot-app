@@ -63,6 +63,7 @@ export type CollectionRoutePlan = {
   kind: 'route';
   transport: 'walking' | 'driving';
   startPreset: 'now' | 'evening' | 'tomorrow';
+  startAt?: string;
   stopMinutes: 30 | 45 | 60;
   startMode: 'first_stop' | 'current_location';
 };
