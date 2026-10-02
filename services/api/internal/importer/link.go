@@ -32,6 +32,8 @@ type Result struct {
 	Status         string          `json:"status"`
 	Platform       string          `json:"platform"`
 	SourceURL      string          `json:"source_url"`
+	SourceTitle    string          `json:"source_title,omitempty"`
+	SourceExcerpt  string          `json:"source_excerpt,omitempty"`
 	Message        string          `json:"message,omitempty"`
 	SuggestedQuery string          `json:"suggested_query,omitempty"`
 	SuggestedCity  string          `json:"suggested_city,omitempty"`
@@ -99,10 +101,16 @@ func (r *Resolver) Resolve(ctx context.Context, rawURL, city, hint string) (Resu
 	}
 
 	query := suggestedQuery(parsed, platform, hint)
+	cleanedHint := cleanHint(hint)
+	if cleanedHint != "" {
+		result.SourceExcerpt = limitRunes(cleanedHint, 280)
+	}
 	metadataUsed := false
 	if query == "" && r.metadata != nil && metadataPlatformSupported(platform) {
 		pageMetadata, metadataErr := r.metadata.Fetch(ctx, parsed, platform)
 		if metadataErr == nil {
+			result.SourceTitle = limitRunes(stripPlatformBoilerplate(pageMetadata.Title, platform), 180)
+			result.SourceExcerpt = limitRunes(stripPlatformBoilerplate(pageMetadata.Description, platform), 500)
 			query = metadataSearchQuery(pageMetadata, platform)
 			metadataUsed = query != ""
 		}
