@@ -7,6 +7,7 @@ import {
   Share,
   StyleSheet,
   Text,
+  TextInput,
   useColorScheme,
   View
 } from 'react-native';
@@ -41,9 +42,20 @@ function buildShareText(collection: Collection, spots: Spot[]) {
 
 export function CollectionDetailModal({ collection, visible, onClose }: Props) {
   const dark = useColorScheme() === 'dark';
-  const { savedSpots, togglePlaceInCollection, deleteCollection, syncNow } = useSpotStore();
+  const {
+    savedSpots,
+    togglePlaceInCollection,
+    deleteCollection,
+    updateCollection,
+    reorderCollectionPlace,
+    syncNow
+  } = useSpotStore();
   const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
   const [sharing, setSharing] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draftTitle, setDraftTitle] = useState('');
+  const [draftSubtitle, setDraftSubtitle] = useState('');
+  const [draftCity, setDraftCity] = useState<Collection['city']>('both');
 
   const text = dark ? colors.white : colors.black;
   const muted = dark ? colors.textSecondaryDark : colors.textSecondaryLight;
@@ -62,6 +74,26 @@ export function CollectionDetailModal({ collection, visible, onClose }: Props) {
 
   function removePlace(placeID: string) {
     togglePlaceInCollection(activeCollection.id, placeID);
+  }
+
+
+  function openEditor() {
+    setDraftTitle(activeCollection.title);
+    setDraftSubtitle(activeCollection.subtitle);
+    setDraftCity(activeCollection.city);
+    setEditing(true);
+  }
+
+  function saveCollectionChanges() {
+    const title = draftTitle.trim();
+    if (!title) return;
+
+    updateCollection(activeCollection.id, {
+      title,
+      subtitle: draftSubtitle,
+      city: draftCity
+    });
+    setEditing(false);
   }
 
   function confirmDelete() {
@@ -131,6 +163,9 @@ export function CollectionDetailModal({ collection, visible, onClose }: Props) {
                 <Text style={[styles.city, { color: colors.green }]}>{activeCollection.cityLabel.toUpperCase()}</Text>
                 <Text style={[styles.title, { color: text }]}>{activeCollection.title}</Text>
                 <Text style={[styles.subtitle, { color: muted }]}>{activeCollection.subtitle}</Text>
+                <Pressable onPress={openEditor} style={styles.editCollectionButton}>
+                  <Text style={styles.editCollectionText}>Изменить</Text>
+                </Pressable>
               </View>
               <View style={[styles.count, { backgroundColor: surface }]}>
                 <Text style={[styles.countValue, { color: text }]}>{spots.length}</Text>
@@ -161,12 +196,30 @@ export function CollectionDetailModal({ collection, visible, onClose }: Props) {
                 </Text>
               </View>
             ) : (
-              spots.map((spot) => (
+              spots.map((spot, index) => (
                 <View key={spot.id} style={styles.spotWrap}>
                   <SpotCard spot={spot} compact onPress={() => setSelectedSpot(spot)} />
-                  <Pressable onPress={() => removePlace(spot.id)} style={styles.removeFromCollection}>
-                    <Text style={[styles.removeFromCollectionText, { color: muted }]}>Убрать из подборки</Text>
-                  </Pressable>
+                  <View style={styles.placeActions}>
+                    <View style={styles.orderActions}>
+                      <Pressable
+                        disabled={index === 0}
+                        onPress={() => reorderCollectionPlace(activeCollection.id, spot.id, 'up')}
+                        style={[styles.orderButton, index === 0 && styles.orderButtonDisabled]}
+                      >
+                        <Text style={[styles.orderButtonText, { color: text }]}>↑</Text>
+                      </Pressable>
+                      <Pressable
+                        disabled={index === spots.length - 1}
+                        onPress={() => reorderCollectionPlace(activeCollection.id, spot.id, 'down')}
+                        style={[styles.orderButton, index === spots.length - 1 && styles.orderButtonDisabled]}
+                      >
+                        <Text style={[styles.orderButtonText, { color: text }]}>↓</Text>
+                      </Pressable>
+                    </View>
+                    <Pressable onPress={() => removePlace(spot.id)} style={styles.removeFromCollection}>
+                      <Text style={[styles.removeFromCollectionText, { color: muted }]}>Убрать</Text>
+                    </Pressable>
+                  </View>
                 </View>
               ))
             )}
@@ -175,6 +228,80 @@ export function CollectionDetailModal({ collection, visible, onClose }: Props) {
               <Text style={styles.deleteText}>Удалить подборку</Text>
             </Pressable>
           </ScrollView>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={editing}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setEditing(false)}
+      >
+        <View style={styles.editorBackdrop}>
+          <View style={[styles.editorCard, { backgroundColor: dark ? '#151B17' : colors.white }]}>
+            <Text style={[styles.editorTitle, { color: text }]}>Изменить подборку</Text>
+            <Text style={[styles.editorHint, { color: muted }]}>
+              Название и описание можно менять в любой момент. Порядок мест настраивается стрелками в списке.
+            </Text>
+
+            <TextInput
+              value={draftTitle}
+              onChangeText={setDraftTitle}
+              maxLength={80}
+              placeholder="Название подборки"
+              placeholderTextColor={muted}
+              style={[styles.editorInput, { color: text, backgroundColor: dark ? colors.darkSurfaceRaised : colors.lightMuted }]}
+            />
+
+            <TextInput
+              value={draftSubtitle}
+              onChangeText={setDraftSubtitle}
+              maxLength={180}
+              multiline
+              placeholder="Короткое описание"
+              placeholderTextColor={muted}
+              style={[
+                styles.editorInput,
+                styles.editorTextarea,
+                { color: text, backgroundColor: dark ? colors.darkSurfaceRaised : colors.lightMuted }
+              ]}
+            />
+
+            <Text style={[styles.editorLabel, { color: muted }]}>ГОРОД</Text>
+            <View style={styles.editorCities}>
+              {([
+                ['spb', 'СПБ'],
+                ['moscow', 'Москва'],
+                ['both', 'Оба']
+              ] as Array<[Collection['city'], string]>).map(([value, label]) => {
+                const active = draftCity === value;
+                return (
+                  <Pressable
+                    key={value}
+                    onPress={() => setDraftCity(value)}
+                    style={[styles.editorCity, active && styles.editorCityActive]}
+                  >
+                    <Text style={[styles.editorCityText, active && styles.editorCityTextActive]}>
+                      {label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <View style={styles.editorActions}>
+              <Pressable onPress={() => setEditing(false)} style={styles.editorCancel}>
+                <Text style={[styles.editorCancelText, { color: muted }]}>Отмена</Text>
+              </Pressable>
+              <Pressable
+                onPress={saveCollectionChanges}
+                disabled={!draftTitle.trim()}
+                style={[styles.editorSave, !draftTitle.trim() && styles.editorSaveDisabled]}
+              >
+                <Text style={styles.editorSaveText}>Сохранить</Text>
+              </Pressable>
+            </View>
+          </View>
         </View>
       </Modal>
 
@@ -255,6 +382,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20
   },
+  editCollectionButton: {
+    alignSelf: 'flex-start',
+    minHeight: 34,
+    marginTop: 10,
+    paddingHorizontal: 12,
+    borderRadius: 13,
+    backgroundColor: '#173528',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  editCollectionText: {
+    color: colors.green,
+    fontSize: 11,
+    fontWeight: '900'
+  },
   count: {
     minWidth: 66,
     minHeight: 66,
@@ -302,9 +444,34 @@ const styles = StyleSheet.create({
   spotWrap: {
     marginBottom: 12
   },
+  placeActions: {
+    marginTop: 7,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between'
+  },
+  orderActions: {
+    flexDirection: 'row',
+    gap: 7
+  },
+  orderButton: {
+    width: 34,
+    height: 30,
+    borderRadius: 12,
+    backgroundColor: colors.darkSurfaceRaised,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  orderButtonDisabled: {
+    opacity: 0.24
+  },
+  orderButtonText: {
+    fontSize: 15,
+    fontWeight: '900'
+  },
   removeFromCollection: {
     alignSelf: 'flex-end',
-    paddingTop: 7,
+    paddingVertical: 7,
     paddingHorizontal: 6
   },
   removeFromCollectionText: {
@@ -334,5 +501,100 @@ const styles = StyleSheet.create({
     color: colors.error,
     fontSize: 13,
     fontWeight: '800'
+  },
+  editorBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.68)',
+    justifyContent: 'flex-end'
+  },
+  editorCard: {
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    padding: 22,
+    paddingBottom: 38
+  },
+  editorTitle: {
+    fontSize: 25,
+    fontWeight: '900',
+    letterSpacing: -0.7
+  },
+  editorHint: {
+    marginTop: 6,
+    fontSize: 12,
+    lineHeight: 18
+  },
+  editorInput: {
+    minHeight: 56,
+    marginTop: 16,
+    borderRadius: 18,
+    paddingHorizontal: 15,
+    paddingVertical: 13,
+    fontSize: 15,
+    fontWeight: '700'
+  },
+  editorTextarea: {
+    minHeight: 92,
+    textAlignVertical: 'top'
+  },
+  editorLabel: {
+    marginTop: 20,
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1.4
+  },
+  editorCities: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 9
+  },
+  editorCity: {
+    flex: 1,
+    height: 43,
+    borderRadius: 15,
+    backgroundColor: colors.darkSurfaceRaised,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  editorCityActive: {
+    backgroundColor: colors.green
+  },
+  editorCityText: {
+    color: '#A8B0AB',
+    fontSize: 11,
+    fontWeight: '900'
+  },
+  editorCityTextActive: {
+    color: colors.black
+  },
+  editorActions: {
+    marginTop: 22,
+    flexDirection: 'row',
+    gap: 10
+  },
+  editorCancel: {
+    flex: 1,
+    height: 54,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  editorCancelText: {
+    fontSize: 13,
+    fontWeight: '800'
+  },
+  editorSave: {
+    flex: 1.4,
+    height: 54,
+    borderRadius: 18,
+    backgroundColor: colors.green,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  editorSaveDisabled: {
+    opacity: 0.35
+  },
+  editorSaveText: {
+    color: colors.black,
+    fontSize: 14,
+    fontWeight: '900'
   }
 });
