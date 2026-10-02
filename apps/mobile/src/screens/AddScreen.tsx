@@ -1,9 +1,22 @@
-import React from 'react';
-import { Pressable, StyleSheet, Text, useColorScheme, View } from 'react-native';
-import { colors } from '../theme';
+import React, { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  useColorScheme,
+  View
+} from 'react-native';
 
-const actions = [
-  { symbol: '⌕', title: 'Найти место', subtitle: 'По названию или адресу' },
+import { PlaceDetailModal } from '../components/PlaceDetailModal';
+import { SpotCard } from '../components/SpotCard';
+import { searchPlaces } from '../services/api';
+import { colors } from '../theme';
+import type { Spot } from '../types';
+
+const secondaryActions = [
   { symbol: '↗', title: 'Вставить ссылку', subtitle: 'Reels, TikTok, Telegram или сайт' },
   { symbol: '+', title: 'Добавить вручную', subtitle: 'Если места пока нет в СПОТ' }
 ];
@@ -14,38 +27,130 @@ export function AddScreen() {
   const muted = dark ? colors.textSecondaryDark : colors.textSecondaryLight;
   const surface = dark ? colors.darkSurface : colors.white;
 
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<Spot[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
+
+  useEffect(() => {
+    const normalized = query.trim();
+
+    if (normalized.length < 2) {
+      setResults([]);
+      setLoading(false);
+      return;
+    }
+
+    let active = true;
+    setLoading(true);
+
+    const timer = setTimeout(() => {
+      void searchPlaces(normalized)
+        .then((places) => {
+          if (active) setResults(places);
+        })
+        .finally(() => {
+          if (active) setLoading(false);
+        });
+    }, 280);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [query]);
+
   return (
     <View style={[styles.root, { backgroundColor: dark ? colors.black : colors.lightBackground }]}>
-      <View style={styles.mark}><Text style={styles.markHeart}>♥</Text></View>
-      <Text style={[styles.title, { color: text }]}>Добавить в СПОТ</Text>
-      <Text style={[styles.subtitle, { color: muted }]}>Сохрани место сейчас — вернись к нему, когда окажешься рядом.</Text>
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.content}
+      >
+        <View style={styles.mark}><Text style={styles.markHeart}>♥</Text></View>
+        <Text style={[styles.title, { color: text }]}>Добавить в СПОТ</Text>
+        <Text style={[styles.subtitle, { color: muted }]}>
+          Найди место сейчас — вернись к нему, когда окажешься рядом.
+        </Text>
 
-      <View style={styles.actions}>
-        {actions.map((action) => (
-          <Pressable key={action.title} style={[styles.action, { backgroundColor: surface }]}>
-            <View style={styles.actionIcon}><Text style={styles.actionSymbol}>{action.symbol}</Text></View>
-            <View style={styles.actionCopy}>
-              <Text style={[styles.actionTitle, { color: text }]}>{action.title}</Text>
-              <Text style={[styles.actionSubtitle, { color: muted }]}>{action.subtitle}</Text>
+        <View style={[styles.searchBox, { backgroundColor: surface }]}>
+          <Text style={styles.searchIcon}>⌕</Text>
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            autoCorrect={false}
+            autoCapitalize="none"
+            placeholder="Название или адрес"
+            placeholderTextColor={muted}
+            style={[styles.searchInput, { color: text }]}
+            returnKeyType="search"
+          />
+          {loading ? <ActivityIndicator color={colors.green} size="small" /> : null}
+        </View>
+
+        {query.trim().length >= 2 ? (
+          <View style={styles.searchResults}>
+            <View style={styles.resultsHeader}>
+              <Text style={[styles.resultsTitle, { color: text }]}>Результаты</Text>
+              {!loading && <Text style={[styles.resultsCount, { color: muted }]}>{results.length}</Text>}
             </View>
-            <Text style={[styles.chevron, { color: muted }]}>›</Text>
-          </Pressable>
-        ))}
-      </View>
 
-      <View style={[styles.tip, { backgroundColor: dark ? colors.darkSurfaceRaised : '#E7F8F0' }]}>
-        <Text style={styles.tipIcon}>✦</Text>
-        <Text style={[styles.tipText, { color: text }]}>Скоро: отправляй Reel через «Поделиться → СПОТ», и мы сами найдём место.</Text>
-      </View>
+            {results.map((spot) => (
+              <View key={spot.id} style={styles.resultCard}>
+                <SpotCard spot={spot} compact onPress={() => setSelectedSpot(spot)} />
+              </View>
+            ))}
+
+            {!loading && results.length === 0 ? (
+              <View style={[styles.empty, { backgroundColor: surface }]}>
+                <Text style={[styles.emptyTitle, { color: text }]}>Не нашли такой спот</Text>
+                <Text style={[styles.emptyText, { color: muted }]}>
+                  Можно добавить место вручную — позже мы свяжем его с официальной карточкой.
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        ) : (
+          <>
+            <Text style={[styles.sectionLabel, { color: muted }]}>ЕЩЁ СПОСОБЫ</Text>
+            <View style={styles.actions}>
+              {secondaryActions.map((action) => (
+                <Pressable key={action.title} style={[styles.action, { backgroundColor: surface }]}>
+                  <View style={styles.actionIcon}><Text style={styles.actionSymbol}>{action.symbol}</Text></View>
+                  <View style={styles.actionCopy}>
+                    <Text style={[styles.actionTitle, { color: text }]}>{action.title}</Text>
+                    <Text style={[styles.actionSubtitle, { color: muted }]}>{action.subtitle}</Text>
+                  </View>
+                  <Text style={[styles.chevron, { color: muted }]}>›</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <View style={[styles.tip, { backgroundColor: dark ? colors.darkSurfaceRaised : '#E7F8F0' }]}>
+              <Text style={styles.tipIcon}>✦</Text>
+              <Text style={[styles.tipText, { color: text }]}>
+                Следующий этап: отправляй Reel через «Поделиться → СПОТ», и приложение само определит место.
+              </Text>
+            </View>
+          </>
+        )}
+      </ScrollView>
+
+      <PlaceDetailModal
+        spot={selectedSpot}
+        visible={Boolean(selectedSpot)}
+        onClose={() => setSelectedSpot(null)}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    paddingTop: 74,
-    paddingHorizontal: 20
+  root: { flex: 1 },
+  content: {
+    paddingTop: 66,
+    paddingHorizontal: 20,
+    paddingBottom: 125
   },
   mark: {
     width: 58,
@@ -57,19 +162,77 @@ const styles = StyleSheet.create({
   },
   markHeart: { color: colors.black, fontSize: 25 },
   title: {
-    marginTop: 24,
+    marginTop: 22,
     fontSize: 34,
     fontWeight: '900',
     letterSpacing: -1
   },
   subtitle: {
-    marginTop: 10,
+    marginTop: 9,
     maxWidth: 330,
     fontSize: 16,
     lineHeight: 23
   },
-  actions: {
+  searchBox: {
+    marginTop: 26,
+    height: 58,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11
+  },
+  searchIcon: {
+    color: colors.green,
+    fontSize: 24,
+    marginTop: -2
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600'
+  },
+  searchResults: {
+    marginTop: 22
+  },
+  resultsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10
+  },
+  resultsTitle: {
+    flex: 1,
+    fontSize: 17,
+    fontWeight: '800'
+  },
+  resultsCount: {
+    fontSize: 13,
+    fontWeight: '700'
+  },
+  resultCard: {
+    marginBottom: 10
+  },
+  empty: {
+    padding: 18,
+    borderRadius: 22
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '800'
+  },
+  emptyText: {
+    marginTop: 6,
+    fontSize: 13,
+    lineHeight: 19
+  },
+  sectionLabel: {
     marginTop: 30,
+    marginBottom: 10,
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1.4
+  },
+  actions: {
     gap: 10
   },
   action: {
