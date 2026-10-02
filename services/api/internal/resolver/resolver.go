@@ -174,7 +174,7 @@ func (r *Resolver) SearchAtPage(
 }
 
 func mixedDiscoveryPage(page int) (string, int) {
-	categories := []string{"restaurant", "coffee", "bar", "hotel", "culture"}
+	categories := []string{"restaurant", "coffee", "bar", "hotel", "culture", "entertainment", "shop", "park"}
 	if page < 1 {
 		page = 1
 	}
