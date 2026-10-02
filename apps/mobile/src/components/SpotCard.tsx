@@ -4,6 +4,7 @@ import { colors } from '../theme';
 import type { Spot } from '../types';
 
 function formatDistance(meters: number) {
+  if (meters <= 0) return null;
   if (meters < 1000) return `${meters} м`;
   return `${(meters / 1000).toFixed(1).replace('.', ',')} км`;
 }
@@ -19,6 +20,7 @@ export function SpotCard({ spot, compact = false, onPress }: Props) {
   const card = dark ? colors.darkSurface : colors.white;
   const text = dark ? colors.white : colors.black;
   const muted = dark ? colors.textSecondaryDark : colors.textSecondaryLight;
+  const distance = formatDistance(spot.distanceMeters);
 
   return (
     <Pressable
@@ -41,7 +43,7 @@ export function SpotCard({ spot, compact = false, onPress }: Props) {
           <View style={styles.titleArea}>
             <Text numberOfLines={1} style={[styles.name, { color: text }]}>{spot.name}</Text>
             <Text style={[styles.meta, { color: muted }]}>
-              {spot.categoryLabel} · {formatDistance(spot.distanceMeters)}
+              {spot.categoryLabel}{distance ? ` · ${distance}` : ''}
             </Text>
           </View>
           <Text style={[styles.heart, { color: spot.favorite ? colors.green : muted }]}>
@@ -51,7 +53,9 @@ export function SpotCard({ spot, compact = false, onPress }: Props) {
 
         <View style={styles.bottomRow}>
           <Text style={[styles.address, { color: muted }]} numberOfLines={1}>{spot.address}</Text>
-          <Text style={[styles.rating, { color: text }]}>★ {spot.rating.toFixed(1)}</Text>
+          {spot.rating > 0 ? (
+            <Text style={[styles.rating, { color: text }]}>★ {spot.rating.toFixed(1)}</Text>
+          ) : null}
         </View>
       </View>
     </Pressable>
