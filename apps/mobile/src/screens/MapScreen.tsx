@@ -6,7 +6,8 @@ import MapView, { Marker, type Region } from 'react-native-maps';
 import { CategoryChip } from '../components/CategoryChip';
 import { PlaceDetailModal } from '../components/PlaceDetailModal';
 import { SpotCard } from '../components/SpotCard';
-import { categories, spots } from '../data/mock';
+import { categories } from '../data/mock';
+import { useSpotStore } from '../state/SpotStore';
 import { colors } from '../theme';
 import type { Spot } from '../types';
 
@@ -32,16 +33,17 @@ const darkMapStyle = [
 export function MapScreen() {
   const dark = useColorScheme() === 'dark';
   const mapRef = useRef<MapView | null>(null);
+  const { savedSpots } = useSpotStore();
   const [category, setCategory] = useState<(typeof categories)[number]['id']>('all');
   const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
   const [locationBusy, setLocationBusy] = useState(false);
 
   const filtered = useMemo(
-    () => category === 'all' ? spots : spots.filter((spot) => spot.category === category),
-    [category]
+    () => category === 'all' ? savedSpots : savedSpots.filter((spot) => spot.category === category),
+    [category, savedSpots]
   );
 
-  const nearby = selectedSpot ?? filtered[0] ?? spots[0];
+  const nearby = selectedSpot ?? filtered[0];
 
   async function moveToUser() {
     if (locationBusy) return;
@@ -129,17 +131,18 @@ export function MapScreen() {
       </Pressable>
 
       <View style={styles.nearbyPill}>
-        <Text style={styles.nearbyStrong}>{filtered.length} {filtered.length === 1 ? 'спот' : 'спота'} рядом</Text>
-        <Text style={styles.nearbyMuted}>сохранённые места</Text>
+        <Text style={styles.nearbyStrong}>{filtered.length} сохранённых спотов</Text>
+        <Text style={styles.nearbyMuted}>на карте Петербурга</Text>
       </View>
 
-      {nearby && (
+      {nearby ? (
         <View style={styles.bottomCard}>
-          <SpotCard
-            spot={nearby}
-            compact
-            onPress={() => setSelectedSpot(nearby)}
-          />
+          <SpotCard spot={nearby} compact onPress={() => setSelectedSpot(nearby)} />
+        </View>
+      ) : (
+        <View style={styles.emptyCard}>
+          <Text style={styles.emptyTitle}>Карта пока пустая</Text>
+          <Text style={styles.emptyText}>Добавь первый спот через зелёную кнопку «+».</Text>
         </View>
       )}
 
@@ -153,9 +156,7 @@ export function MapScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1
-  },
+  root: { flex: 1 },
   header: {
     position: 'absolute',
     zIndex: 3,
@@ -270,5 +271,24 @@ const styles = StyleSheet.create({
     left: 14,
     right: 14,
     bottom: 14
+  },
+  emptyCard: {
+    position: 'absolute',
+    left: 14,
+    right: 14,
+    bottom: 14,
+    borderRadius: 24,
+    backgroundColor: 'rgba(11,15,12,0.94)',
+    padding: 18
+  },
+  emptyTitle: {
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: '900'
+  },
+  emptyText: {
+    marginTop: 4,
+    color: '#98A39D',
+    fontSize: 13
   }
 });
