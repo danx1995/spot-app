@@ -93,17 +93,30 @@ type response struct {
 }
 
 func (c *Client) Search(ctx context.Context, query, city string) ([]catalog.Place, error) {
+	return c.SearchPage(ctx, query, city, 1)
+}
+
+func (c *Client) SearchPage(ctx context.Context, query, city string, page int) ([]catalog.Place, error) {
 	lon, lat, _, ok := cityCenter(city)
 	if !ok {
 		return nil, fmt.Errorf("unsupported city %q", city)
 	}
-	return c.SearchAt(ctx, query, city, lat, lon)
+	return c.SearchAtPage(ctx, query, city, lat, lon, page)
 }
 
 func (c *Client) SearchAt(
 	ctx context.Context,
 	query, city string,
 	lat, lon float64,
+) ([]catalog.Place, error) {
+	return c.SearchAtPage(ctx, query, city, lat, lon, 1)
+}
+
+func (c *Client) SearchAtPage(
+	ctx context.Context,
+	query, city string,
+	lat, lon float64,
+	page int,
 ) ([]catalog.Place, error) {
 	if !c.Enabled() {
 		return nil, nil
@@ -126,7 +139,12 @@ func (c *Client) SearchAt(
 	params.Set("location", fmt.Sprintf("%.6f,%.6f", lon, lat))
 	params.Set("type", "branch")
 	params.Set("fields", "items.point,items.rubrics,items.reviews,items.schedule,items.description")
-	params.Set("page_size", "20")
+	if page < 1 {
+		page = 1
+	}
+	params.Set("page", fmt.Sprintf("%d", page))
+	params.Set("page_size", "50")
+	params.Set("locale", "ru_RU")
 	params.Set("key", c.apiKey)
 
 	payload, err := c.get(ctx, endpoint, params)
