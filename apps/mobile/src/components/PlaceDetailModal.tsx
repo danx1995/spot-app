@@ -65,13 +65,14 @@ export function PlaceDetailModal({ spot, visible, onClose }: Props) {
   }, [current?.id, current?.note, visible]);
 
   if (!current) return null;
+  const activeSpot: Spot = current;
 
   const status = saved?.status ?? 'want';
-  const isHotel = current.category === 'hotel';
+  const isHotel = activeSpot.category === 'hotel';
 
   function ensureSaved(nextStatus: SpotStatus) {
     if (saved) {
-      updateStatus(current.id, nextStatus);
+      updateStatus(activeSpot.id, nextStatus);
     } else {
       saveSpot(current, nextStatus);
     }
@@ -81,7 +82,7 @@ export function PlaceDetailModal({ spot, visible, onClose }: Props) {
     const note = noteDraft.trim();
 
     if (saved) {
-      updateNote(current.id, note);
+      updateNote(activeSpot.id, note);
     } else {
       saveSpot({
         ...current,
@@ -93,11 +94,11 @@ export function PlaceDetailModal({ spot, visible, onClose }: Props) {
   }
 
   function openRoute() {
-    const label = encodeURIComponent(current.name);
+    const label = encodeURIComponent(activeSpot.name);
     const url = Platform.select({
-      ios: `http://maps.apple.com/?daddr=${current.latitude},${current.longitude}&q=${label}`,
-      android: `geo:0,0?q=${current.latitude},${current.longitude}(${label})`,
-      default: `https://www.google.com/maps/dir/?api=1&destination=${current.latitude},${current.longitude}`
+      ios: `http://maps.apple.com/?daddr=${activeSpot.latitude},${activeSpot.longitude}&q=${label}`,
+      android: `geo:0,0?q=${activeSpot.latitude},${activeSpot.longitude}(${label})`,
+      default: `https://www.google.com/maps/dir/?api=1&destination=${activeSpot.latitude},${activeSpot.longitude}`
     });
 
     if (url) {
@@ -121,10 +122,10 @@ export function PlaceDetailModal({ spot, visible, onClose }: Props) {
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
-          <Text style={[styles.category, { color: colors.green }]}>{current.categoryLabel.toUpperCase()}</Text>
-          <Text style={[styles.title, { color: text }]}>{current.name}</Text>
+          <Text style={[styles.category, { color: colors.green }]}>{activeSpot.categoryLabel.toUpperCase()}</Text>
+          <Text style={[styles.title, { color: text }]}>{activeSpot.name}</Text>
           <Text style={[styles.meta, { color: muted }]}>
-            {current.rating > 0 ? `★ ${current.rating.toFixed(1)} · ` : ''}{current.address}
+            {activeSpot.rating > 0 ? `★ ${activeSpot.rating.toFixed(1)} · ` : ''}{activeSpot.address}
           </Text>
 
           <View style={styles.actions}>
@@ -172,12 +173,12 @@ export function PlaceDetailModal({ spot, visible, onClose }: Props) {
                   if (editingNote) {
                     saveNote();
                   } else {
-                    setNoteDraft(current.note ?? '');
+                    setNoteDraft(activeSpot.note ?? '');
                     setEditingNote(true);
                   }
                 }}
               >
-                <Text style={styles.editText}>{editingNote ? 'Готово' : current.note ? 'Изменить' : '+ Заметка'}</Text>
+                <Text style={styles.editText}>{editingNote ? 'Готово' : activeSpot.note ? 'Изменить' : '+ Заметка'}</Text>
               </Pressable>
             </View>
 
@@ -203,7 +204,7 @@ export function PlaceDetailModal({ spot, visible, onClose }: Props) {
                   <Text style={[styles.noteCounter, { color: muted }]}>{noteDraft.length}/500</Text>
                   <Pressable
                     onPress={() => {
-                      setNoteDraft(current.note ?? '');
+                      setNoteDraft(activeSpot.note ?? '');
                       setEditingNote(false);
                     }}
                   >
@@ -212,15 +213,15 @@ export function PlaceDetailModal({ spot, visible, onClose }: Props) {
                 </View>
               </>
             ) : (
-              <Text style={[styles.note, { color: current.note ? text : muted }]}>
-                {current.note ?? 'Добавь короткую заметку — потом будет понятно, почему ты сохранил это место.'}
+              <Text style={[styles.note, { color: activeSpot.note ? text : muted }]}>
+                {activeSpot.note ?? 'Добавь короткую заметку — потом будет понятно, почему ты сохранил это место.'}
               </Text>
             )}
           </View>
 
-          {current.sourceUrl ? (
+          {activeSpot.sourceUrl ? (
             <Pressable
-              onPress={() => void Linking.openURL(current.sourceUrl as string)}
+              onPress={() => void Linking.openURL(activeSpot.sourceUrl as string)}
               style={[styles.block, styles.sourceBlock, { backgroundColor: surface }]}
             >
               <View style={styles.sourceHeader}>
@@ -228,10 +229,10 @@ export function PlaceDetailModal({ spot, visible, onClose }: Props) {
                 <Text style={styles.sourceArrow}>↗</Text>
               </View>
               <Text style={[styles.sourceName, { color: text }]}>
-                {sourceLabels[current.sourcePlatform ?? 'web'] ?? current.sourcePlatform ?? 'Ссылка'}
+                {sourceLabels[activeSpot.sourcePlatform ?? 'web'] ?? activeSpot.sourcePlatform ?? 'Ссылка'}
               </Text>
               <Text numberOfLines={1} style={[styles.sourceURL, { color: muted }]}>
-                {current.sourceUrl}
+                {activeSpot.sourceUrl}
               </Text>
             </Pressable>
           ) : null}
@@ -241,11 +242,11 @@ export function PlaceDetailModal({ spot, visible, onClose }: Props) {
               <Text style={[styles.blockLabel, { color: muted }]}>ПОДБОРКИ</Text>
               <View style={styles.collectionList}>
                 {collections.map((collection) => {
-                  const active = collection.placeIds.includes(current.id);
+                  const active = collection.placeIds.includes(activeSpot.id);
                   return (
                     <Pressable
                       key={collection.id}
-                      onPress={() => togglePlaceInCollection(collection.id, current.id)}
+                      onPress={() => togglePlaceInCollection(collection.id, activeSpot.id)}
                       style={[styles.collectionChip, active && styles.collectionChipActive]}
                     >
                       <Text style={[styles.collectionChipText, { color: active ? colors.black : text }]}>
@@ -262,19 +263,19 @@ export function PlaceDetailModal({ spot, visible, onClose }: Props) {
             <Text style={[styles.blockLabel, { color: muted }]}>О МЕСТЕ</Text>
             <View style={styles.infoRow}>
               <Text style={[styles.infoKey, { color: muted }]}>Город</Text>
-              <Text style={[styles.infoValue, { color: text }]}>{current.cityLabel}</Text>
+              <Text style={[styles.infoValue, { color: text }]}>{activeSpot.cityLabel}</Text>
             </View>
             <View style={styles.infoRow}>
               <Text style={[styles.infoKey, { color: muted }]}>Адрес</Text>
-              <Text style={[styles.infoValue, { color: text }]}>{current.address}</Text>
+              <Text style={[styles.infoValue, { color: text }]}>{activeSpot.address}</Text>
             </View>
-            {current.distanceMeters > 0 ? (
+            {activeSpot.distanceMeters > 0 ? (
               <View style={styles.infoRow}>
                 <Text style={[styles.infoKey, { color: muted }]}>От тебя</Text>
                 <Text style={[styles.infoValue, { color: text }]}>
-                  {current.distanceMeters < 1000
-                    ? `${current.distanceMeters} м`
-                    : `${(current.distanceMeters / 1000).toFixed(1).replace('.', ',')} км`}
+                  {activeSpot.distanceMeters < 1000
+                    ? `${activeSpot.distanceMeters} м`
+                    : `${(activeSpot.distanceMeters / 1000).toFixed(1).replace('.', ',')} км`}
                 </Text>
               </View>
             ) : null}
@@ -288,13 +289,13 @@ export function PlaceDetailModal({ spot, visible, onClose }: Props) {
 
           {saved ? (
             <View style={styles.manageRow}>
-              <Pressable onPress={() => toggleFavorite(current.id)}>
-                <Text style={[styles.manageText, { color: current.favorite ? colors.green : muted }]}>
-                  {current.favorite ? '♥ Любимое' : '♡ В любимое'}
+              <Pressable onPress={() => toggleFavorite(activeSpot.id)}>
+                <Text style={[styles.manageText, { color: activeSpot.favorite ? colors.green : muted }]}>
+                  {activeSpot.favorite ? '♥ Любимое' : '♡ В любимое'}
                 </Text>
               </Pressable>
               <Pressable onPress={() => {
-                removeSpot(current.id);
+                removeSpot(activeSpot.id);
                 onClose();
               }}>
                 <Text style={[styles.removeText, { color: colors.error }]}>Удалить из СПОТ</Text>
