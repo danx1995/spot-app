@@ -58,6 +58,7 @@
     .chip.active{background:var(--green);color:var(--black)}
     .for-you-map-chip{background:var(--green)!important;color:var(--black)!important}
     .for-you-intro{margin:4px 18px 0;padding:15px;border-radius:20px;background:linear-gradient(145deg,#173528,#111914)}.for-you-intro small{color:var(--green);font-size:8px;font-weight:950;letter-spacing:.12em}.for-you-intro h3{font-size:22px;margin:5px 0 0;letter-spacing:-.04em}.for-you-intro p{font-size:9px;line-height:1.5;color:var(--muted);margin:6px 0 0}.for-you-reason{margin-top:9px;display:flex;gap:6px;flex-wrap:wrap}.for-you-reason span{padding:7px 9px;border-radius:11px;background:#213129;color:#B8C7BE;font-size:8px;font-weight:850}
+    .for-you-item{margin-bottom:12px}.for-you-why{display:flex;gap:5px;flex-wrap:wrap;margin:0 2px 6px}.for-you-why span{padding:6px 8px;border-radius:10px;background:var(--raised);color:var(--muted);font-size:7px;font-weight:850}.for-you-item .search-result{margin-bottom:6px}.for-you-actions{display:grid;grid-template-columns:1fr 1.35fr;gap:7px}.for-you-actions button{min-height:39px;border-radius:13px;font-size:9px;font-weight:900;cursor:pointer}.for-you-dismiss{background:var(--raised);color:#D4DBD7}.for-you-save{background:var(--green);color:var(--black)}.for-you-item.removed{display:none}
     .map{position:absolute;inset:0 0 88px;background:
       linear-gradient(30deg, transparent 48%, rgba(255,255,255,.055) 49%, rgba(255,255,255,.055) 51%, transparent 52%) 0 0/92px 92px,
       linear-gradient(120deg, transparent 48%, rgba(255,255,255,.038) 49%, rgba(255,255,255,.038) 51%, transparent 52%) 0 0/132px 132px,
@@ -353,18 +354,30 @@
               </div>
               <div class="results-wrap">
                 <div class="result-heading"><b>Лучшее совпадение</b><span>не сохранено</span></div>
-                <button class="search-result" data-toast="Recolte откроется на карте">
-                  <div class="thumb">🍽️</div>
-                  <div class="place-copy"><div class="meta">РЕСТОРАН · ДЛЯ ТЕБЯ</div><h4>Recolte</h4><div class="open">● Открыто до 23:00</div><div class="address">наб. реки Мойки · ★ 4.9</div></div>
-                </button>
-                <button class="search-result" data-toast="Civil откроется на карте">
-                  <div class="thumb">☕</div>
-                  <div class="place-copy"><div class="meta">КОФЕЙНЯ · ДЛЯ ТЕБЯ</div><h4>Civil</h4><div class="open">● Открыто до 22:00</div><div class="address">8-я Советская · ★ 4.8</div></div>
-                </button>
-                <button class="search-result" data-toast="Meal откроется на карте">
-                  <div class="thumb">🍽️</div>
-                  <div class="place-copy"><div class="meta">РЕСТОРАН · ДЛЯ ТЕБЯ</div><h4>Meal</h4><div class="open">● Открыто до 00:00</div><div class="address">Литейный проспект · ★ 4.7</div></div>
-                </button>
+                <div class="for-you-item" data-for-you-item="Recolte">
+                  <div class="for-you-why"><span>в твоих интересах</span><span>высокий рейтинг</span><span>открыто сейчас</span></div>
+                  <button class="search-result" data-toast="Recolte откроется на карте">
+                    <div class="thumb">🍽️</div>
+                    <div class="place-copy"><div class="meta">РЕСТОРАН · ДЛЯ ТЕБЯ</div><h4>Recolte</h4><div class="open">● Открыто до 23:00</div><div class="address">наб. реки Мойки · ★ 4.9</div></div>
+                  </button>
+                  <div class="for-you-actions"><button class="for-you-dismiss" data-for-you-dismiss>Не моё</button><button class="for-you-save" data-for-you-save>♥ В СПОТ</button></div>
+                </div>
+                <div class="for-you-item" data-for-you-item="Civil">
+                  <div class="for-you-why"><span>в твоих интересах</span><span>рядом</span><span>открыто сейчас</span></div>
+                  <button class="search-result" data-toast="Civil откроется на карте">
+                    <div class="thumb">☕</div>
+                    <div class="place-copy"><div class="meta">КОФЕЙНЯ · ДЛЯ ТЕБЯ</div><h4>Civil</h4><div class="open">● Открыто до 22:00</div><div class="address">8-я Советская · ★ 4.8</div></div>
+                  </button>
+                  <div class="for-you-actions"><button class="for-you-dismiss" data-for-you-dismiss>Не моё</button><button class="for-you-save" data-for-you-save>♥ В СПОТ</button></div>
+                </div>
+                <div class="for-you-item" data-for-you-item="Meal">
+                  <div class="for-you-why"><span>похоже на твои сохранения</span><span>высокий рейтинг</span></div>
+                  <button class="search-result" data-toast="Meal откроется на карте">
+                    <div class="thumb">🍽️</div>
+                    <div class="place-copy"><div class="meta">РЕСТОРАН · ДЛЯ ТЕБЯ</div><h4>Meal</h4><div class="open">● Открыто до 00:00</div><div class="address">Литейный проспект · ★ 4.7</div></div>
+                  </button>
+                  <div class="for-you-actions"><button class="for-you-dismiss" data-for-you-dismiss>Не моё</button><button class="for-you-save" data-for-you-save>♥ В СПОТ</button></div>
+                </div>
               </div>
             </div>
           </div>
@@ -847,6 +860,19 @@
       openOverlay(forYouOverlay);
       showToast('Рекомендации собраны по интересам и сохранённым спотам');
     });
+    document.querySelectorAll('[data-for-you-save]').forEach(button=>button.addEventListener('click',event=>{
+      event.stopPropagation();
+      const item=button.closest('[data-for-you-item]');
+      const name=item?.dataset.forYouItem||'Место';
+      if(item) item.classList.add('removed');
+      showToast(name+' сохранён в СПОТ');
+    }));
+    document.querySelectorAll('[data-for-you-dismiss]').forEach(button=>button.addEventListener('click',event=>{
+      event.stopPropagation();
+      const item=button.closest('[data-for-you-item]');
+      if(item) item.classList.add('removed');
+      showToast('Скрыли рекомендацию · больше не покажем на этом устройстве');
+    }));
     document.getElementById('mapSearchBtn').addEventListener('click',()=>openOverlay(searchOverlay));
     document.getElementById('openPlaceBtn').addEventListener('click',()=>openOverlay(placeOverlay));
     document.getElementById('addBtn').addEventListener('click',()=>openOverlay(addOverlay));
