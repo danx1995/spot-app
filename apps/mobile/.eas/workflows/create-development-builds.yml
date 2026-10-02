@@ -1,0 +1,16 @@
+name: Create development builds
+
+jobs:
+  ios_device:
+    name: iPhone development build
+    type: build
+    params:
+      platform: ios
+      profile: development
+
+  android_emulator:
+    name: Android development build
+    type: build
+    params:
+      platform: android
+      profile: development
