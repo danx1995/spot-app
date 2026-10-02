@@ -199,3 +199,115 @@ func TestApplyCloudDeltaDeletesRemovedRecords(t *testing.T) {
 		t.Fatalf("expected empty library, places=%#v collections=%#v", places, collections)
 	}
 }
+
+
+func TestApplyCloudDeltaPersistsCollectionReorder(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryStore()
+
+	before := json.RawMessage(`{
+		"saved_spots":[
+			{
+				"id":"sp_1","name":"One","category":"other","categoryLabel":"Место",
+				"city":"spb","cityLabel":"Санкт-Петербург","address":"1",
+				"latitude":59.91,"longitude":30.31,"status":"want"
+			},
+			{
+				"id":"sp_2","name":"Two","category":"other","categoryLabel":"Место",
+				"city":"spb","cityLabel":"Санкт-Петербург","address":"2",
+				"latitude":59.92,"longitude":30.32,"status":"want"
+			},
+			{
+				"id":"sp_3","name":"Three","category":"other","categoryLabel":"Место",
+				"city":"spb","cityLabel":"Санкт-Петербург","address":"3",
+				"latitude":59.93,"longitude":30.33,"status":"want"
+			}
+		],
+		"collections":[
+			{
+				"id":"col_route","title":"Маршрут","subtitle":"Порядок важен",
+				"city":"spb","cityLabel":"Санкт-Петербург",
+				"placeIds":["sp_1","sp_2","sp_3"]
+			}
+		]
+	}`)
+
+	after := json.RawMessage(`{
+		"saved_spots":[
+			{
+				"id":"sp_1","name":"One","category":"other","categoryLabel":"Место",
+				"city":"spb","cityLabel":"Санкт-Петербург","address":"1",
+				"latitude":59.91,"longitude":30.31,"status":"want"
+			},
+			{
+				"id":"sp_2","name":"Two","category":"other","categoryLabel":"Место",
+				"city":"spb","cityLabel":"Санкт-Петербург","address":"2",
+				"latitude":59.92,"longitude":30.32,"status":"want"
+			},
+			{
+				"id":"sp_3","name":"Three","category":"other","categoryLabel":"Место",
+				"city":"spb","cityLabel":"Санкт-Петербург","address":"3",
+				"latitude":59.93,"longitude":30.33,"status":"want"
+			}
+		],
+		"collections":[
+			{
+				"id":"col_route","title":"Маршрут","subtitle":"Порядок важен",
+				"city":"spb","cityLabel":"Санкт-Петербург",
+				"placeIds":["sp_3","sp_1","sp_2"]
+			}
+		]
+	}`)
+
+	if err := ApplyCloudDelta(ctx, store, "u1", nil, before); err != nil {
+		t.Fatal(err)
+	}
+	if err := ApplyCloudDelta(ctx, store, "u1", before, after); err != nil {
+		t.Fatal(err)
+	}
+
+	collection, err := store.GetCollection(ctx, "u1", "col_route")
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := []string{"sp_3", "sp_1", "sp_2"}
+	if len(collection.PlaceIDs) != len(expected) {
+		t.Fatalf("unexpected place count: %#v", collection.PlaceIDs)
+	}
+	for i := range expected {
+		if collection.PlaceIDs[i] != expected[i] {
+			t.Fatalf("unexpected order: got %#v want %#v", collection.PlaceIDs, expected)
+		}
+	}
+}
+
+func TestSetCollectionPlaceOrderRejectsMembershipMismatch(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryStore()
+
+	for _, id := range []string{"sp_1", "sp_2"} {
+		if _, err := store.UpsertPlace(ctx, "u1", SavePlaceInput{
+			Place: Place{
+				ID: id, Name: id, Category: "other", CategoryLabel: "Место",
+				City: "spb", CityLabel: "Санкт-Петербург",
+				Latitude: 59.9, Longitude: 30.3,
+			},
+			Status: "want",
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if _, err := store.CreateCollection(ctx, "u1", CreateCollectionInput{
+		ID: "col_test", Title: "Test", Visibility: "private",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.SetCollectionPlace(ctx, "u1", "col_test", "sp_1", true); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := store.SetCollectionPlaceOrder(ctx, "u1", "col_test", []string{"sp_2"}); err != ErrNotFound {
+		t.Fatalf("expected ErrNotFound for place outside collection, got %v", err)
+	}
+}
