@@ -423,12 +423,65 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
     setVariation((current) => current + 1);
   }
 
+  async function toggleStartFromMe() {
+    if (startFromMe) {
+      setStartFromMe(false);
+      return;
+    }
+
+    setLocationBusy(true);
+    try {
+      let permission = await Location.getForegroundPermissionsAsync();
+      if (permission.status !== 'granted') {
+        permission = await Location.requestForegroundPermissionsAsync();
+      }
+
+      if (permission.status !== 'granted') {
+        Alert.alert(
+          'Геопозиция не разрешена',
+          'СПОТ может строить маршрут и без неё. Разрешение запрашивается только для старта от текущего места.'
+        );
+        return;
+      }
+
+      const position = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced
+      });
+      const coordinates: Coordinates = {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude
+      };
+
+      if (distanceMeters(coordinates, CITY_CENTERS[routeCity]) > MAX_CITY_START_DISTANCE_METERS) {
+        Alert.alert(
+          'Вы далеко от выбранного города',
+          'Старт «от меня» работает, когда вы находитесь рядом с выбранным городом.'
+        );
+        setUserLocation(coordinates);
+        setStartFromMe(false);
+        return;
+      }
+
+      setUserLocation(coordinates);
+      setStartFromMe(true);
+      setSaved(false);
+      setVariation(0);
+    } catch {
+      Alert.alert(
+        'Не удалось определить геопозицию',
+        'Маршрут продолжит работать без текущего местоположения.'
+      );
+    } finally {
+      setLocationBusy(false);
+    }
+  }
+
   function saveAsCollection() {
     if (route.length < 2) return;
 
     const collection = createCollection({
       title: `Маршрут · ${CITY_LABELS[routeCity]}`,
-      subtitle: `${option.label} · ${route.length} мест из моих спотов`,
+      subtitle: option.label + ' · ' + String(route.length) + ' мест · ' + transportLabel,
       city: routeCity
     });
 
@@ -445,10 +498,28 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
 
   async function shareRoute() {
     if (route.length < 2) return;
+
+    const routeMeta = effectiveSummary
+      ? transportLabel + ' · ' +
+        formatDistance(effectiveSummary.totalDistanceMeters) + ' · ' +
+        formatDuration(effectiveSummary.totalDurationSeconds) + ' в пути'
+      : transportLabel;
+
     await Share.share({
-      title: `Маршрут · ${CITY_LABELS[routeCity]}`,
-      message: routeShareText(CITY_LABELS[routeCity], route)
+      title: 'Маршрут · ' + CITY_LABELS[routeCity],
+      message: routeShareText(CITY_LABELS[routeCity], route) + '\n' + routeMeta
     });
+  }
+
+  async function openRouteInMaps() {
+    const url = buildMapsURL(route, startCoordinate, transport);
+    if (!url) return;
+
+    try {
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert('Не удалось открыть карты', 'Попробуйте ещё раз или поделитесь маршрутом.');
+    }
   }
 
   return (
