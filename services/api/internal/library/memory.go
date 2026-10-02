@@ -309,7 +309,7 @@ func (s *MemoryStore) CreateCollection(_ context.Context, userID string, input C
 		UpdatedAt:   now,
 	}
 	s.collections[userID][id] = collection
-	return collection, nil
+	return cloneCollection(collection), nil
 }
 
 func (s *MemoryStore) ListCollections(_ context.Context, userID string) ([]Collection, error) {
