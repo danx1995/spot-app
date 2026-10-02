@@ -53,8 +53,9 @@ type jwtHeader struct {
 type jwtClaims struct {
 	Issuer        string     `json:"iss"`
 	Subject       string     `json:"sub"`
-	Audience      stringList `json:"aud"`
-	ExpiresAt     int64      `json:"exp"`
+	Audience        stringList `json:"aud"`
+	AuthorizedParty string     `json:"azp"`
+	ExpiresAt       int64      `json:"exp"`
 	IssuedAt      int64      `json:"iat"`
 	Nonce         string     `json:"nonce"`
 	Email         string     `json:"email"`
@@ -204,6 +205,9 @@ func (v *ProviderVerifier) Verify(
 	if !v.validIssuer(provider, claims.Issuer) || !v.validAudience(provider, claims.Audience) {
 		return ProviderIdentity{}, ErrInvalidProviderToken
 	}
+	if len(claims.Audience) > 1 && !v.validAuthorizedParty(provider, claims.AuthorizedParty) {
+		return ProviderIdentity{}, ErrInvalidProviderToken
+	}
 
 	return ProviderIdentity{
 		Provider:      provider,
@@ -237,6 +241,20 @@ func (v *ProviderVerifier) validAudience(provider string, audience []string) boo
 		}
 	}
 	return false
+}
+
+func (v *ProviderVerifier) validAuthorizedParty(provider, candidate string) bool {
+	candidate = strings.TrimSpace(candidate)
+	if candidate == "" {
+		return false
+	}
+
+	allowed := v.googleAudiences
+	if provider == "apple" {
+		allowed = v.appleAudiences
+	}
+	_, ok := allowed[candidate]
+	return ok
 }
 
 func (v *ProviderVerifier) publicKey(ctx context.Context, provider, keyID string) (*rsa.PublicKey, error) {
