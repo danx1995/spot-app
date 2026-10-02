@@ -20,12 +20,13 @@ type publicPlaceView struct {
 }
 
 type publicCollectionView struct {
-	Title       string
-	Description string
-	CityLabel   string
-	PlaceCount  int
-	AppURL      template.URL
-	Places      []publicPlaceView
+	Title            string
+	Description      string
+	ShareDescription string
+	CityLabel        string
+	PlaceCount       int
+	AppURL           template.URL
+	Places           []publicPlaceView
 }
 
 var publicCollectionTemplate = template.Must(template.New("collection").Parse(`<!doctype html>
@@ -34,6 +35,14 @@ var publicCollectionTemplate = template.Must(template.New("collection").Parse(`<
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="robots" content="noindex,nofollow">
+  <meta name="theme-color" content="#0B0F0C">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="СПОТ">
+  <meta property="og:title" content="{{.Title}} · СПОТ">
+  <meta property="og:description" content="{{.ShareDescription}}">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="{{.Title}} · СПОТ">
+  <meta name="twitter:description" content="{{.ShareDescription}}">
   <title>{{.Title}} · СПОТ</title>
   <style>
     :root{color-scheme:dark;background:#0B0F0C;color:#fff;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
@@ -124,13 +133,19 @@ func registerPublicCollectionRoutes(mux *http.ServeMux, store library.Store) {
 		}
 
 		collectionID := shared.Collection.ID
+		shareDescription := strings.TrimSpace(shared.Collection.Description)
+		if shareDescription == "" {
+			shareDescription = fmt.Sprintf("%d мест в общей подборке СПОТ", len(shared.Places))
+		}
+
 		view := publicCollectionView{
-			Title:       shared.Collection.Title,
-			Description: shared.Collection.Description,
-			CityLabel:   shared.Collection.CityLabel,
-			PlaceCount:  len(shared.Places),
-			AppURL:      template.URL("spot://collection?id=" + url.QueryEscape(collectionID)),
-			Places:      make([]publicPlaceView, 0, len(shared.Places)),
+			Title:            shared.Collection.Title,
+			Description:      shared.Collection.Description,
+			ShareDescription: shareDescription,
+			CityLabel:        shared.Collection.CityLabel,
+			PlaceCount:       len(shared.Places),
+			AppURL:           template.URL("spot://collection?id=" + url.QueryEscape(collectionID)),
+			Places:           make([]publicPlaceView, 0, len(shared.Places)),
 		}
 
 		for _, place := range shared.Places {
