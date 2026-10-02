@@ -593,3 +593,18 @@ body{
   body{background:#050705}
   .app-shell{box-shadow:0 0 0 1px rgba(255,255,255,.05),0 28px 110px rgba(0,0,0,.5)}
 }
+
+.planner-grid button{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+}
+.planner-grid button small{width:100%}
+.planner-actions button{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+}
+.collection-picker button>span svg{display:block}
