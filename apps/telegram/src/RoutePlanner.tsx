@@ -9,6 +9,7 @@ import {
   type RouteTransport,
   type Spot
 } from './api';
+import { SpotIcon } from './SpotIcon';
 
 type Props = {
   city: CitySlug;
@@ -334,8 +335,12 @@ export function RoutePlanner({
 
         <div className="planner-section-label">КАК ДОБИРАТЬСЯ</div>
         <div className="planner-grid two">
-          <button className={transport === 'walking' ? 'active' : ''} onClick={() => setTransport('walking')}>⌁ Пешком</button>
-          <button className={transport === 'driving' ? 'active' : ''} onClick={() => setTransport('driving')}>→ На машине</button>
+          <button className={transport === 'walking' ? 'active' : ''} onClick={() => setTransport('walking')}>
+            <SpotIcon name="route" size={15} /> Пешком
+          </button>
+          <button className={transport === 'driving' ? 'active' : ''} onClick={() => setTransport('driving')}>
+            <SpotIcon name="chevron" size={15} /> На машине
+          </button>
         </div>
 
         <button
@@ -343,7 +348,7 @@ export function RoutePlanner({
           onClick={() => void toggleLocation()}
           disabled={locationBusy}
         >
-          <span>{useLocation ? '✓' : '⌖'}</span>
+          <span>{useLocation ? '✓' : <SpotIcon name="location" size={16} />}</span>
           <div><b>{locationBusy ? 'Определяем…' : useLocation ? 'Старт от меня' : 'Начать от меня'}</b><small>Геопозицию Telegram запросит только после нажатия</small></div>
         </button>
 
@@ -367,7 +372,7 @@ export function RoutePlanner({
 
         {route.length < 2 ? (
           <div className="planner-empty">
-            <span>⌁</span>
+            <span><SpotIcon name="route" size={31} /></span>
             <b>Нужно хотя бы два сохранённых места</b>
             <p>Добавь ещё споты со статусом «Хочу» или «Бронь» в {cityLabels[city]}.</p>
           </div>
@@ -402,8 +407,8 @@ export function RoutePlanner({
             </div>
 
             <div className="planner-actions">
-              <button className="planner-maps" onClick={openMaps}>↗ Открыть в картах</button>
-              <button className="planner-save" onClick={saveRoute}>♥ Сохранить маршрут</button>
+              <button className="planner-maps" onClick={openMaps}><SpotIcon name="location" size={15} /> Открыть в картах</button>
+              <button className="planner-save" onClick={saveRoute}><SpotIcon name="heart" size={15} /> Сохранить маршрут</button>
             </div>
           </>
         )}

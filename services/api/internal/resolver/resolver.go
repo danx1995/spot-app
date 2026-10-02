@@ -30,12 +30,39 @@ func New(twoGIS *twogis.Client) *Resolver {
 }
 
 func (r *Resolver) Search(ctx context.Context, query, city, category string) ([]catalog.Place, error) {
+	return r.SearchPage(ctx, query, city, category, 1)
+}
+
+func (r *Resolver) SearchPage(
+	ctx context.Context,
+	query, city, category string,
+	page int,
+) ([]catalog.Place, error) {
+	if page < 1 {
+		page = 1
+	}
+
+	remoteQuery := strings.TrimSpace(query)
+	providerPage := page
+	if remoteQuery == "" {
+		if category == "" {
+			var discoveryCategory string
+			discoveryCategory, providerPage = mixedDiscoveryPage(page)
+			remoteQuery = categoryDiscoveryQuery(discoveryCategory)
+		} else {
+			remoteQuery, providerPage = categoryDiscoveryPage(category, page)
+		}
+	}
+
 	local := catalog.SearchPlaces(query, city, category)
-	if strings.TrimSpace(query) == "" || len(local) >= 5 || r.twoGIS == nil || !r.twoGIS.Enabled() {
+	if remoteQuery == "" || len(local) >= 5 || r.twoGIS == nil || !r.twoGIS.Enabled() {
+		if page > 1 {
+			return nil, nil
+		}
 		return local, nil
 	}
 
-	key := searchKey(query, city, category)
+	key := searchPageKey(remoteQuery, city, category, page)
 	if cached, ok := r.cache.Get(key); ok {
 		return cached, nil
 	}
@@ -45,14 +72,23 @@ func (r *Resolver) Search(ctx context.Context, query, city, category string) ([]
 			return cached, nil
 		}
 
-		remote, remoteErr := r.twoGIS.Search(ctx, query, city)
+		remote, remoteErr := r.twoGIS.SearchPage(ctx, remoteQuery, city, providerPage)
 		if remoteErr != nil {
-			// Keep the UI usable, but do not cache provider failures so a later
-			// request can recover immediately.
+			if page > 1 {
+				return []catalog.Place{}, nil
+			}
 			return local, nil
 		}
 
-		out := mergeSearchPlaces(local, remote, category)
+		var out []catalog.Place
+		if page == 1 {
+			out = mergeSearchPlaces(local, remote, category)
+		} else {
+			out = filterSearchPlaces(remote, category)
+		}
+		if len(out) > 50 {
+			out = out[:50]
+		}
 		r.cache.Set(key, out)
 		return out, nil
 	})
@@ -68,12 +104,40 @@ func (r *Resolver) SearchAt(
 	query, city, category string,
 	lat, lon float64,
 ) ([]catalog.Place, error) {
+	return r.SearchAtPage(ctx, query, city, category, lat, lon, 1)
+}
+
+func (r *Resolver) SearchAtPage(
+	ctx context.Context,
+	query, city, category string,
+	lat, lon float64,
+	page int,
+) ([]catalog.Place, error) {
+	if page < 1 {
+		page = 1
+	}
+
+	remoteQuery := strings.TrimSpace(query)
+	providerPage := page
+	if remoteQuery == "" {
+		if category == "" {
+			var discoveryCategory string
+			discoveryCategory, providerPage = mixedDiscoveryPage(page)
+			remoteQuery = categoryDiscoveryQuery(discoveryCategory)
+		} else {
+			remoteQuery, providerPage = categoryDiscoveryPage(category, page)
+		}
+	}
+
 	local := catalog.SearchPlaces(query, city, category)
-	if strings.TrimSpace(query) == "" || r.twoGIS == nil || !r.twoGIS.Enabled() {
+	if remoteQuery == "" || r.twoGIS == nil || !r.twoGIS.Enabled() {
+		if page > 1 {
+			return nil, nil
+		}
 		return local, nil
 	}
 
-	key := searchAtKey(query, city, category, lat, lon)
+	key := searchAtPageKey(remoteQuery, city, category, lat, lon, page)
 	if cached, ok := r.cache.Get(key); ok {
 		return cached, nil
 	}
@@ -83,17 +147,20 @@ func (r *Resolver) SearchAt(
 			return cached, nil
 		}
 
-		remote, remoteErr := r.twoGIS.SearchAt(ctx, query, city, lat, lon)
+		remote, remoteErr := r.twoGIS.SearchAtPage(ctx, remoteQuery, city, lat, lon, providerPage)
 		if remoteErr != nil {
+			if page > 1 {
+				return []catalog.Place{}, nil
+			}
 			return local, nil
 		}
 
 		out := filterSearchPlaces(remote, category)
-		if len(out) == 0 {
+		if len(out) == 0 && page == 1 {
 			out = local
 		}
-		if len(out) > 20 {
-			out = out[:20]
+		if len(out) > 50 {
+			out = out[:50]
 		}
 
 		r.cache.Set(key, out)
@@ -104,6 +171,46 @@ func (r *Resolver) SearchAt(
 	}
 
 	return clonePlaces(value.([]catalog.Place)), nil
+}
+
+func mixedDiscoveryPage(page int) (string, int) {
+	categories := []string{"restaurant", "coffee", "bar", "hotel", "culture", "entertainment", "shop", "park"}
+	if page < 1 {
+		page = 1
+	}
+	index := (page - 1) % len(categories)
+	providerPage := ((page - 1) / len(categories)) + 1
+	return categories[index], providerPage
+}
+
+func categoryDiscoveryPage(category string, page int) (string, int) {
+	queries := map[string][]string{
+		"restaurant":    {"рестораны", "кафе", "пекарни", "столовые", "пиццерии"},
+		"coffee":        {"кофейни"},
+		"bar":           {"бары", "пабы", "винные бары"},
+		"hotel":         {"отели", "гостиницы", "хостелы"},
+		"culture":       {"музеи", "театры", "галереи", "выставочные центры", "библиотеки"},
+		"entertainment": {"развлечения", "кинотеатры", "боулинг", "квесты", "караоке"},
+		"shop":          {"магазины", "торговые центры", "бутики"},
+		"park":          {"парки", "скверы", "сады", "достопримечательности", "смотровые площадки"},
+	}
+
+	variants := queries[category]
+	if len(variants) == 0 {
+		return "", page
+	}
+	if page < 1 {
+		page = 1
+	}
+
+	index := (page - 1) % len(variants)
+	providerPage := ((page - 1) / len(variants)) + 1
+	return variants[index], providerPage
+}
+
+func categoryDiscoveryQuery(category string) string {
+	query, _ := categoryDiscoveryPage(category, 1)
+	return query
 }
 
 func mergeSearchPlaces(local, remote []catalog.Place, category string) []catalog.Place {

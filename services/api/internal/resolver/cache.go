@@ -85,20 +85,32 @@ func (c *searchCache) Set(key string, places []catalog.Place) {
 }
 
 func searchKey(query, city, category string) string {
-	return "city|" +
-		normalizeKeyPart(city) + "|" +
-		normalizeKeyPart(category) + "|" +
-		normalizeKeyPart(query)
+	return searchPageKey(query, city, category, 1)
+}
+
+func searchPageKey(query, city, category string, page int) string {
+	return fmt.Sprintf(
+		"city|%s|%s|%s|p%d",
+		normalizeKeyPart(city),
+		normalizeKeyPart(category),
+		normalizeKeyPart(query),
+		page,
+	)
 }
 
 func searchAtKey(query, city, category string, lat, lon float64) string {
+	return searchAtPageKey(query, city, category, lat, lon, 1)
+}
+
+func searchAtPageKey(query, city, category string, lat, lon float64, page int) string {
 	return fmt.Sprintf(
-		"map|%s|%s|%s|%.3f|%.3f",
+		"map|%s|%s|%s|%.3f|%.3f|p%d",
 		normalizeKeyPart(city),
 		normalizeKeyPart(category),
 		normalizeKeyPart(query),
 		lat,
 		lon,
+		page,
 	)
 }
 

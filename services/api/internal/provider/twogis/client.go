@@ -93,17 +93,30 @@ type response struct {
 }
 
 func (c *Client) Search(ctx context.Context, query, city string) ([]catalog.Place, error) {
+	return c.SearchPage(ctx, query, city, 1)
+}
+
+func (c *Client) SearchPage(ctx context.Context, query, city string, page int) ([]catalog.Place, error) {
 	lon, lat, _, ok := cityCenter(city)
 	if !ok {
 		return nil, fmt.Errorf("unsupported city %q", city)
 	}
-	return c.SearchAt(ctx, query, city, lat, lon)
+	return c.SearchAtPage(ctx, query, city, lat, lon, page)
 }
 
 func (c *Client) SearchAt(
 	ctx context.Context,
 	query, city string,
 	lat, lon float64,
+) ([]catalog.Place, error) {
+	return c.SearchAtPage(ctx, query, city, lat, lon, 1)
+}
+
+func (c *Client) SearchAtPage(
+	ctx context.Context,
+	query, city string,
+	lat, lon float64,
+	page int,
 ) ([]catalog.Place, error) {
 	if !c.Enabled() {
 		return nil, nil
@@ -126,7 +139,12 @@ func (c *Client) SearchAt(
 	params.Set("location", fmt.Sprintf("%.6f,%.6f", lon, lat))
 	params.Set("type", "branch")
 	params.Set("fields", "items.point,items.rubrics,items.reviews,items.schedule,items.description")
-	params.Set("page_size", "20")
+	if page < 1 {
+		page = 1
+	}
+	params.Set("page", fmt.Sprintf("%d", page))
+	params.Set("page_size", "10")
+	params.Set("locale", "ru_RU")
 	params.Set("key", c.apiKey)
 
 	payload, err := c.get(ctx, endpoint, params)
@@ -312,20 +330,56 @@ func categoryFromRubrics(rubrics []rubric) (string, string) {
 	name := strings.ToLower(label)
 
 	switch {
-	case strings.Contains(name, "кофе"):
+	case strings.Contains(name, "кофейн"),
+		strings.Contains(name, "кофе с собой"):
 		return "coffee", label
-	case strings.Contains(name, "ресторан"), strings.Contains(name, "кафе"):
+	case strings.Contains(name, "ресторан"),
+		strings.Contains(name, "кафе"),
+		strings.Contains(name, "столов"),
+		strings.Contains(name, "пицц"),
+		strings.Contains(name, "суши"),
+		strings.Contains(name, "бургер"),
+		strings.Contains(name, "бистро"),
+		strings.Contains(name, "кондитер"),
+		strings.Contains(name, "пекар"):
 		return "restaurant", label
-	case strings.Contains(name, "бар"), strings.Contains(name, "паб"):
+	case strings.Contains(name, "бар"),
+		strings.Contains(name, "паб"),
+		strings.Contains(name, "пивн"),
+		strings.Contains(name, "винн"):
 		return "bar", label
-	case strings.Contains(name, "отел"), strings.Contains(name, "гостиниц"):
+	case strings.Contains(name, "отел"),
+		strings.Contains(name, "гостиниц"),
+		strings.Contains(name, "хостел"),
+		strings.Contains(name, "апарт-отел"):
 		return "hotel", label
-	case strings.Contains(name, "кино"), strings.Contains(name, "развлеч"):
+	case strings.Contains(name, "кинотеатр"),
+		strings.Contains(name, "кинозал"):
 		return "entertainment", label
-	case strings.Contains(name, "музе"), strings.Contains(name, "галере"), strings.Contains(name, "театр"):
+	case strings.Contains(name, "музе"),
+		strings.Contains(name, "галере"),
+		strings.Contains(name, "театр"),
+		strings.Contains(name, "выстав"),
+		strings.Contains(name, "библиот"):
 		return "culture", label
-	case strings.Contains(name, "магазин"), strings.Contains(name, "торгов"):
+	case strings.Contains(name, "развлеч"),
+		strings.Contains(name, "боулинг"),
+		strings.Contains(name, "квест"),
+		strings.Contains(name, "караоке"),
+		strings.Contains(name, "аттракцион"):
+		return "entertainment", label
+	case strings.Contains(name, "магазин"),
+		strings.Contains(name, "торгов"),
+		strings.Contains(name, "бутик"),
+		strings.Contains(name, "маркет"):
 		return "shop", label
+	case strings.Contains(name, "парк"),
+		strings.Contains(name, "сквер"),
+		strings.Contains(name, "сад"),
+		strings.Contains(name, "набережн"),
+		strings.Contains(name, "достопримеч"),
+		strings.Contains(name, "смотров"):
+		return "park", label
 	default:
 		return "other", label
 	}

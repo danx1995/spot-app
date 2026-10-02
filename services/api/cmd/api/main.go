@@ -251,6 +251,15 @@ func main() {
 		category := r.URL.Query().Get("category")
 		rawLat := strings.TrimSpace(r.URL.Query().Get("lat"))
 		rawLng := strings.TrimSpace(r.URL.Query().Get("lng"))
+		page := 1
+		if rawPage := strings.TrimSpace(r.URL.Query().Get("page")); rawPage != "" {
+			parsedPage, pageErr := strconv.Atoi(rawPage)
+			if pageErr != nil || parsedPage < 1 || parsedPage > 50 {
+				writeError(w, http.StatusBadRequest, "invalid page")
+				return
+			}
+			page = parsedPage
+		}
 
 		if city == "" {
 			city = "spb"
@@ -276,9 +285,9 @@ func main() {
 				writeError(w, http.StatusBadRequest, "invalid map coordinates")
 				return
 			}
-			places, err = placesResolver.SearchAt(r.Context(), q, city, category, lat, lng)
+			places, err = placesResolver.SearchAtPage(r.Context(), q, city, category, lat, lng, page)
 		} else {
-			places, err = placesResolver.Search(r.Context(), q, city, category)
+			places, err = placesResolver.SearchPage(r.Context(), q, city, category, page)
 		}
 
 		if err != nil {
