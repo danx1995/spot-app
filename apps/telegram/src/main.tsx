@@ -78,6 +78,52 @@ function haptic(kind: 'selection' | 'success' | 'light' = 'selection') {
   else api.selectionChanged();
 }
 
+function openingState(spot: Spot) {
+  const hours = spot.openingHours;
+  if (!hours) return null;
+  if (hours.is_24x7) return { open: true, label: 'Круглосуточно' };
+
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Moscow',
+    weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23'
+  }).formatToParts(new Date());
+
+  const weekdayRaw = parts.find((part) => part.type === 'weekday')?.value.toLowerCase().slice(0, 3) || '';
+  const hour = Number(parts.find((part) => part.type === 'hour')?.value || 0);
+  const minute = Number(parts.find((part) => part.type === 'minute')?.value || 0);
+  const nowMinutes = hour * 60 + minute;
+  const ranges = hours.days?.[weekdayRaw] || [];
+
+  function toMinutes(value?: string) {
+    if (!value) return null;
+    const match = value.match(/^(\d{1,2}):(\d{2})/);
+    if (!match) return null;
+    return Number(match[1]) * 60 + Number(match[2]);
+  }
+
+  for (const range of ranges) {
+    const from = toMinutes(range.from);
+    const to = toMinutes(range.to);
+    if (from === null || to === null) continue;
+
+    const open = to >= from
+      ? nowMinutes >= from && nowMinutes < to
+      : nowMinutes >= from || nowMinutes < to;
+
+    if (open) {
+      return {
+        open: true,
+        label: range.to ? 'Открыто до ' + range.to : 'Открыто'
+      };
+    }
+  }
+
+  return ranges.length > 0 ? { open: false, label: 'Сейчас закрыто' } : null;
+}
+
 function normalizeCloud(raw: CloudPayload | null): CloudPayload {
   if (!raw) return emptyCloud();
 
@@ -680,14 +726,23 @@ function SpotList({
     <div className="spot-list">
       {spots.map((spot) => {
         const isSaved = savedIDs.has(spot.id);
+        const openState = openingState(spot);
         return (
           <article className="spot-card" key={spot.id} onClick={() => onOpen?.(spot)}>
             <div className="spot-thumb"><SpotIcon name={categoryIconName(spot.category)} size={27} strokeWidth={1.65} /></div>
             <div className="spot-copy">
               <span>{spot.categoryLabel.toUpperCase()} · {spot.city === 'spb' ? 'СПБ' : 'МОСКВА'}</span>
               <h3>{spot.name}</h3>
+              {openState ? (
+                <div className={openState.open ? 'spot-open open' : 'spot-open closed'}>
+                  <i /> {openState.label}
+                </div>
+              ) : null}
               <p>{spot.address}</p>
-              <div className="spot-meta">★ {spot.rating.toFixed(1)}{spot.reviewCount ? ' · ' + spot.reviewCount.toLocaleString('ru-RU') : ''}</div>
+              <div className="spot-meta">
+                <b>★ {spot.rating.toFixed(1)}</b>
+                {spot.reviewCount ? <span>{spot.reviewCount.toLocaleString('ru-RU')} отзывов</span> : null}
+              </div>
             </div>
             {isSaved ? (
               <button
@@ -745,9 +800,16 @@ function SpotDetail({
             <span>{spot.categoryLabel.toUpperCase()} · {spot.city === 'spb' ? 'СПБ' : 'МОСКВА'}</span>
             <h2>{spot.name}</h2>
             <p>{spot.address} · ★ {spot.rating.toFixed(1)}</p>
+            {openingState(spot) ? (
+              <div className={openingState(spot)?.open ? 'detail-open open' : 'detail-open closed'}>
+                <i /> {openingState(spot)?.label}
+              </div>
+            ) : null}
           </div>
           <button onClick={onClose}>×</button>
         </div>
+
+        {spot.description ? <div className="detail-description">{spot.description}</div> : null}
 
         <div className="detail-actions">
           <button className="secondary-action" onClick={openMaps}><SpotIcon name="location" size={15} /> Карты</button>
