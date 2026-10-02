@@ -17,6 +17,8 @@ export type Spot = {
   status: SpotStatus;
   favorite: boolean;
   note?: string;
+  savedAt?: string;
+  visitedAt?: string;
 };
 
 export type CollectionRoutePlan = {
