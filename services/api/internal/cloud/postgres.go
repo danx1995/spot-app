@@ -239,7 +239,7 @@ func (s *PostgresStore) LinkIdentity(ctx context.Context, userID string, identit
 func (s *PostgresStore) FindUserByIdentity(ctx context.Context, provider, subject string) (UserProfile, error) {
 	provider = strings.ToLower(strings.TrimSpace(provider))
 	subject = strings.TrimSpace(subject)
-	if (provider != "google" && provider != "apple") || subject == "" {
+	if (provider != "google" && provider != "apple" && provider != "telegram") || subject == "" {
 		return UserProfile{}, ErrIdentityNotFound
 	}
 
