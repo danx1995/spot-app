@@ -35,3 +35,36 @@ func TestPublicIDStable(t *testing.T) {
 		t.Fatal("public id must not expose provider id")
 	}
 }
+
+
+func TestNormalizeItemUsesGeneralRating(t *testing.T) {
+	place, ok := normalizeItem(item{
+		ID:          "700000010123",
+		Name:        "Demo Cafe",
+		AddressName: "Невский проспект, 1",
+		Point:       &point{Lat: 59.93, Lon: 30.32},
+		Rubrics:     []rubric{{Name: "Кафе", Kind: "primary"}},
+		Reviews:     &reviews{GeneralRating: 4.73},
+	}, "spb", "Санкт-Петербург")
+	if !ok {
+		t.Fatal("expected usable place")
+	}
+	if place.Rating != 4.73 {
+		t.Fatalf("expected 4.73 rating, got %v", place.Rating)
+	}
+}
+
+func TestNormalizeItemRejectsImpossibleRating(t *testing.T) {
+	place, ok := normalizeItem(item{
+		ID:      "700000010124",
+		Name:    "Demo Cafe",
+		Point:   &point{Lat: 59.93, Lon: 30.32},
+		Reviews: &reviews{GeneralRating: 7.5},
+	}, "spb", "Санкт-Петербург")
+	if !ok {
+		t.Fatal("expected usable place")
+	}
+	if place.Rating != 0 {
+		t.Fatalf("impossible rating must be discarded, got %v", place.Rating)
+	}
+}
