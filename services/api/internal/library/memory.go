@@ -2,6 +2,8 @@ package library
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"math"
 	"sort"
@@ -10,16 +12,23 @@ import (
 	"time"
 )
 
+type memoryPlaceShare struct {
+	userID  string
+	placeID string
+}
+
 type MemoryStore struct {
 	mu          sync.RWMutex
 	places      map[string]map[string]SavedPlace
 	collections map[string]map[string]Collection
+	placeShares map[string]memoryPlaceShare
 }
 
 func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{
 		places:      make(map[string]map[string]SavedPlace),
 		collections: make(map[string]map[string]Collection),
+		placeShares: make(map[string]memoryPlaceShare),
 	}
 }
 
@@ -186,6 +195,59 @@ func (s *MemoryStore) DeletePlace(_ context.Context, userID, placeID string) err
 		s.collections[userID][id] = collection
 	}
 	return nil
+}
+
+func (s *MemoryStore) PublishPlace(_ context.Context, userID, placeID string) (SharedPlace, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	saved, ok := s.places[userID][placeID]
+	if !ok {
+		return SharedPlace{}, ErrPlaceNotSaved
+	}
+
+	for shareID, share := range s.placeShares {
+		if share.userID == userID && share.placeID == placeID {
+			return SharedPlace{
+				ShareID: shareID,
+				Place:   saved.Place,
+			}, nil
+		}
+	}
+
+	shareID, err := newShareID()
+	if err != nil {
+		return SharedPlace{}, err
+	}
+	s.placeShares[shareID] = memoryPlaceShare{
+		userID:  userID,
+		placeID: placeID,
+	}
+
+	return SharedPlace{
+		ShareID: shareID,
+		Place:   saved.Place,
+	}, nil
+}
+
+func (s *MemoryStore) GetSharedPlace(_ context.Context, shareID string) (SharedPlace, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	share, ok := s.placeShares[strings.TrimSpace(shareID)]
+	if !ok {
+		return SharedPlace{}, ErrNotFound
+	}
+
+	saved, ok := s.places[share.userID][share.placeID]
+	if !ok {
+		return SharedPlace{}, ErrNotFound
+	}
+
+	return SharedPlace{
+		ShareID: strings.TrimSpace(shareID),
+		Place:   saved.Place,
+	}, nil
 }
 
 func (s *MemoryStore) CreateCollection(_ context.Context, userID string, input CreateCollectionInput) (Collection, error) {
@@ -464,6 +526,14 @@ func removeString(values []string, value string) []string {
 		}
 	}
 	return out
+}
+
+func newShareID() (string, error) {
+	var raw [16]byte
+	if _, err := rand.Read(raw[:]); err != nil {
+		return "", err
+	}
+	return "ps_" + hex.EncodeToString(raw[:]), nil
 }
 
 func newPublicID(prefix string) string {
