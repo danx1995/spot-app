@@ -9,9 +9,14 @@ import (
 	"time"
 
 	"github.com/danx1995/spot-app/services/api/internal/catalog"
+	"github.com/danx1995/spot-app/services/api/internal/provider/twogis"
+	"github.com/danx1995/spot-app/services/api/internal/resolver"
 )
 
 func main() {
+	twoGIS := twogis.New(os.Getenv("TWO_GIS_API_KEY"))
+	placesResolver := resolver.New(twoGIS)
+
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
@@ -19,6 +24,9 @@ func main() {
 			"status": "ok",
 			"service": "spot-api",
 			"time": time.Now().UTC(),
+			"places_provider": map[string]bool{
+				"2gis": twoGIS.Enabled(),
+			},
 		})
 	})
 
@@ -35,7 +43,17 @@ func main() {
 		city := r.URL.Query().Get("city")
 		category := r.URL.Query().Get("category")
 
-		writeJSON(w, http.StatusOK, catalog.SearchPlaces(q, city, category))
+		if city == "" {
+			city = "spb"
+		}
+
+		places, err := placesResolver.Search(r.Context(), q, city, category)
+		if err != nil {
+			writeError(w, http.StatusBadGateway, "places search unavailable")
+			return
+		}
+
+		writeJSON(w, http.StatusOK, places)
 	})
 
 	mux.HandleFunc("GET /api/v1/places/", func(w http.ResponseWriter, r *http.Request) {
