@@ -20,6 +20,15 @@ import {
 } from '../services/accountApi';
 import { useSpotStore, type SyncStatus } from '../state/SpotStore';
 import { colors } from '../theme';
+import type { DiscoveryInterest } from '../types';
+
+const interestOptions: Array<{ id: DiscoveryInterest; label: string; icon: string }> = [
+  { id: 'restaurant', label: 'Еда', icon: '🍽' },
+  { id: 'coffee', label: 'Кофе', icon: '☕' },
+  { id: 'bar', label: 'Бары', icon: '◌' },
+  { id: 'hotel', label: 'Отели', icon: 'H' },
+  { id: 'culture', label: 'Культура', icon: '◇' }
+];
 
 const syncCopy: Record<SyncStatus, string> = {
   idle: 'Готово к синхронизации',
@@ -39,6 +48,7 @@ export function ProfileScreen() {
   const dark = useColorScheme() === 'dark';
   const [historyOpen, setHistoryOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
+  const [interestsOpen, setInterestsOpen] = useState(false);
   const [profile, setProfile] = useState<AccountProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [editorOpen, setEditorOpen] = useState(false);
@@ -50,6 +60,8 @@ export function ProfileScreen() {
     savedSpots,
     collections,
     selectedCity,
+    interests,
+    setInterests,
     syncStatus,
     lastSyncedAt,
     syncNow
@@ -209,6 +221,14 @@ export function ProfileScreen() {
             <Text style={[styles.chevron, { color: muted }]}>›</Text>
           </Pressable>
 
+          <Pressable onPress={() => setInterestsOpen(true)} style={styles.menuRow}>
+            <Text style={[styles.menuText, { color: text }]}>Интересы</Text>
+            <Text style={[styles.menuValue, { color: muted }]}>
+              {interests.length > 0 ? interests.length : 'Не выбраны'}
+            </Text>
+            <Text style={[styles.chevron, { color: muted }]}>›</Text>
+          </Pressable>
+
           {[
             ['Уведомления рядом', 'Скоро'],
             ['Тема приложения', 'Системная'],
@@ -237,6 +257,59 @@ export function ProfileScreen() {
           setProfileError(null);
         }}
       />
+
+      <Modal
+        visible={interestsOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setInterestsOpen(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalCard, { backgroundColor: dark ? '#151B17' : colors.white }]}>
+            <Text style={[styles.modalTitle, { color: text }]}>Твои интересы</Text>
+            <Text style={[styles.modalSubtitle, { color: muted }]}>
+              Любимые категории будут идти первыми на карте. Можно выбрать несколько или оставить всё без приоритета.
+            </Text>
+
+            <View style={styles.interestList}>
+              {interestOptions.map((item) => {
+                const active = interests.includes(item.id);
+                return (
+                  <Pressable
+                    key={item.id}
+                    onPress={() => {
+                      setInterests(
+                        active
+                          ? interests.filter((interest) => interest !== item.id)
+                          : [...interests, item.id]
+                      );
+                    }}
+                    style={[
+                      styles.interestRow,
+                      { backgroundColor: raised },
+                      active && styles.interestRowActive
+                    ]}
+                  >
+                    <View style={[styles.interestIcon, active && styles.interestIconActive]}>
+                      <Text style={[styles.interestIconText, active && styles.interestIconTextActive]}>
+                        {item.icon}
+                      </Text>
+                    </View>
+                    <Text style={[styles.interestLabel, { color: text }]}>{item.label}</Text>
+                    <View style={[styles.interestCheck, active && styles.interestCheckActive]}>
+                      <Text style={styles.interestCheckText}>{active ? '✓' : ''}</Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <Pressable onPress={() => setInterestsOpen(false)} style={styles.interestDone}>
+              <Text style={styles.interestDoneText}>Готово</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         visible={editorOpen}
@@ -509,6 +582,78 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontSize: 12,
     lineHeight: 18
+  },
+  interestList: {
+    marginTop: 18,
+    gap: 8
+  },
+  interestRow: {
+    minHeight: 58,
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'transparent'
+  },
+  interestRowActive: {
+    borderColor: '#19C37D66'
+  },
+  interestIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 14,
+    backgroundColor: '#202923',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  interestIconActive: {
+    backgroundColor: colors.green
+  },
+  interestIconText: {
+    color: '#AFB8B2',
+    fontSize: 15,
+    fontWeight: '900'
+  },
+  interestIconTextActive: {
+    color: colors.black
+  },
+  interestLabel: {
+    flex: 1,
+    marginLeft: 12,
+    fontSize: 14,
+    fontWeight: '900'
+  },
+  interestCheck: {
+    width: 25,
+    height: 25,
+    borderRadius: 13,
+    borderWidth: 1,
+    borderColor: '#5D6962',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  interestCheckActive: {
+    backgroundColor: colors.green,
+    borderColor: colors.green
+  },
+  interestCheckText: {
+    color: colors.black,
+    fontSize: 12,
+    fontWeight: '900'
+  },
+  interestDone: {
+    height: 54,
+    marginTop: 18,
+    borderRadius: 18,
+    backgroundColor: colors.green,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  interestDoneText: {
+    color: colors.black,
+    fontSize: 14,
+    fontWeight: '900'
   },
   nameInput: {
     height: 58,
