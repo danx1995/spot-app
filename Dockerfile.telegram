@@ -1,0 +1,22 @@
+FROM node:22-bookworm-slim AS web
+WORKDIR /app
+COPY . .
+RUN npm install
+RUN npm --workspace apps/telegram run build
+
+FROM golang:1.23-bookworm AS api
+WORKDIR /app/services/api
+COPY services/api/go.mod services/api/go.sum ./
+RUN go mod download
+COPY services/api ./
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/spot-api ./cmd/api
+
+FROM node:22-bookworm-slim
+WORKDIR /app
+ENV NODE_ENV=production
+ENV API_PORT=8080
+COPY --from=web /app/apps/telegram/dist ./apps/telegram/dist
+COPY apps/telegram/server.js ./apps/telegram/server.js
+COPY --from=api /out/spot-api ./spot-api
+EXPOSE 3000
+CMD ["sh", "-c", "./spot-api & exec node apps/telegram/server.js"]
