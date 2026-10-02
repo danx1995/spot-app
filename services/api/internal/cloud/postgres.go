@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -159,5 +158,3 @@ func NewStore(ctx context.Context, databaseURL string) Store {
 
 var _ Store = (*PostgresStore)(nil)
 var _ Store = (*MemoryStore)(nil)
-
-var _ = time.Second
