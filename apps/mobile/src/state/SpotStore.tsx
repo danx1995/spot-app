@@ -16,7 +16,6 @@ import {
   putCloudState,
   type CloudStatePayload
 } from '../services/cloudSync';
-import { collections as demoCollections, spots as demoSpots } from '../data/mock';
 import type { CitySlug, Collection, Spot, SpotStatus } from '../types';
 
 const SAVED_SPOTS_KEY = '@spot/saved-places/v1';
@@ -113,24 +112,24 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
         if (!active) return;
 
         if (!rawSpots) {
-          setSavedSpots(demoSpots);
+          setSavedSpots([]);
         } else {
           try {
             const parsed = JSON.parse(rawSpots) as Spot[];
-            setSavedSpots(Array.isArray(parsed) ? parsed : demoSpots);
+            setSavedSpots(Array.isArray(parsed) ? parsed : []);
           } catch {
-            setSavedSpots(demoSpots);
+            setSavedSpots([]);
           }
         }
 
         if (!rawCollections) {
-          setCollections(demoCollections);
+          setCollections([]);
         } else {
           try {
             const parsed = JSON.parse(rawCollections) as Collection[];
-            setCollections(Array.isArray(parsed) ? parsed : demoCollections);
+            setCollections(Array.isArray(parsed) ? parsed : []);
           } catch {
-            setCollections(demoCollections);
+            setCollections([]);
           }
         }
 
