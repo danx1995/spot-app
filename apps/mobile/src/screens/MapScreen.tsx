@@ -1,5 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useColorScheme,
+  View
+} from 'react-native';
 import * as Location from 'expo-location';
 import MapView, { Marker, type Region } from 'react-native-maps';
 
@@ -9,12 +17,32 @@ import { NearbySheet } from '../components/NearbySheet';
 import { PlaceDetailModal } from '../components/PlaceDetailModal';
 import { SpotCard } from '../components/SpotCard';
 import { categories } from '../data/mock';
+import { searchPlaces } from '../services/api';
 import { useSpotStore } from '../state/SpotStore';
 import { colors } from '../theme';
-import type { CitySlug, Spot } from '../types';
+import type { CitySlug, Spot, SpotCategory } from '../types';
 import { spotWithDistance, type Coordinates } from '../utils/geo';
 
 const NEARBY_RADIUS_METERS = 2000;
+
+type MapCategory = (typeof categories)[number]['id'];
+type DiscoverCategory = Exclude<MapCategory, 'all'>;
+
+const DISCOVERY_QUERIES: Record<DiscoverCategory, string> = {
+  restaurant: 'ресторан',
+  coffee: 'кофейня',
+  bar: 'бар',
+  hotel: 'отель',
+  culture: 'музей'
+};
+
+const DISCOVERY_LABELS: Record<DiscoverCategory, string> = {
+  restaurant: 'Еда',
+  coffee: 'Кофе',
+  bar: 'Бары',
+  hotel: 'Отели',
+  culture: 'Культура'
+};
 
 const CITY_REGIONS: Record<CitySlug, Region> = {
   spb: {
@@ -52,13 +80,17 @@ export function MapScreen() {
   const dark = useColorScheme() === 'dark';
   const mapRef = useRef<MapView | null>(null);
   const { savedSpots, selectedCity, setSelectedCity } = useSpotStore();
-  const [category, setCategory] = useState<(typeof categories)[number]['id']>('all');
+  const [category, setCategory] = useState<MapCategory>('all');
   const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [nearbyOpen, setNearbyOpen] = useState(false);
   const [locationBusy, setLocationBusy] = useState(false);
   const [locationDenied, setLocationDenied] = useState(false);
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
+  const [mapRegion, setMapRegion] = useState<Region>(CITY_REGIONS.spb);
+  const [discoveredSpots, setDiscoveredSpots] = useState<Spot[]>([]);
+  const [discovering, setDiscovering] = useState(false);
+  const [discoverError, setDiscoverError] = useState<string | null>(null);
 
   const citySpots = useMemo(
     () => savedSpots
@@ -85,19 +117,42 @@ export function MapScreen() {
     [selectedSpot, userLocation]
   );
 
-  const markerSpots = useMemo(() => {
-    if (!selectedSpotWithDistance || savedSpots.some((spot) => spot.id === selectedSpotWithDistance.id)) {
-      return filtered;
-    }
-    return [selectedSpotWithDistance, ...filtered];
-  }, [filtered, savedSpots, selectedSpotWithDistance]);
+  const visibleDiscovered = useMemo(
+    () => discoveredSpots
+      .filter((spot) => spot.city === selectedCity)
+      .filter((spot) => category === 'all' || spot.category === category)
+      .map((spot) => userLocation ? spotWithDistance(spot, userLocation) : spot),
+    [category, discoveredSpots, selectedCity, userLocation]
+  );
 
-  const nearby = selectedSpotWithDistance ?? filtered[0];
+  const markerSpots = useMemo(() => {
+    const byID = new Map<string, Spot>();
+
+    for (const spot of visibleDiscovered) {
+      byID.set(spot.id, spot);
+    }
+    for (const spot of filtered) {
+      byID.set(spot.id, spot);
+    }
+
+    if (selectedSpotWithDistance) {
+      const saved = filtered.find((spot) => spot.id === selectedSpotWithDistance.id);
+      byID.set(selectedSpotWithDistance.id, saved ?? selectedSpotWithDistance);
+    }
+
+    return Array.from(byID.values());
+  }, [filtered, selectedSpotWithDistance, visibleDiscovered]);
+
+  const nearby = selectedSpotWithDistance ?? filtered[0] ?? visibleDiscovered[0];
 
   useEffect(() => {
+    const region = CITY_REGIONS[selectedCity];
     setSelectedSpot(null);
     setNearbyOpen(false);
-    mapRef.current?.animateToRegion(CITY_REGIONS[selectedCity], 450);
+    setDiscoveredSpots([]);
+    setDiscoverError(null);
+    setMapRegion(region);
+    mapRef.current?.animateToRegion(region, 450);
   }, [selectedCity]);
 
   async function moveToUser() {
@@ -119,17 +174,52 @@ export function MapScreen() {
         latitude: current.coords.latitude,
         longitude: current.coords.longitude
       };
-
-      setUserLocation(coordinate);
-      mapRef.current?.animateToRegion({
+      const region = {
         ...coordinate,
         latitudeDelta: 0.025,
         longitudeDelta: 0.025
-      }, 450);
+      };
+
+      setUserLocation(coordinate);
+      setMapRegion(region);
+      mapRef.current?.animateToRegion(region, 450);
     } catch {
       setLocationDenied(true);
     } finally {
       setLocationBusy(false);
+    }
+  }
+
+  async function discoverHere() {
+    if (category === 'all' || discovering) return;
+
+    setDiscovering(true);
+    setDiscoverError(null);
+
+    try {
+      const places = await searchPlaces(
+        DISCOVERY_QUERIES[category],
+        selectedCity,
+        {
+          latitude: mapRegion.latitude,
+          longitude: mapRegion.longitude,
+          category: category as SpotCategory
+        }
+      );
+
+      setDiscoveredSpots(places);
+
+      if (places.length > 0) {
+        const first = places[0];
+        if (first) setSelectedSpot(first);
+      } else {
+        setSelectedSpot(null);
+        setDiscoverError('В этой части карты ничего не нашли');
+      }
+    } catch {
+      setDiscoverError('Не удалось загрузить места');
+    } finally {
+      setDiscovering(false);
     }
   }
 
@@ -139,12 +229,14 @@ export function MapScreen() {
 
   function focusSpot(spot: Spot) {
     setSelectedSpot(spot);
-    mapRef.current?.animateToRegion({
+    const region = {
       latitude: spot.latitude,
       longitude: spot.longitude,
       latitudeDelta: 0.02,
       longitudeDelta: 0.02
-    }, 450);
+    };
+    setMapRegion(region);
+    mapRef.current?.animateToRegion(region, 450);
   }
 
   function openNearby() {
@@ -154,6 +246,14 @@ export function MapScreen() {
     }
     setNearbyOpen(true);
   }
+
+  const discoveryText = category === 'all'
+    ? ''
+    : discoverError
+      ? 'Повторить поиск здесь'
+      : discoveredSpots.length > 0
+        ? `Найдено ${discoveredSpots.length} · обновить здесь`
+        : `Найти рядом: ${DISCOVERY_LABELS[category]}`;
 
   return (
     <View style={[styles.root, { backgroundColor: dark ? colors.black : colors.lightBackground }]}>
@@ -167,6 +267,7 @@ export function MapScreen() {
         showsCompass={false}
         showsPointsOfInterest={false}
         toolbarEnabled={false}
+        onRegionChangeComplete={setMapRegion}
         onPress={() => setSelectedSpot(null)}
       >
         {markerSpots.map((spot) => {
@@ -220,10 +321,29 @@ export function MapScreen() {
             onPress={() => {
               setCategory(item.id);
               setSelectedSpot(null);
+              setDiscoveredSpots([]);
+              setDiscoverError(null);
             }}
           />
         ))}
       </ScrollView>
+
+      {category !== 'all' ? (
+        <Pressable
+          onPress={() => void discoverHere()}
+          disabled={discovering}
+          style={[styles.discoverButton, discovering && styles.discoverButtonBusy]}
+        >
+          {discovering ? (
+            <ActivityIndicator color={colors.black} size="small" />
+          ) : (
+            <Text style={styles.discoverIcon}>⌖</Text>
+          )}
+          <Text style={styles.discoverText}>
+            {discovering ? 'Ищем места…' : discoveryText}
+          </Text>
+        </Pressable>
+      ) : null}
 
       <Pressable onPress={() => void moveToUser()} style={styles.locationButton}>
         <Text style={styles.locationIcon}>{locationBusy ? '…' : '⌖'}</Text>
@@ -253,7 +373,9 @@ export function MapScreen() {
       ) : (
         <View style={styles.emptyCard}>
           <Text style={styles.emptyTitle}>Здесь пока нет спотов</Text>
-          <Text style={styles.emptyText}>Найди место через поиск или добавь его через зелёную кнопку «+».</Text>
+          <Text style={styles.emptyText}>
+            Выбери категорию и нажми «Найти рядом» или добавь место через зелёную кнопку «+».
+          </Text>
         </View>
       )}
 
@@ -332,6 +454,39 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     gap: 8
   },
+  discoverButton: {
+    position: 'absolute',
+    zIndex: 5,
+    top: 174,
+    alignSelf: 'center',
+    minHeight: 44,
+    maxWidth: '86%',
+    paddingHorizontal: 15,
+    borderRadius: 18,
+    backgroundColor: colors.green,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    shadowColor: colors.black,
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 6
+  },
+  discoverButtonBusy: {
+    opacity: 0.82
+  },
+  discoverIcon: {
+    color: colors.black,
+    fontSize: 16,
+    fontWeight: '900'
+  },
+  discoverText: {
+    color: colors.black,
+    fontSize: 12,
+    fontWeight: '900'
+  },
   pin: {
     width: 42,
     height: 42,
@@ -381,6 +536,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 18,
     bottom: 188,
+    maxWidth: '72%',
     paddingHorizontal: 15,
     paddingVertical: 10,
     borderRadius: 18,
@@ -419,6 +575,7 @@ const styles = StyleSheet.create({
   emptyText: {
     marginTop: 4,
     color: '#98A39D',
-    fontSize: 13
+    fontSize: 13,
+    lineHeight: 18
   }
 });
