@@ -18,11 +18,26 @@ import {
   type CloudStatePayload,
   type GuestSession
 } from '../services/cloudSync';
-import type { CitySlug, Collection, Spot, SpotStatus } from '../types';
+import type {
+  CitySlug,
+  Collection,
+  DiscoveryInterest,
+  Spot,
+  SpotStatus
+} from '../types';
 
 const SAVED_SPOTS_KEY = '@spot/saved-places/v1';
 const COLLECTIONS_KEY = '@spot/collections/v1';
 const SELECTED_CITY_KEY = '@spot/selected-city/v1';
+const INTERESTS_KEY = '@spot/discovery-interests/v1';
+
+const VALID_INTERESTS = new Set<DiscoveryInterest>([
+  'restaurant',
+  'coffee',
+  'bar',
+  'hotel',
+  'culture'
+]);
 
 const LEGACY_DEMO_SPOT_IDS = new Set([
   'birch-spb',
@@ -80,9 +95,11 @@ type SpotStoreValue = {
   collections: Collection[];
   hydrated: boolean;
   selectedCity: CitySlug;
+  interests: DiscoveryInterest[];
   syncStatus: SyncStatus;
   lastSyncedAt: string | null;
   setSelectedCity: (city: CitySlug) => void;
+  setInterests: (interests: DiscoveryInterest[]) => void;
   syncNow: () => Promise<void>;
   adoptSession: (session: GuestSession) => Promise<void>;
   isSaved: (id: string) => boolean;
@@ -119,6 +136,23 @@ function mergeByID<T extends { id: string }>(remote: T[], local: T[]) {
   return Array.from(merged.values());
 }
 
+function normalizeInterests(value: unknown): DiscoveryInterest[] {
+  if (!Array.isArray(value)) return [];
+
+  const seen = new Set<DiscoveryInterest>();
+  const result: DiscoveryInterest[] = [];
+  for (const item of value) {
+    if (typeof item !== 'string') continue;
+    if (!VALID_INTERESTS.has(item as DiscoveryInterest)) continue;
+
+    const interest = item as DiscoveryInterest;
+    if (seen.has(interest)) continue;
+    seen.add(interest);
+    result.push(interest);
+  }
+  return result;
+}
+
 function isCloudPayload(value: CloudStatePayload | null): value is CloudStatePayload {
   return Boolean(
     value &&
@@ -132,6 +166,7 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
   const [savedSpots, setSavedSpots] = useState<Spot[]>([]);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [selectedCity, setSelectedCity] = useState<CitySlug>('spb');
+  const [interests, setInterestsState] = useState<DiscoveryInterest[]>([]);
   const [hydrated, setHydrated] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
@@ -144,10 +179,11 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
   const snapshotRef = useRef({
     savedSpots,
     collections,
-    selectedCity
+    selectedCity,
+    interests
   });
 
-  snapshotRef.current = { savedSpots, collections, selectedCity };
+  snapshotRef.current = { savedSpots, collections, selectedCity, interests };
 
   useEffect(() => {
     let active = true;
@@ -155,9 +191,10 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
     void Promise.all([
       AsyncStorage.getItem(SAVED_SPOTS_KEY),
       AsyncStorage.getItem(COLLECTIONS_KEY),
-      AsyncStorage.getItem(SELECTED_CITY_KEY)
+      AsyncStorage.getItem(SELECTED_CITY_KEY),
+      AsyncStorage.getItem(INTERESTS_KEY)
     ])
-      .then(([rawSpots, rawCollections, rawCity]) => {
+      .then(([rawSpots, rawCollections, rawCity, rawInterests]) => {
         if (!active) return;
 
         if (!rawSpots) {
@@ -185,6 +222,14 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
         if (rawCity === 'spb' || rawCity === 'moscow') {
           setSelectedCity(rawCity);
         }
+
+        if (rawInterests) {
+          try {
+            setInterestsState(normalizeInterests(JSON.parse(rawInterests) as unknown));
+          } catch {
+            setInterestsState([]);
+          }
+        }
       })
       .finally(() => {
         if (active) setHydrated(true);
@@ -210,11 +255,21 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
     void AsyncStorage.setItem(SELECTED_CITY_KEY, selectedCity);
   }, [hydrated, selectedCity]);
 
+  useEffect(() => {
+    if (!hydrated) return;
+    void AsyncStorage.setItem(INTERESTS_KEY, JSON.stringify(interests));
+  }, [hydrated, interests]);
+
+  const setInterests = useCallback((next: DiscoveryInterest[]) => {
+    setInterestsState(normalizeInterests(next));
+  }, []);
+
   const applyCloudPayload = useCallback((payload: CloudStatePayload) => {
     skipNextAutoRef.current = true;
     setSavedSpots(payload.saved_spots);
     setCollections(payload.collections);
     setSelectedCity(payload.selected_city);
+    setInterestsState(normalizeInterests(payload.interests));
   }, []);
 
   const syncNow = useCallback(async () => {
@@ -239,7 +294,10 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
           const merged: CloudStatePayload = {
             selected_city: local.selectedCity,
             saved_spots: mergeByID(remote.state.saved_spots, local.savedSpots),
-            collections: mergeByID(remote.state.collections, local.collections)
+            collections: mergeByID(remote.state.collections, local.collections),
+            interests: local.interests.length > 0
+              ? local.interests
+              : normalizeInterests(remote.state.interests)
           };
 
           const saved = await putCloudState(session.token, remote.revision, merged);
@@ -249,7 +307,8 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
           const initial: CloudStatePayload = {
             selected_city: local.selectedCity,
             saved_spots: local.savedSpots,
-            collections: local.collections
+            collections: local.collections,
+            interests: local.interests
           };
           const saved = await putCloudState(session.token, 0, initial);
           cloudRevisionRef.current = saved.revision;
@@ -260,7 +319,8 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
         const payload: CloudStatePayload = {
           selected_city: local.selectedCity,
           saved_spots: local.savedSpots,
-          collections: local.collections
+          collections: local.collections,
+          interests: local.interests
         };
 
         try {
@@ -276,7 +336,10 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
           const merged: CloudStatePayload = {
             selected_city: payload.selected_city,
             saved_spots: mergeByID(error.envelope.state.saved_spots, payload.saved_spots),
-            collections: mergeByID(error.envelope.state.collections, payload.collections)
+            collections: mergeByID(error.envelope.state.collections, payload.collections),
+            interests: payload.interests?.length
+              ? payload.interests
+              : normalizeInterests(error.envelope.state.interests)
           };
 
           const retried = await putCloudState(session.token, error.envelope.revision, merged);
@@ -326,7 +389,8 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
         applyCloudPayload({
           selected_city: snapshotRef.current.selectedCity,
           saved_spots: [],
-          collections: []
+          collections: [],
+          interests: snapshotRef.current.interests
         });
       }
 
@@ -358,7 +422,7 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
     }, 1200);
 
     return () => clearTimeout(timer);
-  }, [collections, hydrated, savedSpots, selectedCity, syncNow]);
+  }, [collections, hydrated, interests, savedSpots, selectedCity, syncNow]);
 
   const getSavedSpot = useCallback(
     (id: string) => savedSpots.find((spot) => spot.id === id),
@@ -574,9 +638,11 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
     collections,
     hydrated,
     selectedCity,
+    interests,
     syncStatus,
     lastSyncedAt,
     setSelectedCity,
+    setInterests,
     syncNow,
     adoptSession,
     isSaved,
@@ -597,8 +663,10 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
     collections,
     hydrated,
     selectedCity,
+    interests,
     syncStatus,
     lastSyncedAt,
+    setInterests,
     syncNow,
     adoptSession,
     isSaved,
