@@ -116,3 +116,25 @@ func TestNormalizeScheduleDropsEmptySchedule(t *testing.T) {
 		t.Fatalf("expected nil empty schedule, got %#v", hours)
 	}
 }
+
+
+func TestValidCoordinateForMapDiscovery(t *testing.T) {
+	tests := []struct {
+		lat  float64
+		lon  float64
+		want bool
+	}{
+		{lat: 59.9386, lon: 30.3141, want: true},
+		{lat: 55.7558, lon: 37.6173, want: true},
+		{lat: -90, lon: -180, want: true},
+		{lat: 90, lon: 180, want: true},
+		{lat: 90.1, lon: 30, want: false},
+		{lat: 55, lon: 180.1, want: false},
+	}
+
+	for _, tc := range tests {
+		if got := validCoordinate(tc.lat, tc.lon); got != tc.want {
+			t.Fatalf("validCoordinate(%v, %v) = %v, want %v", tc.lat, tc.lon, got, tc.want)
+		}
+	}
+}
