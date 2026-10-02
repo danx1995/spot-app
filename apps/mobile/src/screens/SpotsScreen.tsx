@@ -1,23 +1,31 @@
 import React, { useMemo, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, useColorScheme, View } from 'react-native';
+
+import { PlaceDetailModal } from '../components/PlaceDetailModal';
 import { SpotCard } from '../components/SpotCard';
-import { spots } from '../data/mock';
+import { useSpotStore } from '../state/SpotStore';
 import { colors } from '../theme';
-import type { SpotStatus } from '../types';
+import type { Spot, SpotStatus } from '../types';
 
 type Filter = 'all' | SpotStatus;
 
 export function SpotsScreen() {
   const dark = useColorScheme() === 'dark';
+  const { savedSpots } = useSpotStore();
   const [filter, setFilter] = useState<Filter>('all');
+  const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
   const text = dark ? colors.white : colors.black;
   const muted = dark ? colors.textSecondaryDark : colors.textSecondaryLight;
-  const filtered = useMemo(() => filter === 'all' ? spots : spots.filter((s) => s.status === filter), [filter]);
+
+  const filtered = useMemo(
+    () => filter === 'all' ? savedSpots : savedSpots.filter((spot) => spot.status === filter),
+    [filter, savedSpots]
+  );
 
   return (
     <View style={[styles.root, { backgroundColor: dark ? colors.black : colors.lightBackground }]}>
       <Text style={[styles.title, { color: text }]}>Мои споты</Text>
-      <Text style={[styles.count, { color: muted }]}>{spots.length} места · Санкт-Петербург</Text>
+      <Text style={[styles.count, { color: muted }]}>{savedSpots.length} сохранено · Москва и Петербург</Text>
 
       <View style={styles.tabs}>
         {[
@@ -44,8 +52,21 @@ export function SpotsScreen() {
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
         ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
-        renderItem={({ item }) => <SpotCard spot={item} compact />}
-        ListEmptyComponent={<Text style={[styles.empty, { color: muted }]}>Здесь пока нет спотов.</Text>}
+        renderItem={({ item }) => (
+          <SpotCard spot={item} compact onPress={() => setSelectedSpot(item)} />
+        )}
+        ListEmptyComponent={
+          <View style={styles.emptyBlock}>
+            <Text style={[styles.emptyTitle, { color: text }]}>Здесь пока пусто</Text>
+            <Text style={[styles.empty, { color: muted }]}>Найди новое место через «+» и сохрани его в СПОТ.</Text>
+          </View>
+        }
+      />
+
+      <PlaceDetailModal
+        spot={selectedSpot}
+        visible={Boolean(selectedSpot)}
+        onClose={() => setSelectedSpot(null)}
       />
     </View>
   );
@@ -84,8 +105,18 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 130
   },
+  emptyBlock: {
+    paddingTop: 54,
+    alignItems: 'center'
+  },
+  emptyTitle: {
+    fontSize: 19,
+    fontWeight: '900'
+  },
   empty: {
-    marginTop: 36,
-    textAlign: 'center'
+    marginTop: 7,
+    maxWidth: 260,
+    textAlign: 'center',
+    lineHeight: 19
   }
 });
