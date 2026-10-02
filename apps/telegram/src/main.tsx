@@ -10,10 +10,13 @@ import {
   telegramLogin,
   type CitySlug,
   type CloudPayload,
+  type Collection,
   type Session,
   type Spot,
   type SpotStatus
 } from './api';
+import { RoutePlanner } from './RoutePlanner';
+import { SpotMap } from './SpotMap';
 import './styles.css';
 
 type Tab = 'map' | 'spots' | 'add' | 'collections' | 'profile';
@@ -99,6 +102,9 @@ function App() {
   const [importURL, setImportURL] = useState('');
   const [importing, setImporting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [routePlannerOpen, setRoutePlannerOpen] = useState(false);
+  const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
+  const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
   const hydrated = useRef(false);
   const saving = useRef(false);
   const queued = useRef(false);
@@ -205,6 +211,43 @@ function App() {
         spot.id === id ? { ...spot, ...patch } : spot
       ))
     }));
+  }
+
+  function saveRouteCollection(collection: Collection) {
+    updateCloud((current) => ({
+      ...current,
+      collections: [
+        collection,
+        ...current.collections.filter((item) => item.id !== collection.id)
+      ]
+    }));
+    setRoutePlannerOpen(false);
+    setTab('collections');
+    haptic('success');
+    setToast('Маршрут сохранён в подборки');
+  }
+
+  function createCollection(title: string, placeIds: string[]) {
+    const cleanTitle = title.trim();
+    if (!cleanTitle || placeIds.length === 0) return;
+
+    const collection: Collection = {
+      id: 'collection_' + Date.now(),
+      title: cleanTitle,
+      subtitle: cityName,
+      city,
+      cityLabel: cityName,
+      placeIds,
+      createdAt: new Date().toISOString()
+    };
+
+    updateCloud((current) => ({
+      ...current,
+      collections: [collection, ...current.collections]
+    }));
+    setSelectedCollection(collection);
+    haptic('success');
+    setToast('Подборка создана');
   }
 
   async function runSearch(query = search, category = activeCategory) {
@@ -344,18 +387,25 @@ function App() {
               ))}
             </div>
 
-            <div className="map-panel">
-              <div className="map-copy">
+            <div className="map-panel real-map">
+              <SpotMap
+                city={city}
+                spots={searchResults.length ? searchResults : cloud.saved_spots.filter((spot) => spot.city === city)}
+                onSelect={setSelectedSpot}
+              />
+              <div className="map-status">
                 <span>{cityName.toUpperCase()}</span>
-                <b>Ищи новые места вокруг себя</b>
-                <p>В Telegram Mini App карта станет полноэкранной, а карточки останутся поверх неё.</p>
+                <b>{searchResults.length ? searchResults.length + ' найдено' : cloud.saved_spots.filter((spot) => spot.city === city).length + ' сохранено'}</b>
               </div>
-              {searchResults.slice(0, 4).map((spot, index) => (
-                <div className="map-pin" key={spot.id} style={{ left: 16 + (index * 21) + '%', top: 35 + ((index % 2) * 24) + '%' }}>♥</div>
-              ))}
             </div>
 
-            <SpotList spots={searchResults} saved={cloud.saved_spots} onSave={saveSpot} onUpdate={updateSpot} />
+            <SpotList
+              spots={searchResults.length ? searchResults : cloud.saved_spots.filter((spot) => spot.city === city).slice(0, 6)}
+              saved={cloud.saved_spots}
+              onSave={saveSpot}
+              onUpdate={updateSpot}
+              onOpen={setSelectedSpot}
+            />
           </section>
         ) : null}
 
@@ -375,13 +425,13 @@ function App() {
               ))}
             </div>
 
-            <button className="route-card" onClick={() => setToast('Маршруты перенесём следующим блоком')}>
+            <button className="route-card" onClick={() => setRoutePlannerOpen(true)}>
               <span className="route-icon">⌁</span>
               <span><b>Собрать маршрут</b><small>Соединить сохранённые места в готовый план</small></span>
               <strong>›</strong>
             </button>
 
-            <SpotList spots={visibleSpots} saved={cloud.saved_spots} onSave={saveSpot} onUpdate={updateSpot} />
+            <SpotList spots={visibleSpots} saved={cloud.saved_spots} onSave={saveSpot} onUpdate={updateSpot} onOpen={setSelectedSpot} />
             {visibleSpots.length === 0 ? <Empty text="Здесь пока нет спотов" /> : null}
           </section>
         ) : null}
@@ -417,16 +467,26 @@ function App() {
           <section>
             <div className="section-heading">
               <div><span>МОИ ПОДБОРКИ</span><h2>Собери места по смыслу</h2></div>
-              <button onClick={() => setToast('Редактор подборок перенесём следующим блоком')}>＋</button>
+              <button onClick={() => setSelectedCollection({
+                id: '',
+                title: '',
+                subtitle: cityName,
+                city,
+                cityLabel: cityName,
+                placeIds: []
+              })}>＋</button>
             </div>
             {cloud.collections.length === 0 ? (
               <Empty text="Пока нет подборок. Маршрут или ручная подборка появятся здесь." />
             ) : cloud.collections.map((collection) => (
-              <div className="collection-card" key={collection.id}>
-                <span>♥</span>
-                <div><b>{collection.title}</b><small>{collection.placeIds.length} мест · {collection.city === 'spb' ? 'СПБ' : 'МСК'}</small></div>
+              <button className="collection-card" key={collection.id} onClick={() => setSelectedCollection(collection)}>
+                <span>{collection.routePlan ? '⌁' : '♥'}</span>
+                <div>
+                  <b>{collection.title}</b>
+                  <small>{collection.routePlan ? 'МАРШРУТ · ' : ''}{collection.placeIds.length} мест · {collection.city === 'spb' ? 'СПБ' : collection.city === 'moscow' ? 'МСК' : '2 города'}</small>
+                </div>
                 <strong>›</strong>
-              </div>
+              </button>
             ))}
           </section>
         ) : null}
@@ -469,6 +529,53 @@ function App() {
         ) : null}
       </main>
 
+      {routePlannerOpen ? (
+        <RoutePlanner
+          city={city}
+          spots={cloud.saved_spots}
+          interests={cloud.interests}
+          sessionToken={session?.token}
+          onClose={() => setRoutePlannerOpen(false)}
+          onSave={saveRouteCollection}
+        />
+      ) : null}
+
+      {selectedSpot ? (
+        <SpotDetail
+          spot={selectedSpot}
+          saved={cloud.saved_spots.some((item) => item.id === selectedSpot.id)}
+          onClose={() => setSelectedSpot(null)}
+          onSave={() => {
+            saveSpot(selectedSpot);
+            setSelectedSpot(null);
+          }}
+          onStatus={(status) => {
+            updateSpot(selectedSpot.id, {
+              status,
+              visitedAt: status === 'visited' ? new Date().toISOString() : selectedSpot.visitedAt
+            });
+            setSelectedSpot((current) => current ? { ...current, status } : null);
+          }}
+        />
+      ) : null}
+
+      {selectedCollection ? (
+        <CollectionEditor
+          collection={selectedCollection}
+          spots={cloud.saved_spots}
+          onClose={() => setSelectedCollection(null)}
+          onCreate={createCollection}
+          onOpenSpot={(spot) => {
+            setSelectedCollection(null);
+            setSelectedSpot(spot);
+          }}
+          onOpenRoute={() => {
+            setSelectedCollection(null);
+            setRoutePlannerOpen(true);
+          }}
+        />
+      ) : null}
+
       <nav className="bottom-nav">
         <NavButton active={tab === 'map'} icon="⌖" label="Карта" onClick={() => switchTab('map')} />
         <NavButton active={tab === 'spots'} icon="♥" label="Споты" onClick={() => switchTab('spots')} />
@@ -494,12 +601,14 @@ function SpotList({
   spots,
   saved,
   onSave,
-  onUpdate
+  onUpdate,
+  onOpen
 }: {
   spots: Spot[];
   saved: Spot[];
   onSave: (spot: Spot) => void;
   onUpdate: (id: string, patch: Partial<Spot>) => void;
+  onOpen?: (spot: Spot) => void;
 }) {
   const savedIDs = new Set(saved.map((spot) => spot.id));
 
@@ -508,7 +617,7 @@ function SpotList({
       {spots.map((spot) => {
         const isSaved = savedIDs.has(spot.id);
         return (
-          <article className="spot-card" key={spot.id}>
+          <article className="spot-card" key={spot.id} onClick={() => onOpen?.(spot)}>
             <div className="spot-thumb">{categoryEmoji(spot.category)}</div>
             <div className="spot-copy">
               <span>{spot.categoryLabel.toUpperCase()} · {spot.city === 'spb' ? 'СПБ' : 'МОСКВА'}</span>
@@ -519,10 +628,16 @@ function SpotList({
             {isSaved ? (
               <button
                 className={spot.favorite ? 'heart-button active' : 'heart-button'}
-                onClick={() => onUpdate(spot.id, { favorite: !spot.favorite })}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onUpdate(spot.id, { favorite: !spot.favorite });
+                }}
               >♥</button>
             ) : (
-              <button className="save-mini" onClick={() => onSave(spot)}>＋</button>
+              <button className="save-mini" onClick={(event) => {
+                event.stopPropagation();
+                onSave(spot);
+              }}>＋</button>
             )}
           </article>
         );
@@ -534,6 +649,175 @@ function SpotList({
 function categoryEmoji(category: string) {
   const match = categories.find(([id]) => id === category);
   return match?.[1] || '📍';
+}
+
+function SpotDetail({
+  spot,
+  saved,
+  onClose,
+  onSave,
+  onStatus
+}: {
+  spot: Spot;
+  saved: boolean;
+  onClose: () => void;
+  onSave: () => void;
+  onStatus: (status: SpotStatus) => void;
+}) {
+  function openMaps() {
+    const url = 'https://www.google.com/maps/search/?api=1&query=' +
+      encodeURIComponent(spot.latitude + ',' + spot.longitude);
+    const tg = telegram();
+    if (tg?.openLink) tg.openLink(url);
+    else window.open(url, '_blank', 'noopener,noreferrer');
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="detail-sheet" onClick={(event) => event.stopPropagation()}>
+        <div className="detail-handle" />
+        <div className="detail-head">
+          <div>
+            <span>{spot.categoryLabel.toUpperCase()} · {spot.city === 'spb' ? 'СПБ' : 'МОСКВА'}</span>
+            <h2>{spot.name}</h2>
+            <p>{spot.address} · ★ {spot.rating.toFixed(1)}</p>
+          </div>
+          <button onClick={onClose}>×</button>
+        </div>
+
+        <div className="detail-actions">
+          <button className="secondary-action" onClick={openMaps}>↗ Карты</button>
+          {saved ? (
+            <button className="primary-action">♥ Сохранено</button>
+          ) : (
+            <button className="primary-action" onClick={onSave}>♥ В СПОТ</button>
+          )}
+        </div>
+
+        {saved ? (
+          <div className="status-grid">
+            {([
+              ['want', 'Хочу'],
+              ['booked', 'Бронь'],
+              ['visited', 'Был']
+            ] as Array<[SpotStatus, string]>).map(([status, label]) => (
+              <button
+                key={status}
+                className={spot.status === status ? 'active' : ''}
+                onClick={() => onStatus(status)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function CollectionEditor({
+  collection,
+  spots,
+  onClose,
+  onCreate,
+  onOpenSpot,
+  onOpenRoute
+}: {
+  collection: Collection;
+  spots: Spot[];
+  onClose: () => void;
+  onCreate: (title: string, placeIds: string[]) => void;
+  onOpenSpot: (spot: Spot) => void;
+  onOpenRoute: () => void;
+}) {
+  const isNew = !collection.id;
+  const [title, setTitle] = useState(collection.title);
+  const [placeIds, setPlaceIds] = useState<string[]>(collection.placeIds || []);
+  const places = collection.placeIds.map((id) => spots.find((spot) => spot.id === id)).filter((spot): spot is Spot => Boolean(spot));
+
+  if (!isNew) {
+    return (
+      <div className="modal-backdrop" onClick={onClose}>
+        <div className="detail-sheet collection-detail" onClick={(event) => event.stopPropagation()}>
+          <div className="detail-handle" />
+          <div className="detail-head">
+            <div>
+              <span>{collection.routePlan ? 'СОХРАНЁННЫЙ МАРШРУТ' : 'ПОДБОРКА'}</span>
+              <h2>{collection.title}</h2>
+              <p>{collection.subtitle || ''} · {places.length} мест</p>
+            </div>
+            <button onClick={onClose}>×</button>
+          </div>
+
+          {collection.routePlan ? (
+            <button className="route-card compact" onClick={onOpenRoute}>
+              <span className="route-icon">⌁</span>
+              <span><b>Собрать новый вариант</b><small>{collection.routePlan.transport === 'driving' ? 'На машине' : 'Пешком'} · настройки маршрута сохранены</small></span>
+              <strong>›</strong>
+            </button>
+          ) : null}
+
+          <div className="collection-place-list">
+            {places.map((spot, index) => (
+              <button key={spot.id} onClick={() => onOpenSpot(spot)}>
+                <span>{index + 1}</span>
+                <div><b>{spot.name}</b><small>{spot.address}</small></div>
+                <strong>›</strong>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const candidates = spots.filter((spot) => spot.status !== 'visited');
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="detail-sheet collection-detail" onClick={(event) => event.stopPropagation()}>
+        <div className="detail-handle" />
+        <div className="detail-head">
+          <div><span>НОВАЯ ПОДБОРКА</span><h2>Собрать места</h2></div>
+          <button onClick={onClose}>×</button>
+        </div>
+        <input
+          className="collection-title-input"
+          value={title}
+          onChange={(event) => setTitle(event.target.value)}
+          placeholder="Например: Вечер в Петербурге"
+        />
+        <div className="collection-picker">
+          {candidates.map((spot) => {
+            const active = placeIds.includes(spot.id);
+            return (
+              <button
+                key={spot.id}
+                className={active ? 'active' : ''}
+                onClick={() => setPlaceIds((current) => (
+                  active ? current.filter((id) => id !== spot.id) : [...current, spot.id]
+                ))}
+              >
+                <span>{active ? '✓' : categoryEmoji(spot.category)}</span>
+                <div><b>{spot.name}</b><small>{spot.address}</small></div>
+              </button>
+            );
+          })}
+        </div>
+        <button
+          className="primary-button"
+          disabled={!title.trim() || placeIds.length === 0}
+          onClick={() => {
+            onCreate(title, placeIds);
+            onClose();
+          }}
+        >
+          Создать подборку · {placeIds.length}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function Empty({ text }: { text: string }) {
