@@ -12,8 +12,14 @@ import { Linking } from 'react-native';
 type InboundImportValue = {
   pendingURL: string | null;
   pendingHint: string | null;
+  pendingCollectionID: string | null;
   consumePendingURL: () => void;
+  consumePendingCollection: () => void;
 };
+
+type InboundDeepLink =
+  | { type: 'place'; url: string; hint: string | null }
+  | { type: 'collection'; id: string };
 
 const InboundImportContext = createContext<InboundImportValue | null>(null);
 
@@ -36,28 +42,39 @@ function cleanSharedHint(text: string | null | undefined, targetURL: string) {
   return withoutTarget.slice(0, 180);
 }
 
-function extractInboundDeepLink(appURL: string) {
+function validCollectionID(value: string) {
+  return /^[A-Za-z0-9_.-]{1,128}$/.test(value);
+}
+
+function extractInboundDeepLink(appURL: string): InboundDeepLink | null {
   const normalized = appURL.trim();
-  if (!normalized.startsWith('spot://import') && !normalized.startsWith('spot:///import')) {
+  const queryIndex = normalized.indexOf('?');
+  const path = queryIndex === -1 ? normalized : normalized.slice(0, queryIndex);
+  const params = new URLSearchParams(queryIndex === -1 ? '' : normalized.slice(queryIndex + 1));
+
+  if (path === 'spot://collection' || path === 'spot:///collection') {
+    const id = params.get('id')?.trim();
+    if (!id || !validCollectionID(id)) return null;
+    return { type: 'collection', id };
+  }
+
+  if (path !== 'spot://import' && path !== 'spot:///import') {
     return null;
   }
 
-  const queryIndex = normalized.indexOf('?');
-  if (queryIndex === -1) return null;
-
-  const params = new URLSearchParams(normalized.slice(queryIndex + 1));
   const target = params.get('url')?.trim();
   if (!target || (!target.startsWith('https://') && !target.startsWith('http://'))) {
     return null;
   }
 
   const hint = params.get('hint')?.trim() || null;
-  return { url: target, hint };
+  return { type: 'place', url: target, hint };
 }
 
 export function InboundImportProvider({ children }: { children: React.ReactNode }) {
   const [pendingURL, setPendingURL] = useState<string | null>(null);
   const [pendingHint, setPendingHint] = useState<string | null>(null);
+  const [pendingCollectionID, setPendingCollectionID] = useState<string | null>(null);
   const {
     hasShareIntent,
     shareIntent,
@@ -67,10 +84,18 @@ export function InboundImportProvider({ children }: { children: React.ReactNode 
   const receive = useCallback((appURL: string | null) => {
     if (!appURL) return;
     const incoming = extractInboundDeepLink(appURL);
-    if (incoming) {
-      setPendingURL(incoming.url);
-      setPendingHint(incoming.hint);
+    if (!incoming) return;
+
+    if (incoming.type === 'collection') {
+      setPendingCollectionID(incoming.id);
+      setPendingURL(null);
+      setPendingHint(null);
+      return;
     }
+
+    setPendingURL(incoming.url);
+    setPendingHint(incoming.hint);
+    setPendingCollectionID(null);
   }, []);
 
   useEffect(() => {
@@ -102,6 +127,7 @@ export function InboundImportProvider({ children }: { children: React.ReactNode 
 
       setPendingURL(target);
       setPendingHint(hint);
+      setPendingCollectionID(null);
     }
 
     resetShareIntent();
@@ -112,9 +138,25 @@ export function InboundImportProvider({ children }: { children: React.ReactNode 
     setPendingHint(null);
   }, []);
 
+  const consumePendingCollection = useCallback(() => {
+    setPendingCollectionID(null);
+  }, []);
+
   const value = useMemo(
-    () => ({ pendingURL, pendingHint, consumePendingURL }),
-    [consumePendingURL, pendingHint, pendingURL]
+    () => ({
+      pendingURL,
+      pendingHint,
+      pendingCollectionID,
+      consumePendingURL,
+      consumePendingCollection
+    }),
+    [
+      consumePendingCollection,
+      consumePendingURL,
+      pendingCollectionID,
+      pendingHint,
+      pendingURL
+    ]
   );
 
   return (
