@@ -535,7 +535,7 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
             <Text style={[styles.eyebrow, { color: colors.green }]}>ИЗ МОИХ СПОТОВ</Text>
             <Text style={[styles.title, { color: text }]}>Собрать маршрут</Text>
             <Text style={[styles.subtitle, { color: muted }]}>
-              СПОТ подберёт компактный план по сохранённым местам, любимым категориям и рейтингу.
+              Учитываем интересы, расстояние и часы работы мест к моменту прибытия.
             </Text>
           </View>
           <Pressable onPress={onClose} style={[styles.close, { backgroundColor: surface }]}>
@@ -570,6 +570,60 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
           })}
         </View>
 
+        <View style={styles.transportRow}>
+          {([
+            ['walking', 'Пешком', '⌁'],
+            ['driving', 'На машине', '→']
+          ] as Array<[RouteTransport, string, string]>).map(([value, label, icon]) => {
+            const active = transport === value;
+            return (
+              <Pressable
+                key={value}
+                onPress={() => {
+                  setTransport(value);
+                  setVariation(0);
+                  setSaved(false);
+                }}
+                style={[
+                  styles.transportChip,
+                  { backgroundColor: active ? colors.green : raised }
+                ]}
+              >
+                <Text style={[styles.transportIcon, { color: active ? colors.black : colors.green }]}>
+                  {icon}
+                </Text>
+                <Text style={[styles.transportText, { color: active ? colors.black : text }]}>
+                  {label}
+                </Text>
+              </Pressable>
+            );
+          })}
+
+          <Pressable
+            onPress={() => void toggleStartFromMe()}
+            disabled={locationBusy}
+            style={[
+              styles.locationChip,
+              {
+                backgroundColor: startFromMe ? '#173528' : surface,
+                opacity: locationBusy ? 0.6 : 1
+              }
+            ]}
+          >
+            {locationBusy ? (
+              <ActivityIndicator size="small" color={colors.green} />
+            ) : (
+              <Text style={[styles.locationText, { color: startFromMe ? colors.green : text }]}>
+                {startFromMe ? '✓ От меня' : '⌖ От меня'}
+              </Text>
+            )}
+          </Pressable>
+        </View>
+
+        <Text style={[styles.locationHint, { color: muted }]}>
+          Геопозиция запрашивается только после нажатия «От меня».
+        </Text>
+
         <View style={styles.lengthRow}>
           {ROUTE_LENGTHS.map((item) => {
             const active = item.id === length;
@@ -578,6 +632,7 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
                 key={item.id}
                 onPress={() => {
                   setLength(item.id);
+                  setVariation(0);
                   setSaved(false);
                 }}
                 style={[
@@ -611,7 +666,7 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
           ) : (
             <>
               <View style={[styles.summary, { backgroundColor: surface }]}>
-                <View>
+                <View style={styles.summaryCopy}>
                   <Text style={[styles.summaryCity, { color: colors.green }]}>
                     {CITY_LABELS[routeCity].toUpperCase()}
                   </Text>
@@ -619,7 +674,13 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
                     {option.label} · {route.length} остановки
                   </Text>
                   <Text style={[styles.summaryDistance, { color: muted }]}>
-                    {distanceLabel} · оценка по прямой
+                    {effectiveSummary
+                      ? formatDistance(effectiveSummary.totalDistanceMeters) + ' · ' +
+                        formatDuration(effectiveSummary.totalDurationSeconds) + ' в пути'
+                      : 'Считаем расстояние'}
+                  </Text>
+                  <Text style={[styles.summarySource, { color: muted }]}>
+                    {transportLabel.toLowerCase()} · {routeSourceLabel}
                   </Text>
                 </View>
                 <Pressable onPress={rebuild} style={[styles.rebuild, { backgroundColor: raised }]}>
@@ -628,32 +689,52 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
               </View>
 
               <View style={styles.routeList}>
-                {route.map((spot, index) => (
-                  <View key={spot.id} style={styles.routeRow}>
-                    <View style={styles.timeline}>
-                      <View style={styles.number}>
-                        <Text style={styles.numberText}>{index + 1}</Text>
-                      </View>
-                      {index < route.length - 1 ? <View style={styles.line} /> : null}
-                    </View>
+                {scheduledRoute.map((item, index) => {
+                  const availabilityColor = item.openState.kind === 'open'
+                    ? colors.green
+                    : item.openState.kind === 'closed'
+                      ? '#FF8C8C'
+                      : muted;
 
-                    <View style={[styles.placeCard, { backgroundColor: surface }]}>
-                      <View style={styles.placeTop}>
-                        <View style={styles.placeCopy}>
-                          <Text style={[styles.placeMeta, { color: colors.green }]}>
-                            {spot.categoryLabel.toUpperCase()}
-                            {spot.favorite ? ' · ЛЮБИМОЕ' : ''}
-                          </Text>
-                          <Text style={[styles.placeName, { color: text }]}>{spot.name}</Text>
-                          <Text style={[styles.placeAddress, { color: muted }]} numberOfLines={2}>
-                            {spot.address}
+                  return (
+                    <View key={item.spot.id} style={styles.routeRow}>
+                      <View style={styles.timeline}>
+                        <View style={styles.number}>
+                          <Text style={styles.numberText}>{index + 1}</Text>
+                        </View>
+                        {index < scheduledRoute.length - 1 ? <View style={styles.line} /> : null}
+                      </View>
+
+                      <View style={[styles.placeCard, { backgroundColor: surface }]}>
+                        <View style={styles.placeTop}>
+                          <View style={styles.placeCopy}>
+                            <Text style={[styles.placeMeta, { color: colors.green }]}>
+                              {item.spot.categoryLabel.toUpperCase()}
+                              {item.spot.favorite ? ' · ЛЮБИМОЕ' : ''}
+                            </Text>
+                            <Text style={[styles.placeName, { color: text }]}>{item.spot.name}</Text>
+                            <Text style={[styles.placeAddress, { color: muted }]} numberOfLines={2}>
+                              {item.spot.address}
+                            </Text>
+                            <Text style={[styles.arrival, { color: availabilityColor }]}>
+                              {formatMoscowTime(item.arrival)} · {item.openState.label}
+                            </Text>
+                          </View>
+                          <Text style={[styles.rating, { color: text }]}>
+                            ★ {item.spot.rating.toFixed(1)}
                           </Text>
                         </View>
-                        <Text style={[styles.rating, { color: text }]}>★ {spot.rating.toFixed(1)}</Text>
                       </View>
                     </View>
-                  </View>
-                ))}
+                  );
+                })}
+              </View>
+
+              <View style={[styles.scheduleHint, { backgroundColor: raised }]}>
+                <Text style={[styles.scheduleHintTitle, { color: text }]}>План по времени</Text>
+                <Text style={[styles.scheduleHintText, { color: muted }]}>
+                  На каждую остановку заложено примерно 45 минут. Закрытые к моменту прибытия места получают сильный штраф и обычно уходят из маршрута.
+                </Text>
               </View>
             </>
           )}
@@ -661,21 +742,35 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
 
         <View style={[styles.footer, { backgroundColor: dark ? colors.black : colors.lightBackground }]}>
           <Pressable
-            onPress={() => void shareRoute()}
+            onPress={() => void openRouteInMaps()}
             disabled={route.length < 2}
-            style={[styles.secondary, { backgroundColor: surface }, route.length < 2 && styles.disabled]}
+            style={[styles.mapsButton, route.length < 2 && styles.disabled]}
           >
-            <Text style={[styles.secondaryText, { color: text }]}>↗ Поделиться</Text>
+            <Text style={styles.mapsButtonText}>↗ Открыть маршрут в картах</Text>
           </Pressable>
-          <Pressable
-            onPress={saveAsCollection}
-            disabled={route.length < 2}
-            style={[styles.primary, route.length < 2 && styles.disabled]}
-          >
-            <Text style={styles.primaryText}>
-              {saved ? '✓ Сохранено' : '♥ В подборку'}
-            </Text>
-          </Pressable>
+
+          <View style={styles.footerRow}>
+            <Pressable
+              onPress={() => void shareRoute()}
+              disabled={route.length < 2}
+              style={[
+                styles.secondary,
+                { backgroundColor: surface },
+                route.length < 2 && styles.disabled
+              ]}
+            >
+              <Text style={[styles.secondaryText, { color: text }]}>Поделиться</Text>
+            </Pressable>
+            <Pressable
+              onPress={saveAsCollection}
+              disabled={route.length < 2}
+              style={[styles.primary, route.length < 2 && styles.disabled]}
+            >
+              <Text style={styles.primaryText}>
+                {saved ? '✓ Сохранено' : '♥ В подборку'}
+              </Text>
+            </Pressable>
+          </View>
         </View>
       </View>
     </Modal>
