@@ -73,6 +73,7 @@ type Collection struct {
 }
 
 type CreateCollectionInput struct {
+	ID          string `json:"id,omitempty"`
 	Title       string `json:"title"`
 	Description string `json:"description,omitempty"`
 	City        string `json:"city,omitempty"`

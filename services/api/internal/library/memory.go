@@ -208,7 +208,20 @@ func (s *MemoryStore) CreateCollection(_ context.Context, userID string, input C
 		s.collections[userID] = make(map[string]Collection)
 	}
 	now := time.Now().UTC()
-	id := newPublicID("col")
+	id := strings.TrimSpace(input.ID)
+	if id == "" {
+		id = newPublicID("col")
+	} else if !validPublicID(id) {
+		return Collection{}, ErrInvalidInput
+	}
+
+	createdAt := now
+	placeIDs := []string{}
+	if existing, ok := s.collections[userID][id]; ok {
+		createdAt = existing.CreatedAt
+		placeIDs = append([]string(nil), existing.PlaceIDs...)
+	}
+
 	collection := Collection{
 		ID:          id,
 		Title:       title,
@@ -217,8 +230,8 @@ func (s *MemoryStore) CreateCollection(_ context.Context, userID string, input C
 		CityLabel:   cityLabel(input.City),
 		Visibility:  visibility,
 		CoverURL:    strings.TrimSpace(input.CoverURL),
-		PlaceIDs:    []string{},
-		CreatedAt:   now,
+		PlaceIDs:    placeIDs,
+		CreatedAt:   createdAt,
 		UpdatedAt:   now,
 	}
 	s.collections[userID][id] = collection
@@ -338,6 +351,23 @@ func validateSavePlace(input SavePlaceInput) error {
 		return ErrInvalidInput
 	}
 	return nil
+}
+
+func validPublicID(value string) bool {
+	value = strings.TrimSpace(value)
+	if value == "" || len(value) > 128 {
+		return false
+	}
+	for _, r := range value {
+		if (r >= 'a' && r <= 'z') ||
+			(r >= 'A' && r <= 'Z') ||
+			(r >= '0' && r <= '9') ||
+			r == '_' || r == '-' || r == '.' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func normalizeStatus(status string) string {

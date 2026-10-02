@@ -138,6 +138,13 @@ func main() {
 			return
 		}
 
+		var previousState json.RawMessage
+		if request.BaseRevision > 0 {
+			if previous, previousErr := syncStore.GetState(r.Context(), userID); previousErr == nil {
+				previousState = previous.Data
+			}
+		}
+
 		state, err := syncStore.PutState(r.Context(), userID, request.BaseRevision, request.State)
 		if errors.Is(err, cloud.ErrRevisionConflict) {
 			writeJSON(w, http.StatusConflict, cloudStateResponse{
@@ -150,6 +157,16 @@ func main() {
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "failed to save cloud state")
 			return
+		}
+
+		if projectionErr := library.ApplyCloudDelta(
+			r.Context(),
+			libraryStore,
+			userID,
+			previousState,
+			request.State,
+		); projectionErr != nil {
+			log.Printf("library projection failed for user %s revision %d: %v", userID, state.Revision, projectionErr)
 		}
 
 		writeJSON(w, http.StatusOK, cloudStateResponse{
