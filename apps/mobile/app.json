@@ -11,6 +11,12 @@
     "userInterfaceStyle": "automatic",
     "plugins": [
       [
+        "expo-dev-client",
+        {
+          "launchMode": "most-recent"
+        }
+      ],
+      [
         "expo-location",
         {
           "locationWhenInUsePermission": "СПОТ использует геолокацию только чтобы показывать сохранённые места рядом с вами."
