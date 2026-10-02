@@ -50,7 +50,7 @@ func (r *Resolver) SearchPage(
 			discoveryCategory, providerPage = mixedDiscoveryPage(page)
 			remoteQuery = categoryDiscoveryQuery(discoveryCategory)
 		} else {
-			remoteQuery = categoryDiscoveryQuery(category)
+			remoteQuery, providerPage = categoryDiscoveryPage(category, page)
 		}
 	}
 
@@ -125,7 +125,7 @@ func (r *Resolver) SearchAtPage(
 			discoveryCategory, providerPage = mixedDiscoveryPage(page)
 			remoteQuery = categoryDiscoveryQuery(discoveryCategory)
 		} else {
-			remoteQuery = categoryDiscoveryQuery(category)
+			remoteQuery, providerPage = categoryDiscoveryPage(category, page)
 		}
 	}
 
@@ -183,27 +183,34 @@ func mixedDiscoveryPage(page int) (string, int) {
 	return categories[index], providerPage
 }
 
-func categoryDiscoveryQuery(category string) string {
-	switch category {
-	case "restaurant":
-		return "рестораны"
-	case "coffee":
-		return "кофейни"
-	case "bar":
-		return "бары"
-	case "hotel":
-		return "отели"
-	case "culture":
-		return "музеи театры галереи"
-	case "entertainment":
-		return "развлечения"
-	case "shop":
-		return "магазины"
-	case "park":
-		return "парки"
-	default:
-		return ""
+func categoryDiscoveryPage(category string, page int) (string, int) {
+	queries := map[string][]string{
+		"restaurant":    {"рестораны", "кафе", "пекарни", "столовые", "пиццерии"},
+		"coffee":        {"кофейни"},
+		"bar":           {"бары", "пабы", "винные бары"},
+		"hotel":         {"отели", "гостиницы", "хостелы"},
+		"culture":       {"музеи", "театры", "галереи", "выставочные центры", "библиотеки"},
+		"entertainment": {"развлечения", "кинотеатры", "боулинг", "квесты", "караоке"},
+		"shop":          {"магазины", "торговые центры", "бутики"},
+		"park":          {"парки", "скверы", "сады"},
 	}
+
+	variants := queries[category]
+	if len(variants) == 0 {
+		return "", page
+	}
+	if page < 1 {
+		page = 1
+	}
+
+	index := (page - 1) % len(variants)
+	providerPage := ((page - 1) / len(variants)) + 1
+	return variants[index], providerPage
+}
+
+func categoryDiscoveryQuery(category string) string {
+	query, _ := categoryDiscoveryPage(category, 1)
+	return query
 }
 
 func mergeSearchPlaces(local, remote []catalog.Place, category string) []catalog.Place {
