@@ -13,6 +13,8 @@
     "typecheck": "npm --workspace apps/mobile run typecheck",
     "mobile:dev-client": "npm --workspace apps/mobile run start:dev-client",
     "build:dev:ios": "npm --workspace apps/mobile run build:dev:ios",
-    "build:dev:android": "npm --workspace apps/mobile run build:dev:android"
+    "build:dev:android": "npm --workspace apps/mobile run build:dev:android",
+    "telegram": "npm --workspace apps/telegram start",
+    "telegram:check": "npm --workspace apps/telegram run check"
   }
 }
