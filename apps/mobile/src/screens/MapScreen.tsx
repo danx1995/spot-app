@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -15,6 +16,7 @@ import { CategoryChip } from '../components/CategoryChip';
 import { DiscoverySheet } from '../components/DiscoverySheet';
 import { MapSearchSheet } from '../components/MapSearchSheet';
 import { NearbySheet } from '../components/NearbySheet';
+import { PersonalizedDiscoverySheet } from '../components/PersonalizedDiscoverySheet';
 import { PlaceDetailModal } from '../components/PlaceDetailModal';
 import { SpotCard } from '../components/SpotCard';
 import { categories } from '../data/mock';
@@ -68,6 +70,8 @@ const CITY_LABELS: Record<CitySlug, string> = {
 };
 
 const PERSONALIZED_DISCOVERY_LIMIT = 10;
+const DISMISSED_RECOMMENDATIONS_KEY = '@spot/dismissed-recommendations/v1';
+const MAX_DISMISSED_RECOMMENDATIONS = 200;
 
 function personalizedCategoriesFor(
   interests: DiscoveryInterest[],
@@ -138,7 +142,13 @@ export function MapScreen() {
   const mapRef = useRef<MapView | null>(null);
   const skipNextCityResetRef = useRef(false);
   const { pendingPlaceID, consumePendingPlace } = useInboundImport();
-  const { savedSpots, selectedCity, setSelectedCity, interests } = useSpotStore();
+  const {
+    savedSpots,
+    selectedCity,
+    setSelectedCity,
+    interests,
+    saveSpot
+  } = useSpotStore();
   const [category, setCategory] = useState<MapCategory>('all');
   const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -148,6 +158,7 @@ export function MapScreen() {
   const [forYouSpots, setForYouSpots] = useState<Spot[]>([]);
   const [forYouLoading, setForYouLoading] = useState(false);
   const [forYouError, setForYouError] = useState<string | null>(null);
+  const [dismissedRecommendationIDs, setDismissedRecommendationIDs] = useState<string[]>([]);
   const [locationBusy, setLocationBusy] = useState(false);
   const [locationDenied, setLocationDenied] = useState(false);
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
@@ -157,6 +168,30 @@ export function MapScreen() {
   const [discoverError, setDiscoverError] = useState<string | null>(null);
   const [lastDiscoveryCenter, setLastDiscoveryCenter] = useState<Coordinates | null>(null);
   const [sharedPlaceError, setSharedPlaceError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    void AsyncStorage.getItem(DISMISSED_RECOMMENDATIONS_KEY)
+      .then((raw) => {
+        if (!active || !raw) return;
+        try {
+          const parsed = JSON.parse(raw) as unknown;
+          if (!Array.isArray(parsed)) return;
+          setDismissedRecommendationIDs(
+            parsed
+              .filter((item): item is string => typeof item === 'string')
+              .slice(-MAX_DISMISSED_RECOMMENDATIONS)
+          );
+        } catch {
+          setDismissedRecommendationIDs([]);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const personalizedCategories = useMemo(() => {
     const all = categories.find((item) => item.id === 'all');
@@ -367,10 +402,11 @@ export function MapScreen() {
       );
 
       const savedIDs = new Set(savedSpots.map((spot) => spot.id));
+      const dismissedIDs = new Set(dismissedRecommendationIDs);
       const byID = new Map<string, Spot>();
 
       for (const spot of batches.flat()) {
-        if (savedIDs.has(spot.id)) continue;
+        if (savedIDs.has(spot.id) || dismissedIDs.has(spot.id)) continue;
         byID.set(spot.id, spotWithDistance(spot, center));
       }
 
@@ -388,6 +424,21 @@ export function MapScreen() {
     } finally {
       setForYouLoading(false);
     }
+  }
+
+  function saveRecommendation(spot: Spot) {
+    saveSpot(spot, 'want');
+    setForYouSpots((current) => current.filter((item) => item.id !== spot.id));
+  }
+
+  function dismissRecommendation(spot: Spot) {
+    setForYouSpots((current) => current.filter((item) => item.id !== spot.id));
+    setDismissedRecommendationIDs((current) => {
+      const next = [...current.filter((id) => id !== spot.id), spot.id]
+        .slice(-MAX_DISMISSED_RECOMMENDATIONS);
+      void AsyncStorage.setItem(DISMISSED_RECOMMENDATIONS_KEY, JSON.stringify(next));
+      return next;
+    });
   }
 
   async function discoverHere() {
@@ -628,12 +679,17 @@ export function MapScreen() {
         </View>
       )}
 
-      <DiscoverySheet
+      <PersonalizedDiscoverySheet
         visible={forYouOpen}
         spots={forYouSpots}
-        categoryLabel="Для тебя"
+        interests={interests}
         onClose={() => setForYouOpen(false)}
-        onSelect={focusSpot}
+        onSelect={(spot) => {
+          setForYouOpen(false);
+          focusSpot(spot);
+        }}
+        onSave={saveRecommendation}
+        onDismiss={dismissRecommendation}
       />
 
       <DiscoverySheet
