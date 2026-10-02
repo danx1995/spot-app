@@ -294,6 +294,9 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
   }, [applyCloudPayload, hydrated]);
 
   const adoptSession = useCallback(async (session: GuestSession) => {
+    for (let attempt = 0; syncingRef.current && attempt < 100; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
     if (syncingRef.current) {
       throw new Error('sync in progress');
     }
