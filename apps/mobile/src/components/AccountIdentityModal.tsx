@@ -129,11 +129,15 @@ export function AccountIdentityModal({
   const surface = dark ? colors.darkSurface : colors.white;
   const raised = dark ? colors.darkSurfaceRaised : colors.lightMuted;
 
-  const googleReady = useMemo(
-    () => availability.google && googleConfiguredForPlatform(),
-    [availability.google]
-  );
   const appleReady = Platform.OS === 'ios' && availability.apple && appleAvailable;
+  const googleReady = useMemo(
+    () => (
+      availability.google &&
+      googleConfiguredForPlatform() &&
+      (Platform.OS !== 'ios' || appleReady)
+    ),
+    [appleReady, availability.google]
+  );
 
   useEffect(() => {
     if (!visible) return;
