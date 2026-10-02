@@ -82,11 +82,6 @@ function extractPublicResource(value: string) {
   return null;
 }
 
-function extractCollectionFromPublicURL(value: string) {
-  const resource = extractPublicResource(value);
-  return resource?.type === 'collection' ? resource.id : null;
-}
-
 function extractInboundDeepLink(appURL: string): InboundDeepLink | null {
   const normalized = appURL.trim();
 
