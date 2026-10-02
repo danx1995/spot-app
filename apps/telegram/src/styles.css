@@ -667,3 +667,12 @@ body{
   font-size:9px;
   line-height:1.55;
 }
+
+:root{
+  --spot-safe-top:max(env(safe-area-inset-top,0px),var(--tg-content-safe-area-inset-top,var(--tg-safe-area-inset-top,0px)));
+  --spot-safe-bottom:max(env(safe-area-inset-bottom,0px),var(--tg-content-safe-area-inset-bottom,var(--tg-safe-area-inset-bottom,0px)));
+}
+.app-shell{padding-bottom:calc(96px + var(--spot-safe-bottom))}
+.topbar{padding-top:calc(14px + var(--spot-safe-top))}
+.bottom-nav{bottom:max(9px,var(--spot-safe-bottom))}
+.detail-sheet,.planner-sheet{padding-bottom:calc(22px + var(--spot-safe-bottom))}
