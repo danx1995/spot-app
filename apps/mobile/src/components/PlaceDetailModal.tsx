@@ -5,6 +5,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -12,6 +13,7 @@ import {
   View
 } from 'react-native';
 
+import { publishPlace } from '../services/libraryApi';
 import { useSpotStore } from '../state/SpotStore';
 import { colors } from '../theme';
 import type { Spot, SpotStatus } from '../types';
@@ -58,10 +60,12 @@ export function PlaceDetailModal({ spot, visible, onClose }: Props) {
     updateStatus,
     updateNote,
     toggleFavorite,
-    togglePlaceInCollection
+    togglePlaceInCollection,
+    syncNow
   } = useSpotStore();
   const [editingNote, setEditingNote] = useState(false);
   const [noteDraft, setNoteDraft] = useState('');
+  const [sharing, setSharing] = useState(false);
 
   const text = dark ? colors.white : colors.black;
   const muted = dark ? colors.textSecondaryDark : colors.textSecondaryLight;
@@ -105,6 +109,38 @@ export function PlaceDetailModal({ spot, visible, onClose }: Props) {
     }
 
     setEditingNote(false);
+  }
+
+  async function sharePlace() {
+    if (!saved || sharing) return;
+
+    setSharing(true);
+    try {
+      await syncNow();
+      const publicURL = await publishPlace(activeSpot.id);
+      await Share.share({
+        title: activeSpot.name,
+        message: [
+          activeSpot.name,
+          activeSpot.address,
+          '',
+          'Открыть в СПОТ:',
+          publicURL
+        ].join('\n')
+      });
+    } catch {
+      const fallbackURL = `https://yandex.ru/maps/?pt=${activeSpot.longitude},${activeSpot.latitude}&z=16&l=map`;
+      await Share.share({
+        title: activeSpot.name,
+        message: [
+          activeSpot.name,
+          activeSpot.address,
+          fallbackURL
+        ].join('\n')
+      });
+    } finally {
+      setSharing(false);
+    }
   }
 
   function openRoute() {
@@ -177,6 +213,18 @@ export function PlaceDetailModal({ spot, visible, onClose }: Props) {
               <Text style={[styles.secondaryText, { color: text }]}>Маршрут ↗</Text>
             </Pressable>
           </View>
+
+          {saved ? (
+            <Pressable
+              onPress={() => void sharePlace()}
+              disabled={sharing}
+              style={[styles.fullSecondary, { backgroundColor: surface }, sharing && styles.shareBusy]}
+            >
+              <Text style={[styles.secondaryText, { color: text }]}>
+                {sharing ? 'Готовим ссылку…' : '↗ Поделиться местом'}
+              </Text>
+            </Pressable>
+          ) : null}
 
           <Pressable
             onPress={() => ensureSaved('visited')}
@@ -478,6 +526,9 @@ const styles = StyleSheet.create({
   secondaryText: {
     fontSize: 14,
     fontWeight: '800'
+  },
+  shareBusy: {
+    opacity: 0.55
   },
   block: {
     marginTop: 12,
