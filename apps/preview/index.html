@@ -100,6 +100,31 @@
     .plus{width:56px;height:56px;border-radius:20px;background:var(--green);color:var(--black);font-size:31px;display:grid;place-items:center;margin:auto;cursor:pointer;box-shadow:0 8px 24px rgba(25,195,125,.22)}
     .toast{position:absolute;z-index:50;left:50%;bottom:96px;transform:translate(-50%,20px);background:white;color:#0B0F0C;padding:10px 14px;border-radius:14px;font-size:10px;font-weight:900;opacity:0;pointer-events:none;transition:.25s}.toast.show{opacity:1;transform:translate(-50%,0)}
     .preview-ribbon{position:absolute;z-index:40;right:14px;top:16px;font-size:8px;font-weight:900;letter-spacing:.13em;color:#617068}
+    .overlay{position:absolute;z-index:60;inset:0;background:rgba(4,7,5,.58);backdrop-filter:blur(8px);display:none;align-items:flex-end}
+    .overlay.open{display:flex}
+    .sheet{width:100%;max-height:91%;background:#0D120F;border-radius:30px 30px 0 0;border-top:1px solid rgba(255,255,255,.09);box-shadow:0 -20px 60px rgba(0,0,0,.5);overflow:hidden}
+    .sheet-scroll{max-height:calc(100vh - 130px);overflow:auto;scrollbar-width:none;padding-bottom:28px}
+    .sheet-scroll::-webkit-scrollbar{display:none}
+    .sheet-head{min-height:68px;display:grid;grid-template-columns:42px 1fr 42px;align-items:center;padding:6px 14px 0}
+    .sheet-close{width:40px;height:40px;border-radius:16px;background:#151B17;color:#fff;font-size:23px;cursor:pointer}
+    .sheet-title{text-align:center;font-size:15px;font-weight:900}.sheet-sub{text-align:center;color:var(--muted);font-size:9px;margin-top:2px}
+    .preview-search{margin:6px 18px 0;min-height:54px;border-radius:18px;background:var(--surface);display:flex;align-items:center;gap:9px;padding:0 14px}
+    .preview-search input{flex:1;background:transparent;border:0;outline:0;color:white;font-size:14px;font-weight:750;min-width:0}
+    .preview-search .search-glyph{color:var(--green);font-size:21px}
+    .quick{display:flex;gap:7px;padding:10px 18px 4px;overflow:auto}
+    .quick button{white-space:nowrap;padding:9px 11px;border-radius:14px;background:var(--surface);color:#D1D7D3;font-size:9px;font-weight:850;cursor:pointer}
+    .quick button.active{background:var(--green);color:var(--black)}
+    .results-wrap{padding:12px 18px 0}
+    .result-heading{display:flex;align-items:flex-end;justify-content:space-between;margin:12px 0 9px}
+    .result-heading b{font-size:14px}.result-heading span{font-size:9px;color:var(--muted)}
+    .search-result{width:100%;text-align:left;background:var(--surface);border-radius:20px;padding:12px;display:flex;gap:11px;align-items:center;color:white;margin-bottom:8px;cursor:pointer}
+    .search-result .thumb{width:56px;height:56px;flex-basis:56px;border-radius:16px;font-size:23px}.search-result h4{margin:0;font-size:13px}.search-result .meta{margin-top:4px}.search-result .open{margin-top:4px}
+    .recent-row{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}.recent{padding:9px 11px;border-radius:14px;background:var(--surface);color:#C9D0CC;font-size:9px;font-weight:800;cursor:pointer}
+    .detail-hero{height:190px;margin:0 14px;border-radius:26px;background:radial-gradient(circle at 50% 45%,#255F43 0,#173427 38%,#101712 75%);display:grid;place-items:center;color:var(--green);font-size:68px;font-weight:950;position:relative}
+    .detail-body{padding:20px}.detail-eyebrow{color:var(--green);font-size:9px;letter-spacing:.15em;font-weight:950}.detail-title{font-size:31px;font-weight:950;letter-spacing:-.045em;margin-top:5px}.detail-meta{font-size:11px;color:var(--muted);line-height:1.5;margin-top:7px}
+    .detail-actions{display:grid;grid-template-columns:1.25fr .75fr;gap:8px;margin-top:15px}.detail-actions button{min-height:48px;border-radius:16px;font-size:11px;font-weight:900;cursor:pointer}.primary-action{background:var(--green);color:var(--black)}.secondary-action{background:var(--surface);color:white}
+    .memory-card{margin-top:11px;padding:15px;border-radius:20px;background:var(--surface)}.memory-label{color:var(--muted);font-size:8px;letter-spacing:.14em;font-weight:950}.memory-time{font-size:10px;color:#9DA7A1;font-weight:800;margin-top:7px}.memory-note{font-size:13px;line-height:1.45;font-weight:650;margin-top:8px}.memory-source{margin-top:9px;color:var(--green);font-size:10px;font-weight:850}
+    .collection-tools{display:flex;gap:7px;margin:10px 20px 14px}.collection-tools button{flex:1;min-height:38px;border-radius:14px;background:var(--surface);color:#D1D7D3;font-size:9px;font-weight:850;cursor:pointer}.collection-tools button:first-child{background:#173528;color:var(--green)}
     @media(max-width:850px){
       body{background:var(--black)}
       .page{display:block;padding:0;max-width:none}.intro{display:none}.device-wrap{display:block}.phone{width:100vw;height:100dvh;min-height:0;max-height:none;border:0;border-radius:0;box-shadow:none}.phone:before{display:none}.preview-ribbon{top:9px}
@@ -133,7 +158,7 @@
             <button class="pin alt p4" data-toast="Four Seasons"><span>+</span></button>
           </div>
           <div class="map-ui">
-            <div class="topbar"><div><div class="eyebrow">СПОТ</div><div class="city">Санкт-Петербург⌄</div></div><button class="round" data-toast="Поиск по местам">⌕</button></div>
+            <div class="topbar"><div><div class="eyebrow">СПОТ</div><div class="city">Санкт-Петербург⌄</div></div><button class="round" id="mapSearchBtn">⌕</button></div>
             <div class="chips mapchips">
               <button class="chip active">Все</button><button class="chip">Еда</button><button class="chip">Кофе</button><button class="chip">Бары</button><button class="chip">Отели</button>
             </div>
@@ -141,7 +166,7 @@
           <button class="discover" data-toast="Ищем реальные места в этой области">⌖ Найти рядом: Еда</button>
           <button class="locate" data-toast="Моя геопозиция">⌖</button>
           <button class="nearby" data-toast="Список ближайших сохранённых спотов"><b>4 спота рядом</b>до 2 км · открыть список</button>
-          <button class="place-card" data-toast="Карточка места откроется поверх карты">
+          <button class="place-card" id="openPlaceBtn">
             <div class="thumb">🍽️</div>
             <div class="place-copy"><div class="meta">РЕСТОРАН · САНКТ-ПЕТЕРБУРГ</div><h3>Birch</h3><div class="open">● Открыто до 23:00</div><div class="address">Кирочная улица, 3 · ★ 4.8 · 1 284</div></div>
           </button>
@@ -169,6 +194,7 @@
           <div class="scroll">
             <div class="topbar"><div><div class="eyebrow">СПОТ</div><div class="city">Подборки</div></div><button class="round" data-toast="Создать новую подборку">＋</button></div>
             <div class="collection-hero"><small>ОБЩАЯ ПОДБОРКА</small><h2>Петербург на выходные</h2><p>Рестораны, бары и места для прогулки, которые хочется показать друзьям.</p></div>
+            <div class="collection-tools"><button data-toast="Можно изменить название, описание и город">✎ Изменить</button><button data-toast="Места можно переставлять вверх и вниз">↕ Порядок мест</button></div>
             <button class="collection-card" data-toast="Открыть подборку"><div class="coll-icon">♥</div><div><h3>Рестораны, куда вернусь</h3><p>8 мест · Санкт-Петербург</p></div></button>
             <button class="collection-card" data-toast="Открыть подборку"><div class="coll-icon">☕</div><div><h3>Кофе и завтрак</h3><p>6 мест · Москва и Петербург</p></div></button>
             <button class="collection-card" data-toast="Открыть подборку"><div class="coll-icon">🏨</div><div><h3>Отели</h3><p>4 места · Москва</p></div></button>
@@ -191,6 +217,91 @@
           </div>
         </section>
 
+        <div class="overlay" id="searchOverlay">
+          <div class="sheet">
+            <div class="sheet-head">
+              <button class="sheet-close" data-close="searchOverlay">×</button>
+              <div><div class="sheet-title">Найти на карте</div><div class="sheet-sub">Санкт-Петербург</div></div>
+              <div></div>
+            </div>
+            <div class="preview-search">
+              <span class="search-glyph">⌕</span>
+              <input id="previewSearchInput" value="birch" aria-label="Поиск места" />
+            </div>
+            <div class="quick">
+              <button id="previewOpenFilter">● Открыто сейчас</button>
+              <button id="previewRatingFilter">★ 4.5+</button>
+            </div>
+            <div class="sheet-scroll">
+              <div class="results-wrap">
+                <div id="recentSearchBlock" style="display:none">
+                  <div class="result-heading"><b>Недавние запросы</b><span>по городу</span></div>
+                  <div class="recent-row">
+                    <button class="recent" data-query="Birch">↺ Birch</button>
+                    <button class="recent" data-query="кофе">↺ кофе</button>
+                    <button class="recent" data-query="отель">↺ отель</button>
+                  </div>
+                </div>
+                <div id="savedSearchBlock">
+                  <div class="result-heading"><b>Мои споты</b><span style="color:var(--green)">1 сохранён</span></div>
+                  <button class="search-result" id="savedBirchResult">
+                    <div class="thumb">🍽️</div>
+                    <div class="place-copy"><div class="meta">УЖЕ В СПОТ · РЕСТОРАН</div><h4>Birch</h4><div class="open">● Открыто до 23:00</div><div class="address">Кирочная, 3 · ★ 4.8</div></div>
+                  </button>
+                </div>
+                <div id="newSearchBlock">
+                  <div class="result-heading"><b>Новые места</b><span>можно сохранить</span></div>
+                  <button class="search-result" data-toast="Aster откроется на карте">
+                    <div class="thumb">☕</div>
+                    <div class="place-copy"><div class="meta">КОФЕЙНЯ</div><h4>Aster</h4><div class="open">● Открыто до 22:00</div><div class="address">Маяковского, 23 · ★ 4.7</div></div>
+                  </button>
+                  <button class="search-result" data-toast="Four Seasons откроется на карте">
+                    <div class="thumb">🏨</div>
+                    <div class="place-copy"><div class="meta">ОТЕЛЬ</div><h4>Four Seasons</h4><div class="open">● Круглосуточно</div><div class="address">Вознесенский, 1 · ★ 4.9</div></div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="overlay" id="placeOverlay">
+          <div class="sheet">
+            <div class="sheet-head">
+              <button class="sheet-close" data-close="placeOverlay">×</button>
+              <div><div class="sheet-title">Спот</div><div class="sheet-sub">личная карточка места</div></div>
+              <div></div>
+            </div>
+            <div class="sheet-scroll">
+              <div class="detail-hero">B</div>
+              <div class="detail-body">
+                <div class="detail-eyebrow">РЕСТОРАН · САНКТ-ПЕТЕРБУРГ</div>
+                <div class="detail-title">Birch</div>
+                <div class="detail-meta">★ 4.8 · 1 284 отзыва · Кирочная улица, 3</div>
+                <div class="open" style="font-size:11px">● Открыто до 23:00</div>
+                <div class="detail-actions">
+                  <button class="primary-action" data-toast="Birch уже сохранён в СПОТ">✓ В СПОТ</button>
+                  <button class="secondary-action" data-toast="Открываем маршрут">Маршрут ↗</button>
+                </div>
+                <div class="detail-actions" style="grid-template-columns:1fr 1fr;margin-top:8px">
+                  <button class="secondary-action" id="previewSharePlace">↗ Поделиться</button>
+                  <button class="secondary-action" data-toast="Birch добавлен в любимое">♡ Любимое</button>
+                </div>
+                <div class="memory-card">
+                  <div class="memory-label">ПОЧЕМУ СОХРАНЕНО</div>
+                  <div class="memory-time">Сохранено 18 дней назад · из Instagram</div>
+                  <div class="memory-note">Красивый интерьер, хочу попробовать тартар и десерт.</div>
+                  <div class="memory-source">Instagram · открыть источник ↗</div>
+                </div>
+                <div class="memory-card">
+                  <div class="memory-label">ПОДБОРКИ</div>
+                  <div class="recent-row"><button class="recent" data-toast="Уже в подборке">✓ Рестораны, куда вернусь</button><button class="recent" data-toast="Добавлено в подборку">＋ Петербург на выходные</button></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <nav class="bottom-nav">
           <button class="nav-item active" data-nav="map"><span class="ico">⌖</span><span>Карта</span></button>
           <button class="nav-item" data-nav="spots"><span class="ico">♥</span><span>Споты</span></button>
@@ -206,6 +317,9 @@
     const screens=[...document.querySelectorAll('.screen')];
     const nav=[...document.querySelectorAll('[data-nav]')];
     const toast=document.getElementById('toast');
+    const searchOverlay=document.getElementById('searchOverlay');
+    const placeOverlay=document.getElementById('placeOverlay');
+    const searchInput=document.getElementById('previewSearchInput');
     let toastTimer;
 
     function showToast(message){
@@ -214,6 +328,59 @@
       clearTimeout(toastTimer);
       toastTimer=setTimeout(()=>toast.classList.remove('show'),1800);
     }
+
+    function openOverlay(element){
+      element.classList.add('open');
+    }
+
+    function closeOverlay(element){
+      element.classList.remove('open');
+    }
+
+    document.getElementById('mapSearchBtn').addEventListener('click',()=>openOverlay(searchOverlay));
+    document.getElementById('openPlaceBtn').addEventListener('click',()=>openOverlay(placeOverlay));
+    document.getElementById('savedBirchResult').addEventListener('click',()=>{
+      closeOverlay(searchOverlay);
+      openOverlay(placeOverlay);
+    });
+
+    document.querySelectorAll('[data-close]').forEach(button=>{
+      button.addEventListener('click',()=>closeOverlay(document.getElementById(button.dataset.close)));
+    });
+
+    document.querySelectorAll('.overlay').forEach(overlay=>{
+      overlay.addEventListener('click',(event)=>{
+        if(event.target===overlay) closeOverlay(overlay);
+      });
+    });
+
+    function refreshPreviewSearch(){
+      const value=searchInput.value.trim().toLowerCase();
+      const recent=document.getElementById('recentSearchBlock');
+      const saved=document.getElementById('savedSearchBlock');
+      const fresh=document.getElementById('newSearchBlock');
+      recent.style.display=value.length<2?'block':'none';
+      saved.style.display=value.length>=2 && ('birch ресторан кирочная'.includes(value)||value.includes('birch'))?'block':'none';
+      fresh.style.display=value.length>=2?'block':'none';
+    }
+
+    searchInput.addEventListener('input',refreshPreviewSearch);
+    document.querySelectorAll('[data-query]').forEach(button=>{
+      button.addEventListener('click',()=>{
+        searchInput.value=button.dataset.query;
+        refreshPreviewSearch();
+      });
+    });
+
+    ['previewOpenFilter','previewRatingFilter'].forEach(id=>{
+      document.getElementById(id).addEventListener('click',(event)=>{
+        event.currentTarget.classList.toggle('active');
+      });
+    });
+
+    document.getElementById('previewSharePlace').addEventListener('click',()=>{
+      showToast('SPOT-ссылка создана · личные заметки не передаются');
+    });
 
     nav.forEach(button=>button.addEventListener('click',()=>{
       const target=button.dataset.nav;
