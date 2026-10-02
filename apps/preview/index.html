@@ -668,6 +668,7 @@
     let routeStopMinutes=45;
     let routeEditOrder=false;
     let routeManualOrder=null;
+    let routeEditingSavedCollection=false;
 
     function routeMetric(city,length,transport,fromMe){
       const base={
@@ -762,6 +763,7 @@
     document.getElementById('openPlaceBtn').addEventListener('click',()=>openOverlay(placeOverlay));
     document.getElementById('addBtn').addEventListener('click',()=>openOverlay(addOverlay));
     document.getElementById('previewRouteLauncher').addEventListener('click',()=>{
+      routeEditingSavedCollection=false;
       document.getElementById('routeSave').textContent='♥ В подборку';
       renderRoutePreview();
       openOverlay(routeOverlay);
@@ -816,11 +818,16 @@
       routeCollection.style.display='flex';
       document.getElementById('savedRouteTitle').textContent='Маршрут · '+cityLabel;
       document.getElementById('savedRouteMeta').textContent=routeLength+' точки · '+startLabel+' · '+transportLabel+' · '+routeStopMinutes+' мин/место';
-      showToast('Маршрут сохранён вместе с порядком и настройками');
+      showToast(routeEditingSavedCollection?'Настройки сохранённого маршрута обновлены':'Маршрут сохранён вместе с порядком и настройками');
+      routeEditingSavedCollection=true;
       document.getElementById('routeSave').textContent='✓ Сохранено';
     });
     document.getElementById('savedRouteCollection').addEventListener('click',()=>{
-      showToast('Сохранённый маршрут снова откроется в картах в этом порядке');
+      routeEditingSavedCollection=true;
+      document.getElementById('routeSave').textContent='✓ Сохранить изменения';
+      renderRoutePreview();
+      openOverlay(routeOverlay);
+      showToast('Маршрут открыт для редактирования');
     });
     document.getElementById('savedBirchResult').addEventListener('click',()=>{
       closeOverlay(searchOverlay);
