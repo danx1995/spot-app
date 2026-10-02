@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
 import * as Location from 'expo-location';
 import MapView, { Marker, type Region } from 'react-native-maps';
@@ -9,13 +9,26 @@ import { SpotCard } from '../components/SpotCard';
 import { categories } from '../data/mock';
 import { useSpotStore } from '../state/SpotStore';
 import { colors } from '../theme';
-import type { Spot } from '../types';
+import type { CitySlug, Spot } from '../types';
 
-const SPB_REGION: Region = {
-  latitude: 59.9386,
-  longitude: 30.3141,
-  latitudeDelta: 0.085,
-  longitudeDelta: 0.085
+const CITY_REGIONS: Record<CitySlug, Region> = {
+  spb: {
+    latitude: 59.9386,
+    longitude: 30.3141,
+    latitudeDelta: 0.085,
+    longitudeDelta: 0.085
+  },
+  moscow: {
+    latitude: 55.7558,
+    longitude: 37.6173,
+    latitudeDelta: 0.12,
+    longitudeDelta: 0.12
+  }
+};
+
+const CITY_LABELS: Record<CitySlug, string> = {
+  spb: 'Санкт-Петербург',
+  moscow: 'Москва'
 };
 
 const darkMapStyle = [
@@ -33,17 +46,25 @@ const darkMapStyle = [
 export function MapScreen() {
   const dark = useColorScheme() === 'dark';
   const mapRef = useRef<MapView | null>(null);
-  const { savedSpots } = useSpotStore();
+  const { savedSpots, selectedCity, setSelectedCity } = useSpotStore();
   const [category, setCategory] = useState<(typeof categories)[number]['id']>('all');
   const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
   const [locationBusy, setLocationBusy] = useState(false);
 
   const filtered = useMemo(
-    () => category === 'all' ? savedSpots : savedSpots.filter((spot) => spot.category === category),
-    [category, savedSpots]
+    () => savedSpots.filter((spot) => {
+      if (spot.city !== selectedCity) return false;
+      return category === 'all' || spot.category === category;
+    }),
+    [category, savedSpots, selectedCity]
   );
 
   const nearby = selectedSpot ?? filtered[0];
+
+  useEffect(() => {
+    setSelectedSpot(null);
+    mapRef.current?.animateToRegion(CITY_REGIONS[selectedCity], 450);
+  }, [selectedCity]);
 
   async function moveToUser() {
     if (locationBusy) return;
@@ -67,12 +88,16 @@ export function MapScreen() {
     }
   }
 
+  function toggleCity() {
+    setSelectedCity(selectedCity === 'spb' ? 'moscow' : 'spb');
+  }
+
   return (
     <View style={[styles.root, { backgroundColor: dark ? colors.black : colors.lightBackground }]}>
       <MapView
         ref={mapRef}
         style={StyleSheet.absoluteFill}
-        initialRegion={SPB_REGION}
+        initialRegion={CITY_REGIONS[selectedCity]}
         customMapStyle={dark ? darkMapStyle : []}
         showsUserLocation
         showsMyLocationButton={false}
@@ -100,7 +125,9 @@ export function MapScreen() {
       <View style={styles.header}>
         <View>
           <Text style={styles.eyebrow}>СПОТ</Text>
-          <Text style={styles.city}>Санкт-Петербург⌄</Text>
+          <Pressable onPress={toggleCity}>
+            <Text style={styles.city}>{CITY_LABELS[selectedCity]}⌄</Text>
+          </Pressable>
         </View>
         <Pressable style={styles.searchButton}>
           <Text style={styles.searchText}>⌕</Text>
@@ -132,7 +159,7 @@ export function MapScreen() {
 
       <View style={styles.nearbyPill}>
         <Text style={styles.nearbyStrong}>{filtered.length} сохранённых спотов</Text>
-        <Text style={styles.nearbyMuted}>на карте Петербурга</Text>
+        <Text style={styles.nearbyMuted}>на карте · {CITY_LABELS[selectedCity]}</Text>
       </View>
 
       {nearby ? (
@@ -141,8 +168,8 @@ export function MapScreen() {
         </View>
       ) : (
         <View style={styles.emptyCard}>
-          <Text style={styles.emptyTitle}>Карта пока пустая</Text>
-          <Text style={styles.emptyText}>Добавь первый спот через зелёную кнопку «+».</Text>
+          <Text style={styles.emptyTitle}>Здесь пока нет спотов</Text>
+          <Text style={styles.emptyText}>Добавь место в {CITY_LABELS[selectedCity]} через зелёную кнопку «+».</Text>
         </View>
       )}
 
