@@ -2,6 +2,7 @@ package importer
 
 import (
 	"context"
+	"sync"
 	"testing"
 
 	"github.com/danx1995/spot-app/services/api/internal/catalog"
@@ -10,17 +11,23 @@ import (
 type fakeTwoGIS struct {
 	enabled bool
 	id      string
+	city    string
 }
 
 func (f *fakeTwoGIS) Enabled() bool { return f.enabled }
 
 func (f *fakeTwoGIS) LookupByID(_ context.Context, providerID, city string) (catalog.Place, error) {
 	f.id = providerID
+	f.city = city
+	label := "Санкт-Петербург"
+	if city == "moscow" {
+		label = "Москва"
+	}
 	return catalog.Place{
 		ID:            "sp_demo",
 		Name:          "Demo",
 		City:          city,
-		CityLabel:     "Санкт-Петербург",
+		CityLabel:     label,
 		Category:      "restaurant",
 		CategoryLabel: "Ресторан",
 		Latitude:      59.9,
@@ -28,26 +35,53 @@ func (f *fakeTwoGIS) LookupByID(_ context.Context, providerID, city string) (cat
 	}, nil
 }
 
-type fakeSearcher struct {
+type searchCall struct {
 	query string
 	city  string
 }
 
+type fakeSearcher struct {
+	mu      sync.Mutex
+	calls   []searchCall
+	byCity  map[string][]catalog.Place
+}
+
 func (f *fakeSearcher) Search(_ context.Context, query, city, _ string) ([]catalog.Place, error) {
-	f.query = query
-	f.city = city
+	f.mu.Lock()
+	f.calls = append(f.calls, searchCall{query: query, city: city})
+	f.mu.Unlock()
+
+	if f.byCity != nil {
+		return append([]catalog.Place(nil), f.byCity[city]...), nil
+	}
+
+	label := "Санкт-Петербург"
+	if city == "moscow" {
+		label = "Москва"
+	}
 	return []catalog.Place{
 		{
-			ID:            "sp_birch",
+			ID:            "sp_birch_" + city,
 			Name:          "Birch",
 			City:          city,
-			CityLabel:     "Санкт-Петербург",
+			CityLabel:     label,
 			Category:      "restaurant",
 			CategoryLabel: "Ресторан",
 			Latitude:      59.9449,
 			Longitude:     30.3596,
 		},
 	}, nil
+}
+
+func (f *fakeSearcher) hasCall(query, city string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, call := range f.calls {
+		if call.query == query && call.city == city {
+			return true
+		}
+	}
+	return false
 }
 
 func TestResolveDirectTwoGISFirm(t *testing.T) {
@@ -69,9 +103,33 @@ func TestResolveDirectTwoGISFirm(t *testing.T) {
 	if provider.id != "70000001012345678" {
 		t.Fatalf("unexpected provider id: %s", provider.id)
 	}
+	if provider.city != "spb" {
+		t.Fatalf("unexpected lookup city: %s", provider.city)
+	}
 }
 
-func TestInstagramHintSuggestsCandidates(t *testing.T) {
+func TestTwoGISLinkOverridesSelectedCity(t *testing.T) {
+	provider := &fakeTwoGIS{enabled: true}
+	resolver := New(provider, nil)
+
+	result, err := resolver.Resolve(
+		context.Background(),
+		"https://2gis.ru/moscow/firm/70000001012345678",
+		"spb",
+		"",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Place == nil || result.Place.City != "moscow" {
+		t.Fatalf("expected Moscow place, got %#v", result.Place)
+	}
+	if result.SuggestedCity != "moscow" {
+		t.Fatalf("expected Moscow city suggestion, got %q", result.SuggestedCity)
+	}
+}
+
+func TestInstagramHintSearchesBothCities(t *testing.T) {
 	searcher := &fakeSearcher{}
 	resolver := New(nil, searcher)
 
@@ -93,11 +151,55 @@ func TestInstagramHintSuggestsCandidates(t *testing.T) {
 	if result.SuggestedQuery != "Birch" {
 		t.Fatalf("unexpected suggested query: %q", result.SuggestedQuery)
 	}
-	if searcher.query != "Birch" || searcher.city != "spb" {
-		t.Fatalf("unexpected search: query=%q city=%q", searcher.query, searcher.city)
+	if !searcher.hasCall("Birch", "spb") || !searcher.hasCall("Birch", "moscow") {
+		t.Fatalf("expected both city searches, calls=%#v", searcher.calls)
 	}
-	if len(result.Candidates) != 1 || result.Candidates[0].Name != "Birch" {
-		t.Fatalf("unexpected candidates: %#v", result.Candidates)
+	if len(result.Candidates) == 0 {
+		t.Fatal("expected candidates")
+	}
+}
+
+func TestExplicitMoscowHintPrioritizesMoscow(t *testing.T) {
+	searcher := &fakeSearcher{
+		byCity: map[string][]catalog.Place{
+			"spb": {
+				{
+					ID: "sp_other",
+					Name: "Birch Cafe",
+					City: "spb",
+					CityLabel: "Санкт-Петербург",
+					Category: "restaurant",
+					CategoryLabel: "Ресторан",
+				},
+			},
+			"moscow": {
+				{
+					ID: "sp_target",
+					Name: "Birch",
+					City: "moscow",
+					CityLabel: "Москва",
+					Category: "restaurant",
+					CategoryLabel: "Ресторан",
+				},
+			},
+		},
+	}
+	resolver := New(nil, searcher)
+
+	result, err := resolver.Resolve(
+		context.Background(),
+		"https://www.instagram.com/reel/abc123/",
+		"spb",
+		"Birch Москва",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Candidates) == 0 || result.Candidates[0].City != "moscow" {
+		t.Fatalf("expected Moscow first, got %#v", result.Candidates)
+	}
+	if result.SuggestedCity != "moscow" {
+		t.Fatalf("expected suggested city Moscow, got %q", result.SuggestedCity)
 	}
 }
 
@@ -117,7 +219,7 @@ func TestYandexOrgSlugBecomesSuggestion(t *testing.T) {
 	if result.SuggestedQuery != "birch restaurant" {
 		t.Fatalf("unexpected query: %q", result.SuggestedQuery)
 	}
-	if len(result.Candidates) != 1 {
+	if len(result.Candidates) == 0 {
 		t.Fatalf("expected candidates, got %#v", result.Candidates)
 	}
 }
