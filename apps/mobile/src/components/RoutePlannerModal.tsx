@@ -835,6 +835,48 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '900'
   },
+  transportRow: {
+    paddingHorizontal: 20,
+    marginTop: 10,
+    flexDirection: 'row',
+    gap: 7
+  },
+  transportChip: {
+    flex: 1,
+    minHeight: 42,
+    borderRadius: 15,
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    gap: 5,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  transportIcon: {
+    fontSize: 14,
+    fontWeight: '900'
+  },
+  transportText: {
+    fontSize: 10,
+    fontWeight: '900'
+  },
+  locationChip: {
+    minWidth: 94,
+    minHeight: 42,
+    paddingHorizontal: 11,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  locationText: {
+    fontSize: 10,
+    fontWeight: '900'
+  },
+  locationHint: {
+    paddingHorizontal: 22,
+    marginTop: 6,
+    fontSize: 9,
+    lineHeight: 13
+  },
   lengthRow: {
     paddingHorizontal: 20,
     marginTop: 10,
@@ -860,15 +902,18 @@ const styles = StyleSheet.create({
   scroll: {
     paddingHorizontal: 20,
     paddingTop: 16,
-    paddingBottom: 130
+    paddingBottom: 184
   },
   summary: {
-    minHeight: 86,
+    minHeight: 102,
     borderRadius: 23,
     padding: 17,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12
+  },
+  summaryCopy: {
+    flex: 1
   },
   summaryCity: {
     fontSize: 9,
@@ -882,10 +927,14 @@ const styles = StyleSheet.create({
   },
   summaryDistance: {
     marginTop: 5,
-    fontSize: 10
+    fontSize: 10,
+    fontWeight: '700'
+  },
+  summarySource: {
+    marginTop: 3,
+    fontSize: 9
   },
   rebuild: {
-    marginLeft: 'auto',
     minHeight: 40,
     paddingHorizontal: 13,
     borderRadius: 14,
@@ -923,12 +972,12 @@ const styles = StyleSheet.create({
   line: {
     width: 2,
     flex: 1,
-    minHeight: 58,
+    minHeight: 72,
     backgroundColor: '#2A3A31'
   },
   placeCard: {
     flex: 1,
-    minHeight: 94,
+    minHeight: 112,
     marginBottom: 10,
     borderRadius: 20,
     padding: 15
@@ -955,9 +1004,28 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 16
   },
+  arrival: {
+    marginTop: 7,
+    fontSize: 10,
+    fontWeight: '900'
+  },
   rating: {
     fontSize: 11,
     fontWeight: '900'
+  },
+  scheduleHint: {
+    marginTop: 4,
+    borderRadius: 19,
+    padding: 15
+  },
+  scheduleHintTitle: {
+    fontSize: 11,
+    fontWeight: '900'
+  },
+  scheduleHintText: {
+    marginTop: 4,
+    fontSize: 9,
+    lineHeight: 14
   },
   empty: {
     marginTop: 8,
@@ -988,14 +1056,29 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 28,
+    paddingTop: 10,
+    paddingBottom: 24
+  },
+  mapsButton: {
+    minHeight: 51,
+    borderRadius: 18,
+    backgroundColor: colors.green,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  mapsButtonText: {
+    color: colors.black,
+    fontSize: 12,
+    fontWeight: '900'
+  },
+  footerRow: {
     flexDirection: 'row',
-    gap: 10
+    gap: 8,
+    marginTop: 8
   },
   secondary: {
     flex: 1,
-    minHeight: 54,
+    minHeight: 48,
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center'
@@ -1005,15 +1088,15 @@ const styles = StyleSheet.create({
     fontWeight: '900'
   },
   primary: {
-    flex: 1.25,
-    minHeight: 54,
-    borderRadius: 18,
-    backgroundColor: colors.green,
+    flex: 1.2,
+    minHeight: 48,
+    borderRadius: 17,
+    backgroundColor: '#173528',
     alignItems: 'center',
     justifyContent: 'center'
   },
   primaryText: {
-    color: colors.black,
+    color: colors.green,
     fontSize: 12,
     fontWeight: '900'
   },
