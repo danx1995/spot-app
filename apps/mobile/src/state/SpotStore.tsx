@@ -21,6 +21,7 @@ import {
 import type {
   CitySlug,
   Collection,
+  CollectionRoutePlan,
   DiscoveryInterest,
   Spot,
   SpotStatus
@@ -71,6 +72,7 @@ type NewCollectionInput = {
   title: string;
   subtitle?: string;
   city: CitySlug | 'both';
+  routePlan?: CollectionRoutePlan;
 };
 
 type UpdateCollectionInput = {
@@ -85,6 +87,7 @@ type SharedCollectionImport = {
   subtitle: string;
   city: CitySlug | 'both';
   cityLabel: string;
+  routePlan?: CollectionRoutePlan;
   spots: Spot[];
 };
 
@@ -500,6 +503,7 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
       city: input.city,
       cityLabel: cityLabel(input.city),
       placeIds: [],
+      routePlan: input.routePlan,
       createdAt: new Date().toISOString()
     };
     setCollections((current) => [collection, ...current]);
@@ -595,6 +599,7 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
           subtitle: input.subtitle.trim() || 'Подборка из СПОТ',
           city: input.city,
           cityLabel: input.cityLabel,
+          routePlan: input.routePlan,
           placeIds: input.spots.map((spot) => spot.id)
         };
 
@@ -607,6 +612,7 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
         subtitle: input.subtitle.trim() || 'Подборка из СПОТ',
         city: input.city,
         cityLabel: input.cityLabel,
+        routePlan: input.routePlan,
         placeIds: input.spots.map((spot) => spot.id),
         createdAt: new Date().toISOString(),
         sourceCollectionId: input.sourceCollectionId

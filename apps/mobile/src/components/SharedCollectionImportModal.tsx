@@ -77,6 +77,7 @@ export function SharedCollectionImportModal({ collectionID, visible, onClose }: 
       subtitle: preview.subtitle,
       city: preview.city,
       cityLabel: preview.cityLabel,
+      routePlan: preview.routePlan,
       spots: preview.spots
     });
 
@@ -119,12 +120,29 @@ export function SharedCollectionImportModal({ collectionID, visible, onClose }: 
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
             <View style={styles.hero}>
               <View style={styles.heroGlow} />
-              <Text style={styles.heroHeart}>♥</Text>
+              <Text style={styles.heroHeart}>{preview.routePlan ? '⌁' : '♥'}</Text>
             </View>
 
             <Text style={styles.city}>{preview.cityLabel.toUpperCase()}</Text>
             <Text style={[styles.title, { color: text }]}>{preview.title}</Text>
             <Text style={[styles.subtitle, { color: muted }]}>{preview.subtitle}</Text>
+
+            {preview.routePlan ? (
+              <View style={styles.routeMeta}>
+                <Text style={styles.routeMetaLabel}>ГОТОВЫЙ МАРШРУТ</Text>
+                <Text style={[styles.routeMetaText, { color: text }]}>
+                  {preview.routePlan.startPreset === 'tomorrow'
+                    ? 'Завтра · 12:00'
+                    : preview.routePlan.startPreset === 'evening'
+                      ? 'Вечером · 19:00'
+                      : 'Сейчас'}
+                  {' · '}
+                  {preview.routePlan.transport === 'driving' ? 'На машине' : 'Пешком'}
+                  {' · '}
+                  {preview.routePlan.stopMinutes} мин/место
+                </Text>
+              </View>
+            ) : null}
 
             <View style={[styles.infoCard, { backgroundColor: surface }]}>
               <View>
@@ -133,12 +151,16 @@ export function SharedCollectionImportModal({ collectionID, visible, onClose }: 
               </View>
               <View style={styles.infoCopy}>
                 <Text style={[styles.infoTitle, { color: text }]}>
-                  {alreadyImported ? 'Подборка уже у тебя' : 'Можно добавить целиком'}
+                  {preview.routePlan
+                    ? (alreadyImported ? 'Маршрут уже у тебя' : 'Можно добавить готовый маршрут')
+                    : (alreadyImported ? 'Подборка уже у тебя' : 'Можно добавить целиком')}
                 </Text>
                 <Text style={[styles.infoText, { color: muted }]}>
                   {alreadyImported
                     ? 'Импорт обновит список мест, а твои личные заметки и статусы сохранятся.'
-                    : 'Все места сохранятся как «Хочу сюда» и появятся отдельной подборкой.'}
+                    : preview.routePlan
+                      ? 'Сохраним порядок точек и настройки маршрута, а места добавим как «Хочу сюда».'
+                      : 'Все места сохранятся как «Хочу сюда» и появятся отдельной подборкой.'}
                 </Text>
               </View>
             </View>
@@ -306,6 +328,23 @@ const styles = StyleSheet.create({
     marginTop: 7,
     fontSize: 14,
     lineHeight: 20
+  },
+  routeMeta: {
+    marginTop: 14,
+    borderRadius: 18,
+    backgroundColor: '#173528',
+    padding: 13
+  },
+  routeMetaLabel: {
+    color: colors.green,
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 1.1
+  },
+  routeMetaText: {
+    marginTop: 5,
+    fontSize: 11,
+    fontWeight: '800'
   },
   infoCard: {
     marginTop: 18,

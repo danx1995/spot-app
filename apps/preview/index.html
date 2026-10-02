@@ -117,6 +117,7 @@
     .collection-hero:after{content:"♥";position:absolute;font-size:160px;right:-8px;bottom:-68px;color:rgba(25,195,125,.09);font-weight:950}
     .collection-hero small{color:var(--green);font-weight:900;letter-spacing:.13em}.collection-hero h2{font-size:28px;margin:8px 0 0;max-width:250px;line-height:1;letter-spacing:-.045em}.collection-hero p{font-size:11px;color:#9CA7A1;max-width:250px;line-height:1.5}
     .collection-card{margin:0 20px 10px;padding:16px;border-radius:22px;background:var(--surface);display:flex;align-items:center;gap:12px}
+    .collection-card.route-generated{border:1px solid #244432}.collection-card.route-generated .coll-icon{background:#173528;color:var(--green)}.collection-card.route-generated .route-mini{display:block;color:var(--green);font-size:8px;font-weight:950;letter-spacing:.09em;margin-bottom:4px}
     .coll-icon{width:50px;height:50px;border-radius:17px;background:#193126;display:grid;place-items:center;color:var(--green);font-size:20px}
     .collection-card h3{font-size:14px;margin:0}.collection-card p{font-size:10px;color:var(--muted);margin:4px 0 0}
     .profile-head{padding:54px 20px 18px;text-align:center}.avatar{width:82px;height:82px;border-radius:50%;background:var(--green);color:var(--black);font-size:26px;font-weight:950;display:grid;place-items:center;margin:0 auto}.profile-name{font-size:27px;font-weight:950;margin-top:13px}.profile-city{color:var(--muted);font-size:11px;margin-top:6px}.stats{margin:0 20px;display:grid;grid-template-columns:repeat(3,1fr);background:var(--surface);border-radius:24px;padding:17px 0}.stat{text-align:center;border-left:1px solid var(--line)}.stat:first-child{border-left:0}.stat b{font-size:19px}.stat span{display:block;color:var(--muted);font-size:9px;margin-top:3px}
@@ -231,6 +232,10 @@
           <div class="scroll">
             <div class="topbar"><div><div class="eyebrow">СПОТ</div><div class="city">Подборки</div></div><button class="round" data-toast="Создать новую подборку">＋</button></div>
             <div class="collection-hero"><small>ОБЩАЯ ПОДБОРКА</small><h2>Петербург на выходные</h2><p>Рестораны, бары и места для прогулки, которые хочется показать друзьям.</p></div>
+            <button class="collection-card route-generated" id="savedRouteCollection" style="display:none">
+              <div class="coll-icon">⌁</div>
+              <div><span class="route-mini">СОХРАНЁННЫЙ МАРШРУТ</span><h3 id="savedRouteTitle">Маршрут · Санкт-Петербург</h3><p id="savedRouteMeta">4 точки · Пешком · 45 мин/место</p></div>
+            </button>
             <div class="collection-tools"><button data-toast="Можно изменить название, описание и город">✎ Изменить</button><button data-toast="Места можно переставлять вверх и вниз">↕ Порядок мест</button></div>
             <button class="collection-card" data-toast="Открыть подборку"><div class="coll-icon">♥</div><div><h3>Рестораны, куда вернусь</h3><p>8 мест · Санкт-Петербург</p></div></button>
             <button class="collection-card" data-toast="Открыть подборку"><div class="coll-icon">☕</div><div><h3>Кофе и завтрак</h3><p>6 мест · Москва и Петербург</p></div></button>
@@ -804,8 +809,18 @@
     document.getElementById('routeMaps').addEventListener('click',()=>showToast('Открываем готовый маршрут в картах'));
     document.getElementById('routeShare').addEventListener('click',()=>showToast('Маршрут готов к отправке'));
     document.getElementById('routeSave').addEventListener('click',()=>{
-      showToast('Маршрут сохранён как подборка');
+      const routeCollection=document.getElementById('savedRouteCollection');
+      const cityLabel=routeCity==='spb'?'Санкт-Петербург':'Москва';
+      const transportLabel=routeTransport==='walking'?'Пешком':'На машине';
+      const startLabel=routeStart==='tomorrow'?'Завтра · 12:00':routeStart==='evening'?'Вечером · 19:00':'Сейчас';
+      routeCollection.style.display='flex';
+      document.getElementById('savedRouteTitle').textContent='Маршрут · '+cityLabel;
+      document.getElementById('savedRouteMeta').textContent=routeLength+' точки · '+startLabel+' · '+transportLabel+' · '+routeStopMinutes+' мин/место';
+      showToast('Маршрут сохранён вместе с порядком и настройками');
       document.getElementById('routeSave').textContent='✓ Сохранено';
+    });
+    document.getElementById('savedRouteCollection').addEventListener('click',()=>{
+      showToast('Сохранённый маршрут снова откроется в картах в этом порядке');
     });
     document.getElementById('savedBirchResult').addEventListener('click',()=>{
       closeOverlay(searchOverlay);

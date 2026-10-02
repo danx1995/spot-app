@@ -1,5 +1,11 @@
 import { appConfig } from '../config';
-import type { CitySlug, Spot, SpotCategory, SpotOpeningHours } from '../types';
+import type {
+  CitySlug,
+  CollectionRoutePlan,
+  Spot,
+  SpotCategory,
+  SpotOpeningHours
+} from '../types';
 import { ensureGuestSession, resetGuestSession } from './cloudSync';
 
 async function patchShared(collectionID: string, token: string) {
@@ -146,6 +152,13 @@ type PublicApiCollection = {
   city?: CitySlug;
   city_label?: string;
   place_ids: string[];
+  route_plan?: {
+    kind: 'route';
+    transport: 'walking' | 'driving';
+    start_preset: 'now' | 'evening' | 'tomorrow';
+    stop_minutes: 30 | 45 | 60;
+    start_mode: 'first_stop' | 'current_location';
+  };
 };
 
 export type SharedCollectionPreview = {
@@ -154,6 +167,7 @@ export type SharedCollectionPreview = {
   subtitle: string;
   city: CitySlug | 'both';
   cityLabel: string;
+  routePlan?: CollectionRoutePlan;
   spots: Spot[];
 };
 
@@ -194,6 +208,13 @@ export async function getSharedCollection(collectionID: string): Promise<SharedC
         : collectionCity === 'moscow'
           ? 'Москва'
           : 'Москва · Петербург'),
+    routePlan: payload.collection.route_plan ? {
+      kind: 'route',
+      transport: payload.collection.route_plan.transport,
+      startPreset: payload.collection.route_plan.start_preset,
+      stopMinutes: payload.collection.route_plan.stop_minutes,
+      startMode: payload.collection.route_plan.start_mode
+    } : undefined,
     spots
   };
 }

@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   Alert,
+  Linking,
   Modal,
   Pressable,
   ScrollView,
@@ -15,7 +16,7 @@ import {
 import { publishCollection } from '../services/libraryApi';
 import { useSpotStore } from '../state/SpotStore';
 import { colors } from '../theme';
-import type { Collection, Spot } from '../types';
+import type { Collection, CollectionRoutePlan, Spot } from '../types';
 import { PlaceDetailModal } from './PlaceDetailModal';
 import { SpotCard } from './SpotCard';
 
@@ -24,6 +25,43 @@ type Props = {
   visible: boolean;
   onClose: () => void;
 };
+
+function routePlanSummary(plan: CollectionRoutePlan) {
+  const start = plan.startPreset === 'now'
+    ? 'Сейчас'
+    : plan.startPreset === 'evening'
+      ? 'Вечером · 19:00'
+      : 'Завтра · 12:00';
+  const transport = plan.transport === 'driving' ? 'На машине' : 'Пешком';
+  const origin = plan.startMode === 'current_location' ? 'от меня' : 'с первой точки';
+
+  return start + ' · ' + transport + ' · ' + String(plan.stopMinutes) + ' мин/место · ' + origin;
+}
+
+function buildSavedRouteURL(spots: Spot[], plan: CollectionRoutePlan) {
+  if (spots.length < 2) return null;
+
+  const coordinate = (spot: Spot) => String(spot.latitude) + ',' + String(spot.longitude);
+  const destination = spots[spots.length - 1] as Spot;
+  const params = new URLSearchParams({
+    api: '1',
+    destination: coordinate(destination),
+    travelmode: plan.transport === 'driving' ? 'driving' : 'walking'
+  });
+
+  const waypoints = plan.startMode === 'current_location'
+    ? spots.slice(0, -1)
+    : spots.slice(1, -1);
+
+  if (plan.startMode === 'first_stop') {
+    params.set('origin', coordinate(spots[0] as Spot));
+  }
+  if (waypoints.length > 0) {
+    params.set('waypoints', waypoints.map(coordinate).join('|'));
+  }
+
+  return 'https://www.google.com/maps/dir/?' + params.toString();
+}
 
 function buildShareText(collection: Collection, spots: Spot[]) {
   const places = spots
@@ -71,6 +109,7 @@ export function CollectionDetailModal({ collection, visible, onClose }: Props) {
 
   if (!collection) return null;
   const activeCollection: Collection = collection;
+  const routePlan = activeCollection.routePlan;
 
   function removePlace(placeID: string) {
     togglePlaceInCollection(activeCollection.id, placeID);
@@ -114,6 +153,18 @@ export function CollectionDetailModal({ collection, visible, onClose }: Props) {
     );
   }
 
+  async function openSavedRoute() {
+    if (!routePlan) return;
+    const url = buildSavedRouteURL(spots, routePlan);
+    if (!url) return;
+
+    try {
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert('Не удалось открыть карты', 'Попробуйте ещё раз.');
+    }
+  }
+
   async function shareCollection() {
     if (sharing) return;
     setSharing(true);
@@ -151,7 +202,7 @@ export function CollectionDetailModal({ collection, visible, onClose }: Props) {
         <View style={[styles.root, { backgroundColor: dark ? colors.black : colors.lightBackground }]}>
           <View style={styles.hero}>
             <View style={styles.heroGlow} />
-            <Text style={styles.heroHeart}>♥</Text>
+            <Text style={styles.heroHeart}>{routePlan ? '⌁' : '♥'}</Text>
             <Pressable onPress={onClose} style={styles.closeButton}>
               <Text style={styles.closeText}>×</Text>
             </Pressable>
@@ -172,6 +223,38 @@ export function CollectionDetailModal({ collection, visible, onClose }: Props) {
                 <Text style={[styles.countLabel, { color: muted }]}>мест</Text>
               </View>
             </View>
+
+            {routePlan ? (
+              <View style={[styles.routeCard, { backgroundColor: surface }]}>
+                <View style={styles.routeCardTop}>
+                  <View style={styles.routeCardCopy}>
+                    <Text style={styles.routeCardEyebrow}>СОХРАНЁННЫЙ МАРШРУТ</Text>
+                    <Text style={[styles.routeCardTitle, { color: text }]}>
+                      {routePlan.transport === 'driving' ? '→ На машине' : '⌁ Пешком'}
+                    </Text>
+                    <Text style={[styles.routeCardMeta, { color: muted }]}>
+                      {routePlanSummary(routePlan)}
+                    </Text>
+                  </View>
+                  <View style={styles.routeBadge}>
+                    <Text style={styles.routeBadgeText}>{spots.length}</Text>
+                    <Text style={styles.routeBadgeHint}>точек</Text>
+                  </View>
+                </View>
+                <Pressable
+                  onPress={() => void openSavedRoute()}
+                  disabled={spots.length < 2}
+                  style={[styles.routeOpenButton, spots.length < 2 && styles.routeOpenButtonDisabled]}
+                >
+                  <Text style={styles.routeOpenButtonText}>↗ Открыть весь маршрут в картах</Text>
+                </Pressable>
+                <Text style={[styles.routePrivacy, { color: muted }]}>
+                  {routePlan.startMode === 'current_location'
+                    ? 'Текущая геопозиция не хранится — карты возьмут её только при открытии маршрута.'
+                    : 'Порядок точек можно менять стрелками ниже — маршрут откроется именно в этом порядке.'}
+                </Text>
+              </View>
+            ) : null}
 
             <Pressable
               onPress={() => void shareCollection()}
@@ -411,6 +494,75 @@ const styles = StyleSheet.create({
   countLabel: {
     marginTop: 2,
     fontSize: 10
+  },
+  routeCard: {
+    marginTop: 20,
+    borderRadius: 22,
+    padding: 16
+  },
+  routeCardTop: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'center'
+  },
+  routeCardCopy: {
+    flex: 1
+  },
+  routeCardEyebrow: {
+    color: colors.green,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 1.1
+  },
+  routeCardTitle: {
+    marginTop: 5,
+    fontSize: 18,
+    fontWeight: '900'
+  },
+  routeCardMeta: {
+    marginTop: 5,
+    fontSize: 10,
+    lineHeight: 15
+  },
+  routeBadge: {
+    width: 54,
+    height: 54,
+    borderRadius: 18,
+    backgroundColor: '#173528',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  routeBadgeText: {
+    color: colors.green,
+    fontSize: 18,
+    fontWeight: '900'
+  },
+  routeBadgeHint: {
+    marginTop: 1,
+    color: '#8FB5A2',
+    fontSize: 8,
+    fontWeight: '800'
+  },
+  routeOpenButton: {
+    minHeight: 49,
+    marginTop: 14,
+    borderRadius: 16,
+    backgroundColor: colors.green,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  routeOpenButtonDisabled: {
+    opacity: 0.35
+  },
+  routeOpenButtonText: {
+    color: colors.black,
+    fontSize: 11,
+    fontWeight: '900'
+  },
+  routePrivacy: {
+    marginTop: 8,
+    fontSize: 9,
+    lineHeight: 14
   },
   shareButton: {
     minHeight: 54,

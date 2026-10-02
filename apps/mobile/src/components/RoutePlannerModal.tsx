@@ -578,7 +578,14 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
     const collection = createCollection({
       title: `Маршрут · ${CITY_LABELS[routeCity]}`,
       subtitle: planStartLabel + ' · ' + option.label + ' · ' + String(route.length) + ' мест · ' + transportLabel + ' · ' + String(stopMinutes) + ' мин/место',
-      city: routeCity
+      city: routeCity,
+      routePlan: {
+        kind: 'route',
+        transport: transport === 'driving' ? 'driving' : 'walking',
+        startPreset: routeStart,
+        stopMinutes: stopMinutes as 30 | 45 | 60,
+        startMode: startFromMe ? 'current_location' : 'first_stop'
+      }
     });
 
     for (const spot of route) {

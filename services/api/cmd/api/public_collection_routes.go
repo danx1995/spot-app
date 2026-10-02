@@ -25,6 +25,9 @@ type publicCollectionView struct {
 	ShareDescription string
 	CityLabel        string
 	PlaceCount       int
+	IsRoute          bool
+	RouteMeta        string
+	RouteURL         template.URL
 	AppURL           template.URL
 	Places           []publicPlaceView
 }
@@ -57,6 +60,10 @@ var publicCollectionTemplate = template.Must(template.New("collection").Parse(`<
     .desc{margin:16px 0 0;color:#A8B0AB;font-size:16px;line-height:1.55;max-width:620px}
     .meta{margin-top:18px;display:inline-flex;gap:8px;align-items:center;background:#151B17;border-radius:16px;padding:10px 13px;color:#C9D0CC;font-size:12px;font-weight:700}
     .ctaWrap{margin-top:22px}
+    .routeCard{margin-top:22px;background:#151B17;border:1px solid #24342B;border-radius:22px;padding:16px}
+    .routeLabel{color:#19C37D;font-size:10px;font-weight:900;letter-spacing:.12em}
+    .routeMeta{margin-top:6px;color:#C9D0CC;font-size:13px;line-height:1.5}
+    .routeCta{margin-top:12px;display:flex;align-items:center;justify-content:center;min-height:52px;border-radius:17px;background:#19C37D;color:#0B0F0C;text-decoration:none;font-size:13px;font-weight:900}
     .cta{display:flex;align-items:center;justify-content:center;min-height:58px;border-radius:19px;background:#19C37D;color:#0B0F0C;text-decoration:none;font-size:14px;font-weight:900}
     .ctaHint{margin:9px 4px 0;color:#7E8983;font-size:11px;line-height:1.5}
     .list{display:grid;gap:12px;margin-top:34px}
@@ -79,7 +86,14 @@ var publicCollectionTemplate = template.Must(template.New("collection").Parse(`<
       <div class="eyebrow">{{if .CityLabel}}{{.CityLabel}}{{else}}Москва · Петербург{{end}}</div>
       <h1>{{.Title}}</h1>
       {{if .Description}}<p class="desc">{{.Description}}</p>{{end}}
-      <div class="meta">{{.PlaceCount}} мест · общая подборка</div>
+      <div class="meta">{{.PlaceCount}} {{if .IsRoute}}точек · маршрут{{else}}мест · общая подборка{{end}}</div>
+      {{if .IsRoute}}
+        <div class="routeCard">
+          <div class="routeLabel">СОХРАНЁННЫЙ МАРШРУТ</div>
+          <div class="routeMeta">{{.RouteMeta}}</div>
+          <a class="routeCta" href="{{.RouteURL}}" target="_blank" rel="noopener noreferrer">↗ Открыть весь маршрут в картах</a>
+        </div>
+      {{end}}
       <div class="ctaWrap">
         <a class="cta" href="{{.AppURL}}">♥ Добавить подборку в СПОТ</a>
         <div class="ctaHint">Если СПОТ установлен, подборка откроется прямо в приложении. Перед добавлением можно проверить все места.</div>
@@ -111,6 +125,68 @@ var publicCollectionTemplate = template.Must(template.New("collection").Parse(`<
 </body>
 </html>`))
 
+func routePlanMeta(plan *library.RoutePlan) string {
+	if plan == nil {
+		return ""
+	}
+
+	start := "Сейчас"
+	switch plan.StartPreset {
+	case "evening":
+		start = "Вечером · 19:00"
+	case "tomorrow":
+		start = "Завтра · 12:00"
+	}
+
+	transport := "Пешком"
+	if plan.Transport == "driving" {
+		transport = "На машине"
+	}
+
+	origin := "с первой точки"
+	if plan.StartMode == "current_location" {
+		origin = "от текущего места"
+	}
+
+	return fmt.Sprintf("%s · %s · %d мин/место · %s", start, transport, plan.StopMinutes, origin)
+}
+
+func publicRouteURL(plan *library.RoutePlan, places []library.Place) string {
+	if plan == nil || len(places) < 2 {
+		return ""
+	}
+
+	coordinate := func(place library.Place) string {
+		return fmt.Sprintf("%.6f,%.6f", place.Latitude, place.Longitude)
+	}
+
+	params := url.Values{}
+	params.Set("api", "1")
+	params.Set("destination", coordinate(places[len(places)-1]))
+	if plan.Transport == "driving" {
+		params.Set("travelmode", "driving")
+	} else {
+		params.Set("travelmode", "walking")
+	}
+
+	waypointStart := 1
+	if plan.StartMode == "first_stop" {
+		params.Set("origin", coordinate(places[0]))
+	} else {
+		waypointStart = 0
+	}
+
+	if len(places)-1 > waypointStart {
+		waypoints := make([]string, 0, len(places)-1-waypointStart)
+		for _, place := range places[waypointStart : len(places)-1] {
+			waypoints = append(waypoints, coordinate(place))
+		}
+		params.Set("waypoints", strings.Join(waypoints, "|"))
+	}
+
+	return "https://www.google.com/maps/dir/?" + params.Encode()
+}
+
 func registerPublicCollectionRoutes(mux *http.ServeMux, store library.Store) {
 	mux.HandleFunc("GET /api/v1/public/collections/{id}", func(w http.ResponseWriter, r *http.Request) {
 		shared, err := store.GetSharedCollection(r.Context(), r.PathValue("id"))
@@ -138,12 +214,16 @@ func registerPublicCollectionRoutes(mux *http.ServeMux, store library.Store) {
 			shareDescription = fmt.Sprintf("%d мест в общей подборке СПОТ", len(shared.Places))
 		}
 
+		routeURL := publicRouteURL(shared.Collection.RoutePlan, shared.Places)
 		view := publicCollectionView{
 			Title:            shared.Collection.Title,
 			Description:      shared.Collection.Description,
 			ShareDescription: shareDescription,
 			CityLabel:        shared.Collection.CityLabel,
 			PlaceCount:       len(shared.Places),
+			IsRoute:          shared.Collection.RoutePlan != nil && routeURL != "",
+			RouteMeta:        routePlanMeta(shared.Collection.RoutePlan),
+			RouteURL:         template.URL(routeURL),
 			AppURL:           template.URL("spot://collection?id=" + url.QueryEscape(collectionID)),
 			Places:           make([]publicPlaceView, 0, len(shared.Places)),
 		}

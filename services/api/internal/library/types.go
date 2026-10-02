@@ -83,6 +83,14 @@ type NearbyQuery struct {
 	Limit     int
 }
 
+type RoutePlan struct {
+	Kind        string `json:"kind"`
+	Transport   string `json:"transport"`
+	StartPreset string `json:"start_preset"`
+	StopMinutes int    `json:"stop_minutes"`
+	StartMode   string `json:"start_mode"`
+}
+
 type Collection struct {
 	ID          string    `json:"id"`
 	Title       string    `json:"title"`
@@ -91,6 +99,7 @@ type Collection struct {
 	CityLabel   string    `json:"city_label,omitempty"`
 	Visibility  string    `json:"visibility"`
 	CoverURL    string    `json:"cover_url,omitempty"`
+	RoutePlan   *RoutePlan `json:"route_plan,omitempty"`
 	PlaceIDs    []string  `json:"place_ids"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
@@ -107,7 +116,8 @@ type CreateCollectionInput struct {
 	Description string `json:"description,omitempty"`
 	City        string `json:"city,omitempty"`
 	Visibility  string `json:"visibility,omitempty"`
-	CoverURL    string `json:"cover_url,omitempty"`
+	CoverURL    string     `json:"cover_url,omitempty"`
+	RoutePlan   *RoutePlan `json:"route_plan,omitempty"`
 }
 
 type CollectionPatch struct {
