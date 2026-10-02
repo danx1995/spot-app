@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+
 import { BrandMark } from '../components/BrandMark';
 import { colors } from '../theme';
 
+type OnboardingCity = 'spb' | 'moscow' | 'both';
+
 type Props = {
-  onComplete: () => void;
+  onComplete: (city: OnboardingCity) => void;
 };
 
 export function OnboardingScreen({ onComplete }: Props) {
-  const [city, setCity] = useState<'spb' | 'moscow' | 'both'>('spb');
+  const [city, setCity] = useState<OnboardingCity>('spb');
 
   return (
     <View style={styles.root}>
@@ -22,16 +25,16 @@ export function OnboardingScreen({ onComplete }: Props) {
       <View style={styles.cityBlock}>
         <Text style={styles.sectionLabel}>С чего начнём?</Text>
         <View style={styles.cityRow}>
-          {[
+          {([
             ['spb', 'Петербург'],
             ['moscow', 'Москва'],
             ['both', 'Оба']
-          ].map(([id, label]) => {
+          ] as const).map(([id, label]) => {
             const active = city === id;
             return (
               <Pressable
                 key={id}
-                onPress={() => setCity(id as typeof city)}
+                onPress={() => setCity(id)}
                 style={[styles.cityButton, active && styles.cityButtonActive]}
               >
                 <Text style={[styles.cityText, active && styles.cityTextActive]}>{label}</Text>
@@ -41,7 +44,7 @@ export function OnboardingScreen({ onComplete }: Props) {
         </View>
       </View>
 
-      <Pressable onPress={onComplete} style={styles.primaryButton}>
+      <Pressable onPress={() => onComplete(city)} style={styles.primaryButton}>
         <Text style={styles.primaryText}>Открыть СПОТ</Text>
       </Pressable>
 
