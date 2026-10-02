@@ -30,12 +30,32 @@ func New(twoGIS *twogis.Client) *Resolver {
 }
 
 func (r *Resolver) Search(ctx context.Context, query, city, category string) ([]catalog.Place, error) {
+	return r.SearchPage(ctx, query, city, category, 1)
+}
+
+func (r *Resolver) SearchPage(
+	ctx context.Context,
+	query, city, category string,
+	page int,
+) ([]catalog.Place, error) {
+	if page < 1 {
+		page = 1
+	}
+
+	remoteQuery := strings.TrimSpace(query)
+	if remoteQuery == "" {
+		remoteQuery = categoryDiscoveryQuery(category)
+	}
+
 	local := catalog.SearchPlaces(query, city, category)
-	if strings.TrimSpace(query) == "" || len(local) >= 5 || r.twoGIS == nil || !r.twoGIS.Enabled() {
+	if remoteQuery == "" || len(local) >= 5 || r.twoGIS == nil || !r.twoGIS.Enabled() {
+		if page > 1 {
+			return nil, nil
+		}
 		return local, nil
 	}
 
-	key := searchKey(query, city, category)
+	key := searchPageKey(remoteQuery, city, category, page)
 	if cached, ok := r.cache.Get(key); ok {
 		return cached, nil
 	}
@@ -45,14 +65,23 @@ func (r *Resolver) Search(ctx context.Context, query, city, category string) ([]
 			return cached, nil
 		}
 
-		remote, remoteErr := r.twoGIS.Search(ctx, query, city)
+		remote, remoteErr := r.twoGIS.SearchPage(ctx, remoteQuery, city, page)
 		if remoteErr != nil {
-			// Keep the UI usable, but do not cache provider failures so a later
-			// request can recover immediately.
+			if page > 1 {
+				return []catalog.Place{}, nil
+			}
 			return local, nil
 		}
 
-		out := mergeSearchPlaces(local, remote, category)
+		var out []catalog.Place
+		if page == 1 {
+			out = mergeSearchPlaces(local, remote, category)
+		} else {
+			out = filterSearchPlaces(remote, category)
+		}
+		if len(out) > 50 {
+			out = out[:50]
+		}
 		r.cache.Set(key, out)
 		return out, nil
 	})
@@ -68,12 +97,33 @@ func (r *Resolver) SearchAt(
 	query, city, category string,
 	lat, lon float64,
 ) ([]catalog.Place, error) {
+	return r.SearchAtPage(ctx, query, city, category, lat, lon, 1)
+}
+
+func (r *Resolver) SearchAtPage(
+	ctx context.Context,
+	query, city, category string,
+	lat, lon float64,
+	page int,
+) ([]catalog.Place, error) {
+	if page < 1 {
+		page = 1
+	}
+
+	remoteQuery := strings.TrimSpace(query)
+	if remoteQuery == "" {
+		remoteQuery = categoryDiscoveryQuery(category)
+	}
+
 	local := catalog.SearchPlaces(query, city, category)
-	if strings.TrimSpace(query) == "" || r.twoGIS == nil || !r.twoGIS.Enabled() {
+	if remoteQuery == "" || r.twoGIS == nil || !r.twoGIS.Enabled() {
+		if page > 1 {
+			return nil, nil
+		}
 		return local, nil
 	}
 
-	key := searchAtKey(query, city, category, lat, lon)
+	key := searchAtPageKey(remoteQuery, city, category, lat, lon, page)
 	if cached, ok := r.cache.Get(key); ok {
 		return cached, nil
 	}
@@ -83,17 +133,20 @@ func (r *Resolver) SearchAt(
 			return cached, nil
 		}
 
-		remote, remoteErr := r.twoGIS.SearchAt(ctx, query, city, lat, lon)
+		remote, remoteErr := r.twoGIS.SearchAtPage(ctx, remoteQuery, city, lat, lon, page)
 		if remoteErr != nil {
+			if page > 1 {
+				return []catalog.Place{}, nil
+			}
 			return local, nil
 		}
 
 		out := filterSearchPlaces(remote, category)
-		if len(out) == 0 {
+		if len(out) == 0 && page == 1 {
 			out = local
 		}
-		if len(out) > 20 {
-			out = out[:20]
+		if len(out) > 50 {
+			out = out[:50]
 		}
 
 		r.cache.Set(key, out)
@@ -104,6 +157,29 @@ func (r *Resolver) SearchAt(
 	}
 
 	return clonePlaces(value.([]catalog.Place)), nil
+}
+
+func categoryDiscoveryQuery(category string) string {
+	switch category {
+	case "restaurant":
+		return "рестораны"
+	case "coffee":
+		return "кофейни"
+	case "bar":
+		return "бары"
+	case "hotel":
+		return "отели"
+	case "culture":
+		return "музеи театры галереи"
+	case "entertainment":
+		return "развлечения"
+	case "shop":
+		return "магазины"
+	case "park":
+		return "парки"
+	default:
+		return ""
+	}
 }
 
 func mergeSearchPlaces(local, remote []catalog.Place, category string) []catalog.Place {
