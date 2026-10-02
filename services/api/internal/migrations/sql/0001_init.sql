@@ -1,12 +1,10 @@
-CREATE EXTENSION IF NOT EXISTS postgis;
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
 CREATE TABLE IF NOT EXISTS cities (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   slug text UNIQUE NOT NULL,
   name text NOT NULL,
   country_code char(2) NOT NULL DEFAULT 'RU',
-  center geography(Point, 4326) NOT NULL,
+  center_lat double precision NOT NULL CHECK (center_lat BETWEEN -90 AND 90),
+  center_lng double precision NOT NULL CHECK (center_lng BETWEEN -180 AND 180),
   is_active boolean NOT NULL DEFAULT false,
   created_at timestamptz NOT NULL DEFAULT now()
 );
@@ -36,7 +34,8 @@ CREATE TABLE IF NOT EXISTS places (
   category_id uuid REFERENCES categories(id),
   name text NOT NULL,
   normalized_name text NOT NULL,
-  location geography(Point, 4326) NOT NULL,
+  latitude double precision NOT NULL CHECK (latitude BETWEEN -90 AND 90),
+  longitude double precision NOT NULL CHECK (longitude BETWEEN -180 AND 180),
   address text,
   district text,
   cover_image_url text,
@@ -54,7 +53,7 @@ CREATE TABLE IF NOT EXISTS places (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS places_location_idx ON places USING gist(location);
+CREATE INDEX IF NOT EXISTS places_coordinates_idx ON places(latitude, longitude);
 CREATE INDEX IF NOT EXISTS places_city_idx ON places(city_id);
 CREATE INDEX IF NOT EXISTS places_normalized_name_idx ON places(normalized_name);
 
@@ -95,12 +94,13 @@ CREATE TABLE IF NOT EXISTS collection_places (
   PRIMARY KEY(collection_id, place_id)
 );
 
-INSERT INTO cities (slug, name, center, is_active) VALUES
-('spb', 'Санкт-Петербург', ST_SetSRID(ST_Point(30.3141, 59.9386), 4326)::geography, true),
-('moscow', 'Москва', ST_SetSRID(ST_Point(37.6173, 55.7558), 4326)::geography, true)
+INSERT INTO cities (slug, name, center_lat, center_lng, is_active) VALUES
+('spb', 'Санкт-Петербург', 59.9386, 30.3141, true),
+('moscow', 'Москва', 55.7558, 37.6173, true)
 ON CONFLICT (slug) DO UPDATE
 SET name = EXCLUDED.name,
-    center = EXCLUDED.center,
+    center_lat = EXCLUDED.center_lat,
+    center_lng = EXCLUDED.center_lng,
     is_active = EXCLUDED.is_active;
 
 INSERT INTO categories (slug, name, sort_order) VALUES
