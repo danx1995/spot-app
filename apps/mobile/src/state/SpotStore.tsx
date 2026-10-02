@@ -374,12 +374,20 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
     setSavedSpots((current) => {
       const existing = current.find((item) => item.id === spot.id);
       if (existing) {
-        return current.map((item) => item.id === spot.id ? { ...item, ...spot, status: existing.status } : item);
+        return current.map((item) => item.id === spot.id ? {
+          ...item,
+          ...spot,
+          status: existing.status,
+          savedAt: existing.savedAt ?? spot.savedAt ?? new Date().toISOString()
+        } : item);
       }
+
+      const now = new Date().toISOString();
       return [{
         ...spot,
         status,
-        visitedAt: status === 'visited' ? (spot.visitedAt ?? new Date().toISOString()) : spot.visitedAt
+        savedAt: spot.savedAt ?? now,
+        visitedAt: status === 'visited' ? (spot.visitedAt ?? now) : spot.visitedAt
       }, ...current];
     });
   }, []);
@@ -475,16 +483,22 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
     setSavedSpots((current) => {
       const byID = new Map(current.map((spot) => [spot.id, spot]));
 
+      const importedAt = new Date().toISOString();
+
       for (const incoming of input.spots) {
         const existing = byID.get(incoming.id);
         if (!existing) {
-          byID.set(incoming.id, incoming);
+          byID.set(incoming.id, {
+            ...incoming,
+            savedAt: incoming.savedAt ?? importedAt
+          });
           continue;
         }
 
         byID.set(incoming.id, {
           ...incoming,
           status: existing.status,
+          savedAt: existing.savedAt ?? incoming.savedAt ?? importedAt,
           visitedAt: existing.visitedAt,
           favorite: existing.favorite,
           note: existing.note,
