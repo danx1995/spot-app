@@ -32,7 +32,11 @@ func TestApplyCloudDeltaProjectsPlacesAndCollections(t *testing.T) {
 				"description":"Авторский ресторан",
 				"status":"want",
 				"favorite":true,
-				"note":"ужин"
+				"note":"ужин",
+				"sourceUrl":"https://instagram.com/reel/demo",
+				"sourcePlatform":"instagram",
+				"sourceTitle":"Birch on Instagram",
+				"sourceExcerpt":"Тартар и десерт в Birch"
 			}
 		],
 		"collections":[
@@ -66,6 +70,11 @@ func TestApplyCloudDeltaProjectsPlacesAndCollections(t *testing.T) {
 	}
 	if places[0].Description != "Авторский ресторан" {
 		t.Fatalf("unexpected projected description: %q", places[0].Description)
+	}
+	if places[0].SourceTitle != "Birch on Instagram" ||
+		places[0].SourceExcerpt != "Тартар и десерт в Birch" ||
+		places[0].SourceType != "instagram" {
+		t.Fatalf("expected source memory to be projected: %#v", places[0])
 	}
 
 	collection, err := store.GetCollection(ctx, "u1", "col_weekend")

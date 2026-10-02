@@ -153,6 +153,8 @@ func (s *PostgresStore) UpsertPlace(ctx context.Context, userID string, input Sa
 			note,
 			source_type,
 			source_url,
+			source_title,
+			source_excerpt,
 			is_favorite,
 			visited_at,
 			updated_at
@@ -164,7 +166,9 @@ func (s *PostgresStore) UpsertPlace(ctx context.Context, userID string, input Sa
 			NULLIF(trim($4), ''),
 			NULLIF(trim($5), ''),
 			NULLIF(trim($6), ''),
-			$7,
+			NULLIF(trim($7), ''),
+			NULLIF(trim($8), ''),
+			$9,
 			CASE WHEN $3 = 'visited' THEN now() ELSE NULL END,
 			now()
 		)
@@ -173,6 +177,8 @@ func (s *PostgresStore) UpsertPlace(ctx context.Context, userID string, input Sa
 		    note = EXCLUDED.note,
 		    source_type = EXCLUDED.source_type,
 		    source_url = EXCLUDED.source_url,
+		    source_title = EXCLUDED.source_title,
+		    source_excerpt = EXCLUDED.source_excerpt,
 		    is_favorite = EXCLUDED.is_favorite,
 		    visited_at = CASE
 		      WHEN EXCLUDED.status = 'visited' THEN COALESCE(user_places.visited_at, now())
@@ -187,6 +193,8 @@ func (s *PostgresStore) UpsertPlace(ctx context.Context, userID string, input Sa
 		input.Note,
 		input.SourceType,
 		input.SourceURL,
+		input.SourceTitle,
+		input.SourceExcerpt,
 		input.IsFavorite,
 	).Scan(&savedAt, &visitedAt, &updatedAt)
 	if err != nil {
@@ -201,9 +209,11 @@ func (s *PostgresStore) UpsertPlace(ctx context.Context, userID string, input Sa
 		Place:       input.Place,
 		Status:      status,
 		Note:        strings.TrimSpace(input.Note),
-		SourceType:  strings.TrimSpace(input.SourceType),
-		SourceURL:   strings.TrimSpace(input.SourceURL),
-		IsFavorite:  input.IsFavorite,
+		SourceType:    strings.TrimSpace(input.SourceType),
+		SourceURL:     strings.TrimSpace(input.SourceURL),
+		SourceTitle:   strings.TrimSpace(input.SourceTitle),
+		SourceExcerpt: strings.TrimSpace(input.SourceExcerpt),
+		IsFavorite:    input.IsFavorite,
 		SavedAt:     savedAt,
 		VisitedAt:   visitedAt,
 		UpdatedAt:   updatedAt,
@@ -232,6 +242,8 @@ func (s *PostgresStore) ListPlaces(ctx context.Context, userID string, filters P
 			COALESCE(up.note, ''),
 			COALESCE(up.source_type, ''),
 			COALESCE(up.source_url, ''),
+			COALESCE(up.source_title, ''),
+			COALESCE(up.source_excerpt, ''),
 			up.is_favorite,
 			up.saved_at,
 			up.visited_at,
@@ -299,6 +311,8 @@ func (s *PostgresStore) NearbyPlaces(ctx context.Context, userID string, query N
 			COALESCE(up.note, ''),
 			COALESCE(up.source_type, ''),
 			COALESCE(up.source_url, ''),
+			COALESCE(up.source_title, ''),
+			COALESCE(up.source_excerpt, ''),
 			up.is_favorite,
 			up.saved_at,
 			up.visited_at,
@@ -342,6 +356,8 @@ func (s *PostgresStore) NearbyPlaces(ctx context.Context, userID string, query N
 			&place.Note,
 			&place.SourceType,
 			&place.SourceURL,
+			&place.SourceTitle,
+			&place.SourceExcerpt,
 			&place.IsFavorite,
 			&place.SavedAt,
 			&place.VisitedAt,
@@ -367,9 +383,11 @@ func (s *PostgresStore) PatchPlace(ctx context.Context, userID, placeID string, 
 		Place:       current.Place,
 		Status:      current.Status,
 		Note:        current.Note,
-		SourceType:  current.SourceType,
-		SourceURL:   current.SourceURL,
-		IsFavorite:  current.IsFavorite,
+		SourceType:    current.SourceType,
+		SourceURL:     current.SourceURL,
+		SourceTitle:   current.SourceTitle,
+		SourceExcerpt: current.SourceExcerpt,
+		IsFavorite:    current.IsFavorite,
 	}
 	if patch.Status != nil {
 		if normalizeStatus(*patch.Status) == "" {
@@ -385,6 +403,12 @@ func (s *PostgresStore) PatchPlace(ctx context.Context, userID, placeID string, 
 	}
 	if patch.SourceURL != nil {
 		input.SourceURL = *patch.SourceURL
+	}
+	if patch.SourceTitle != nil {
+		input.SourceTitle = *patch.SourceTitle
+	}
+	if patch.SourceExcerpt != nil {
+		input.SourceExcerpt = *patch.SourceExcerpt
 	}
 	if patch.IsFavorite != nil {
 		input.IsFavorite = *patch.IsFavorite
@@ -999,6 +1023,8 @@ func (s *PostgresStore) getPlace(ctx context.Context, userID, placeID string) (S
 			COALESCE(up.note, ''),
 			COALESCE(up.source_type, ''),
 			COALESCE(up.source_url, ''),
+			COALESCE(up.source_title, ''),
+			COALESCE(up.source_excerpt, ''),
 			up.is_favorite,
 			up.saved_at,
 			up.visited_at,
@@ -1027,6 +1053,8 @@ func (s *PostgresStore) getPlace(ctx context.Context, userID, placeID string) (S
 		&place.Note,
 		&place.SourceType,
 		&place.SourceURL,
+		&place.SourceTitle,
+		&place.SourceExcerpt,
 		&place.IsFavorite,
 		&place.SavedAt,
 		&place.VisitedAt,
@@ -1067,6 +1095,8 @@ func scanSavedPlace(row rowScanner) (SavedPlace, error) {
 		&place.Note,
 		&place.SourceType,
 		&place.SourceURL,
+		&place.SourceTitle,
+		&place.SourceExcerpt,
 		&place.IsFavorite,
 		&place.SavedAt,
 		&place.VisitedAt,

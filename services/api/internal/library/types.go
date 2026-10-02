@@ -37,9 +37,11 @@ type SavedPlace struct {
 	Place
 	Status       string     `json:"status"`
 	Note         string     `json:"note,omitempty"`
-	SourceType   string     `json:"source_type,omitempty"`
-	SourceURL    string     `json:"source_url,omitempty"`
-	IsFavorite   bool       `json:"is_favorite"`
+	SourceType    string     `json:"source_type,omitempty"`
+	SourceURL     string     `json:"source_url,omitempty"`
+	SourceTitle   string     `json:"source_title,omitempty"`
+	SourceExcerpt string     `json:"source_excerpt,omitempty"`
+	IsFavorite    bool       `json:"is_favorite"`
 	SavedAt      time.Time  `json:"saved_at"`
 	VisitedAt    *time.Time `json:"visited_at,omitempty"`
 	UpdatedAt    time.Time  `json:"updated_at"`
@@ -48,19 +50,23 @@ type SavedPlace struct {
 
 type SavePlaceInput struct {
 	Place
-	Status     string `json:"status"`
-	Note       string `json:"note,omitempty"`
-	SourceType string `json:"source_type,omitempty"`
-	SourceURL  string `json:"source_url,omitempty"`
-	IsFavorite bool   `json:"is_favorite"`
+	Status        string `json:"status"`
+	Note          string `json:"note,omitempty"`
+	SourceType    string `json:"source_type,omitempty"`
+	SourceURL     string `json:"source_url,omitempty"`
+	SourceTitle   string `json:"source_title,omitempty"`
+	SourceExcerpt string `json:"source_excerpt,omitempty"`
+	IsFavorite    bool   `json:"is_favorite"`
 }
 
 type PlacePatch struct {
-	Status     *string `json:"status,omitempty"`
-	Note       *string `json:"note,omitempty"`
-	SourceType *string `json:"source_type,omitempty"`
-	SourceURL  *string `json:"source_url,omitempty"`
-	IsFavorite *bool   `json:"is_favorite,omitempty"`
+	Status        *string `json:"status,omitempty"`
+	Note          *string `json:"note,omitempty"`
+	SourceType    *string `json:"source_type,omitempty"`
+	SourceURL     *string `json:"source_url,omitempty"`
+	SourceTitle   *string `json:"source_title,omitempty"`
+	SourceExcerpt *string `json:"source_excerpt,omitempty"`
+	IsFavorite    *bool   `json:"is_favorite,omitempty"`
 }
 
 type PlaceFilters struct {

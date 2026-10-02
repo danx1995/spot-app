@@ -62,9 +62,11 @@ func (s *MemoryStore) UpsertPlace(_ context.Context, userID string, input SavePl
 		Place:       input.Place,
 		Status:      status,
 		Note:        strings.TrimSpace(input.Note),
-		SourceType:  strings.TrimSpace(input.SourceType),
-		SourceURL:   strings.TrimSpace(input.SourceURL),
-		IsFavorite:  input.IsFavorite,
+		SourceType:    strings.TrimSpace(input.SourceType),
+		SourceURL:     strings.TrimSpace(input.SourceURL),
+		SourceTitle:   strings.TrimSpace(input.SourceTitle),
+		SourceExcerpt: strings.TrimSpace(input.SourceExcerpt),
+		IsFavorite:    input.IsFavorite,
 		SavedAt:     savedAt,
 		VisitedAt:   visitedAt,
 		UpdatedAt:   now,
@@ -171,6 +173,12 @@ func (s *MemoryStore) PatchPlace(_ context.Context, userID, placeID string, patc
 	}
 	if patch.SourceURL != nil {
 		place.SourceURL = strings.TrimSpace(*patch.SourceURL)
+	}
+	if patch.SourceTitle != nil {
+		place.SourceTitle = strings.TrimSpace(*patch.SourceTitle)
+	}
+	if patch.SourceExcerpt != nil {
+		place.SourceExcerpt = strings.TrimSpace(*patch.SourceExcerpt)
 	}
 	if patch.IsFavorite != nil {
 		place.IsFavorite = *patch.IsFavorite
@@ -437,7 +445,9 @@ func validateSavePlace(input SavePlaceInput) error {
 		strings.TrimSpace(input.Name) == "" ||
 		(input.City != "spb" && input.City != "moscow") ||
 		!validCoordinate(input.Latitude, input.Longitude) ||
-		normalizeStatus(input.Status) == "" {
+		normalizeStatus(input.Status) == "" ||
+		len([]rune(strings.TrimSpace(input.SourceTitle))) > 240 ||
+		len([]rune(strings.TrimSpace(input.SourceExcerpt))) > 1000 {
 		return ErrInvalidInput
 	}
 	return nil
