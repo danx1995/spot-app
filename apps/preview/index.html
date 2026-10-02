@@ -263,6 +263,7 @@
               <button class="menu-row" data-toast="Одноразовый код действует 10 минут">Перенести профиль <span>Открыть ›</span></button>
               <button class="menu-row" data-toast="История посещённых мест">История посещений <span>7 ›</span></button>
               <button class="menu-row" data-toast="Apple / Google backend уже подготовлен">Аккаунт <span>Скоро ›</span></button>
+              <button class="menu-row" id="previewResetRecommendations">Скрытые рекомендации <span id="previewHiddenCount">2 ›</span></button>
               <button class="menu-row" id="showOnboardingProfile">Onboarding <span>Посмотреть ›</span></button>
               <button class="menu-row" id="themeBtn">Тема preview <span>Переключить ›</span></button>
             </div>
@@ -710,6 +711,12 @@
       onboardingPreview.classList.add('open');
     }
 
+    document.getElementById('previewResetRecommendations').addEventListener('click',()=>{
+      document.querySelectorAll('[data-for-you-item].removed').forEach(item=>item.classList.remove('removed'));
+      document.getElementById('previewHiddenCount').textContent='0 ›';
+      showToast('Скрытые рекомендации снова доступны');
+    });
+
     document.getElementById('showOnboardingDesktop').addEventListener('click',openOnboarding);
     document.getElementById('showOnboardingProfile').addEventListener('click',openOnboarding);
     document.getElementById('closeOnboarding').addEventListener('click',()=>onboardingPreview.classList.remove('open'));
@@ -871,6 +878,8 @@
       event.stopPropagation();
       const item=button.closest('[data-for-you-item]');
       if(item) item.classList.add('removed');
+      const hidden=[...document.querySelectorAll('[data-for-you-item].removed')].length;
+      document.getElementById('previewHiddenCount').textContent=hidden+' ›';
       showToast('Скрыли рекомендацию · больше не покажем на этом устройстве');
     }));
     document.getElementById('mapSearchBtn').addEventListener('click',()=>openOverlay(searchOverlay));
