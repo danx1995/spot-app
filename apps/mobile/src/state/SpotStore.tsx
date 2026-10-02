@@ -316,7 +316,11 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
       if (existing) {
         return current.map((item) => item.id === spot.id ? { ...item, ...spot, status: existing.status } : item);
       }
-      return [{ ...spot, status }, ...current];
+      return [{
+        ...spot,
+        status,
+        visitedAt: status === 'visited' ? (spot.visitedAt ?? new Date().toISOString()) : spot.visitedAt
+      }, ...current];
     });
   }, []);
 
@@ -329,7 +333,17 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const updateStatus = useCallback((id: string, status: SpotStatus) => {
-    setSavedSpots((current) => current.map((spot) => spot.id === id ? { ...spot, status } : spot));
+    setSavedSpots((current) => current.map((spot) => (
+      spot.id === id
+        ? {
+            ...spot,
+            status,
+            visitedAt: status === 'visited'
+              ? (spot.visitedAt ?? new Date().toISOString())
+              : spot.visitedAt
+          }
+        : spot
+    )));
   }, []);
 
   const updateNote = useCallback((id: string, note: string) => {
