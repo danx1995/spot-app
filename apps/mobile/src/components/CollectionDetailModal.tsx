@@ -11,6 +11,7 @@ import {
   View
 } from 'react-native';
 
+import { publishCollection } from '../services/libraryApi';
 import { useSpotStore } from '../state/SpotStore';
 import { colors } from '../theme';
 import type { Collection, Spot } from '../types';
@@ -40,8 +41,9 @@ function buildShareText(collection: Collection, spots: Spot[]) {
 
 export function CollectionDetailModal({ collection, visible, onClose }: Props) {
   const dark = useColorScheme() === 'dark';
-  const { savedSpots, togglePlaceInCollection, deleteCollection } = useSpotStore();
+  const { savedSpots, togglePlaceInCollection, deleteCollection, syncNow } = useSpotStore();
   const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
+  const [sharing, setSharing] = useState(false);
 
   const text = dark ? colors.white : colors.black;
   const muted = dark ? colors.textSecondaryDark : colors.textSecondaryLight;
@@ -81,10 +83,29 @@ export function CollectionDetailModal({ collection, visible, onClose }: Props) {
   }
 
   async function shareCollection() {
-    await Share.share({
-      message: buildShareText(activeCollection, spots),
-      title: activeCollection.title
-    });
+    if (sharing) return;
+    setSharing(true);
+
+    try {
+      await syncNow();
+      const publicURL = await publishCollection(activeCollection.id);
+      await Share.share({
+        message: [
+          buildShareText(activeCollection, spots),
+          '',
+          'Открыть подборку без установки СПОТ:',
+          publicURL
+        ].join('\n'),
+        title: activeCollection.title
+      });
+    } catch {
+      await Share.share({
+        message: buildShareText(activeCollection, spots),
+        title: activeCollection.title
+      });
+    } finally {
+      setSharing(false);
+    }
   }
 
   return (
@@ -117,9 +138,18 @@ export function CollectionDetailModal({ collection, visible, onClose }: Props) {
               </View>
             </View>
 
-            <Pressable onPress={() => void shareCollection()} style={styles.shareButton}>
-              <Text style={styles.shareButtonText}>↗ Поделиться подборкой</Text>
+            <Pressable
+              onPress={() => void shareCollection()}
+              disabled={sharing}
+              style={[styles.shareButton, sharing && styles.shareButtonBusy]}
+            >
+              <Text style={styles.shareButtonText}>
+                {sharing ? 'Готовим ссылку…' : '↗ Поделиться подборкой'}
+              </Text>
             </Pressable>
+            <Text style={[styles.shareHint, { color: muted }]}>
+              По ссылке подборка откроется в браузере даже без установленного СПОТ.
+            </Text>
 
             <Text style={[styles.sectionLabel, { color: muted }]}>МЕСТА</Text>
 
@@ -248,10 +278,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center'
   },
+  shareButtonBusy: {
+    opacity: 0.55
+  },
   shareButtonText: {
     color: colors.black,
     fontSize: 14,
     fontWeight: '900'
+  },
+  shareHint: {
+    marginTop: 8,
+    paddingHorizontal: 4,
+    fontSize: 11,
+    lineHeight: 16
   },
   sectionLabel: {
     marginTop: 26,
