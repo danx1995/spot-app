@@ -28,8 +28,34 @@
 - выбирать системную, светлую или тёмную тему; выбор применяется сразу ко всему приложению, сохраняется локально и синхронизируется в поле профиля;
 - сохранять источник места и дальше развивать автоматическое определение через resolver/AI.
 
+## Telegram Mini App
+СПОТ имеет отдельный Telegram-клиент в `apps/telegram`. Это самостоятельный Mini App, а не обёртка web-preview: он использует Telegram WebApp SDK, Telegram-тему, safe-area, haptic feedback и Telegram user context.
+
+Авторизация идёт через `Telegram.WebApp.initData`. Клиент отправляет raw `initData` на `POST /api/v1/auth/telegram`; API повторно вычисляет HMAC-SHA-256 по официальной схеме Telegram, проверяет `auth_date` и только после этого доверяет Telegram user ID. `initDataUnsafe` используется только для косметики (имя/avatar), не для серверной авторизации. Первый вход создаёт постоянный профиль СПОТ и привязывает к нему identity `telegram:<user_id>`; следующие открытия возвращают тот же профиль и облачную библиотеку.
+
+Локальный запуск:
+
+```bash
+npm install
+npm run telegram
+```
+
+Production build:
+
+```bash
+npm run telegram:build
+```
+
+Для production нужны:
+- `TELEGRAM_BOT_TOKEN` только на API-сервисе;
+- `VITE_API_URL=https://...` на этапе сборки `apps/telegram`;
+- HTTPS URL Mini App, который указывается в @BotFather.
+
+Если Mini App открыть обычным браузером без Telegram `initData`, клиент переходит в демонстрационный режим для visual review; реальные облачные данные в нём не используются.
+
 ## Структура
 - apps/mobile — React Native / Expo приложение
+- apps/telegram — Telegram Mini App (React / Vite)
 - services/api — Go API
 - database/migrations — PostgreSQL + PostGIS
 - packages — общие пакеты
