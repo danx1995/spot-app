@@ -8,14 +8,27 @@ function formatDistance(meters: number) {
   return `${(meters / 1000).toFixed(1).replace('.', ',')} км`;
 }
 
-export function SpotCard({ spot, compact = false }: { spot: Spot; compact?: boolean }) {
+type Props = {
+  spot: Spot;
+  compact?: boolean;
+  onPress?: () => void;
+};
+
+export function SpotCard({ spot, compact = false, onPress }: Props) {
   const dark = useColorScheme() === 'dark';
   const card = dark ? colors.darkSurface : colors.white;
   const text = dark ? colors.white : colors.black;
   const muted = dark ? colors.textSecondaryDark : colors.textSecondaryLight;
 
   return (
-    <Pressable style={[styles.card, compact && styles.compact, { backgroundColor: card }]}>
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.card,
+        compact && styles.compact,
+        { backgroundColor: card, opacity: pressed ? 0.94 : 1 }
+      ]}
+    >
       <View style={styles.cover}>
         <View style={styles.coverGlow} />
         <Text style={styles.coverSymbol}>
