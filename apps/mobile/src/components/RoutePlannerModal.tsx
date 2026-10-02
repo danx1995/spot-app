@@ -32,6 +32,7 @@ type Props = {
 };
 
 type RouteLength = 'short' | 'half' | 'day';
+type RouteStartPreset = 'now' | 'evening' | 'tomorrow';
 
 const ROUTE_LENGTHS: Array<{
   id: RouteLength;
@@ -56,6 +57,53 @@ const CITY_CENTERS: Record<CitySlug, Coordinates> = {
 
 const MAX_CITY_START_DISTANCE_METERS = 120_000;
 const STOP_DWELL_SECONDS = 45 * 60;
+const MOSCOW_UTC_OFFSET_MS = 3 * 60 * 60 * 1000;
+
+function moscowClockTarget(
+  now: Date,
+  hour: number,
+  minute: number,
+  addDays: number,
+  rollForward: boolean
+) {
+  const local = new Date(now.getTime() + MOSCOW_UTC_OFFSET_MS);
+  let utcMs = Date.UTC(
+    local.getUTCFullYear(),
+    local.getUTCMonth(),
+    local.getUTCDate() + addDays,
+    hour,
+    minute
+  ) - MOSCOW_UTC_OFFSET_MS;
+
+  if (rollForward && utcMs <= now.getTime()) {
+    utcMs += 24 * 60 * 60 * 1000;
+  }
+  return new Date(utcMs);
+}
+
+function resolveRouteStart(preset: RouteStartPreset, now = new Date()) {
+  if (preset === 'evening') {
+    return moscowClockTarget(now, 19, 0, 0, true);
+  }
+  if (preset === 'tomorrow') {
+    return moscowClockTarget(now, 12, 0, 1, false);
+  }
+  return now;
+}
+
+function routeStartLabel(preset: RouteStartPreset, date: Date) {
+  if (preset === 'now') return 'Сейчас';
+  if (preset === 'tomorrow') return 'Завтра · 12:00';
+
+  const nowLocal = new Date(Date.now() + MOSCOW_UTC_OFFSET_MS);
+  const targetLocal = new Date(date.getTime() + MOSCOW_UTC_OFFSET_MS);
+  const sameDay =
+    nowLocal.getUTCFullYear() === targetLocal.getUTCFullYear() &&
+    nowLocal.getUTCMonth() === targetLocal.getUTCMonth() &&
+    nowLocal.getUTCDate() === targetLocal.getUTCDate();
+
+  return (sameDay ? 'Сегодня' : 'Завтра') + ' · 19:00';
+}
 
 function spotCoordinates(spot: Spot): Coordinates {
   return {
@@ -282,6 +330,7 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
   const [saved, setSaved] = useState(false);
   const [routeCity, setRouteCity] = useState<CitySlug>(selectedCity);
   const [transport, setTransport] = useState<RouteTransport>('walking');
+  const [routeStart, setRouteStart] = useState<RouteStartPreset>('now');
   const [startFromMe, setStartFromMe] = useState(false);
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
   const [locationBusy, setLocationBusy] = useState(false);
@@ -291,6 +340,7 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
   useEffect(() => {
     if (!visible) return;
     setRouteCity(selectedCity);
+    setRouteStart('now');
     setVariation(0);
     setSaved(false);
     setRemoteSummary(null);
@@ -310,10 +360,11 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
 
   const option = ROUTE_LENGTHS.find((item) => item.id === length) ?? ROUTE_LENGTHS[1]!;
   const planBaseTime = useMemo(
-    () => new Date(),
+    () => resolveRouteStart(routeStart),
     [
       length,
       routeCity,
+      routeStart,
       startFromMe,
       transport,
       userLocation?.latitude,
@@ -322,6 +373,7 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
       visible
     ]
   );
+  const planStartLabel = routeStartLabel(routeStart, planBaseTime);
   const startCoordinate = startFromMe ? userLocation : null;
 
   const eligible = useMemo(
@@ -481,7 +533,7 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
 
     const collection = createCollection({
       title: `Маршрут · ${CITY_LABELS[routeCity]}`,
-      subtitle: option.label + ' · ' + String(route.length) + ' мест · ' + transportLabel,
+      subtitle: planStartLabel + ' · ' + option.label + ' · ' + String(route.length) + ' мест · ' + transportLabel,
       city: routeCity
     });
 
@@ -500,10 +552,10 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
     if (route.length < 2) return;
 
     const routeMeta = effectiveSummary
-      ? transportLabel + ' · ' +
+      ? planStartLabel + ' · ' + transportLabel + ' · ' +
         formatDistance(effectiveSummary.totalDistanceMeters) + ' · ' +
         formatDuration(effectiveSummary.totalDurationSeconds) + ' в пути'
-      : transportLabel;
+      : planStartLabel + ' · ' + transportLabel;
 
     await Share.share({
       title: 'Маршрут · ' + CITY_LABELS[routeCity],
@@ -624,6 +676,42 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
           Геопозиция запрашивается только после нажатия «От меня».
         </Text>
 
+        <View style={styles.startTimeBlock}>
+          <Text style={[styles.startTimeLabel, { color: muted }]}>КОГДА</Text>
+          <View style={styles.startTimeRow}>
+            {([
+              ['now', 'Сейчас', ''],
+              ['evening', 'Вечером', '19:00'],
+              ['tomorrow', 'Завтра', '12:00']
+            ] as Array<[RouteStartPreset, string, string]>).map(([value, label, hint]) => {
+              const active = routeStart === value;
+              return (
+                <Pressable
+                  key={value}
+                  onPress={() => {
+                    setRouteStart(value);
+                    setVariation(0);
+                    setSaved(false);
+                  }}
+                  style={[
+                    styles.startTimeChip,
+                    { backgroundColor: active ? '#173528' : surface }
+                  ]}
+                >
+                  <Text style={[styles.startTimeText, { color: active ? colors.green : text }]}>
+                    {label}
+                  </Text>
+                  {hint ? (
+                    <Text style={[styles.startTimeHint, { color: active ? colors.green : muted }]}>
+                      {hint}
+                    </Text>
+                  ) : null}
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
         <View style={styles.lengthRow}>
           {ROUTE_LENGTHS.map((item) => {
             const active = item.id === length;
@@ -680,7 +768,7 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
                       : 'Считаем расстояние'}
                   </Text>
                   <Text style={[styles.summarySource, { color: muted }]}>
-                    {transportLabel.toLowerCase()} · {routeSourceLabel}
+                    {planStartLabel} · {transportLabel.toLowerCase()} · {routeSourceLabel}
                   </Text>
                 </View>
                 <Pressable onPress={rebuild} style={[styles.rebuild, { backgroundColor: raised }]}>
@@ -876,6 +964,37 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontSize: 9,
     lineHeight: 13
+  },
+  startTimeBlock: {
+    paddingHorizontal: 20,
+    marginTop: 10
+  },
+  startTimeLabel: {
+    marginLeft: 2,
+    marginBottom: 6,
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 1.2
+  },
+  startTimeRow: {
+    flexDirection: 'row',
+    gap: 7
+  },
+  startTimeChip: {
+    flex: 1,
+    minHeight: 45,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  startTimeText: {
+    fontSize: 10,
+    fontWeight: '900'
+  },
+  startTimeHint: {
+    marginTop: 2,
+    fontSize: 8,
+    fontWeight: '800'
   },
   lengthRow: {
     paddingHorizontal: 20,
