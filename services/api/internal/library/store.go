@@ -27,6 +27,7 @@ type Store interface {
 	PatchCollection(ctx context.Context, userID, collectionID string, patch CollectionPatch) (Collection, error)
 	DeleteCollection(ctx context.Context, userID, collectionID string) error
 	SetCollectionPlace(ctx context.Context, userID, collectionID, placeID string, add bool) (Collection, error)
+	SetCollectionPlaceOrder(ctx context.Context, userID, collectionID string, placeIDs []string) (Collection, error)
 
 	Mode() string
 	Close()

@@ -141,6 +141,12 @@ func ApplyCloudDelta(
 				return fmt.Errorf("remove place %s from collection %s: %w", placeID, id, err)
 			}
 		}
+
+		if !existed || !reflect.DeepEqual(old.placeIDs, collection.placeIDs) {
+			if _, err := store.SetCollectionPlaceOrder(ctx, userID, id, collection.placeIDs); err != nil {
+				return fmt.Errorf("reorder collection %s: %w", id, err)
+			}
+		}
 	}
 
 	for id := range before.collections {
