@@ -35,7 +35,7 @@ const platformLabels: Record<string, string> = {
 
 export function LinkImportModal({ visible, initialURL, initialHint, onClose }: Props) {
   const dark = useColorScheme() === 'dark';
-  const { selectedCity, saveSpot } = useSpotStore();
+  const { selectedCity, setSelectedCity, saveSpot } = useSpotStore();
 
   const [url, setURL] = useState('');
   const [result, setResult] = useState<LinkImportResult | null>(null);
@@ -75,6 +75,14 @@ export function LinkImportModal({ visible, initialURL, initialHint, onClose }: P
     if (!result || result.status !== 'needs_context') return;
 
     const query = placeQuery.trim();
+    if (
+      result.candidates.length > 0 &&
+      result.suggestedQuery &&
+      query === result.suggestedQuery
+    ) {
+      setSearching(false);
+      return;
+    }
     if (query.length < 2) {
       setPlaceResults([]);
       setSearching(false);
@@ -209,7 +217,7 @@ export function LinkImportModal({ visible, initialURL, initialHint, onClose }: P
                 <Text style={[styles.foundText, { color: muted }]}>Место найдено автоматически</Text>
               </View>
 
-              <SpotCard spot={result.place} compact />
+              <SpotCard spot={result.place} compact showCity />
 
               <Pressable onPress={() => saveAndClose(result.place as Spot)} style={styles.saveButton}>
                 <Text style={styles.saveText}>♥ Сохранить в СПОТ</Text>
@@ -227,6 +235,26 @@ export function LinkImportModal({ visible, initialURL, initialHint, onClose }: P
                   {result.candidates.length > 0 ? 'СПОТ уже нашёл варианты' : 'Источник распознан'}
                 </Text>
               </View>
+
+              {result.suggestedCity && result.suggestedCity !== selectedCity ? (
+                <Pressable
+                  onPress={() => {
+                    setSelectedCity(result.suggestedCity as 'spb' | 'moscow');
+                    setPlaceResults(result.candidates);
+                  }}
+                  style={[styles.citySuggestion, { backgroundColor: surface }]}
+                >
+                  <View style={styles.citySuggestionCopy}>
+                    <Text style={[styles.citySuggestionTitle, { color: text }]}>
+                      Похоже, место в {result.suggestedCity === 'moscow' ? 'Москве' : 'Петербурге'}
+                    </Text>
+                    <Text style={[styles.citySuggestionText, { color: muted }]}>
+                      Нажми, чтобы переключить город для дальнейшего поиска.
+                    </Text>
+                  </View>
+                  <Text style={styles.citySuggestionAction}>Переключить</Text>
+                </Pressable>
+              ) : null}
 
               <View style={[styles.messageCard, { backgroundColor: surface }]}>
                 <Text style={[styles.messageTitle, { color: text }]}>Ссылка сохранится вместе со спотом</Text>
@@ -254,7 +282,7 @@ export function LinkImportModal({ visible, initialURL, initialHint, onClose }: P
 
               {placeResults.map((spot) => (
                 <View key={spot.id} style={styles.placeResult}>
-                  <SpotCard spot={spot} compact onPress={() => saveAndClose(spot)} />
+                  <SpotCard spot={spot} compact showCity onPress={() => saveAndClose(spot)} />
                 </View>
               ))}
             </View>
@@ -393,6 +421,31 @@ const styles = StyleSheet.create({
     marginTop: 14,
     borderRadius: 20,
     padding: 16
+  },
+  citySuggestion: {
+    marginBottom: 12,
+    borderRadius: 20,
+    padding: 15,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12
+  },
+  citySuggestionCopy: {
+    flex: 1
+  },
+  citySuggestionTitle: {
+    fontSize: 14,
+    fontWeight: '900'
+  },
+  citySuggestionText: {
+    marginTop: 4,
+    fontSize: 11,
+    lineHeight: 16
+  },
+  citySuggestionAction: {
+    color: colors.green,
+    fontSize: 11,
+    fontWeight: '900'
   },
   messageTitle: {
     fontSize: 15,
