@@ -21,7 +21,7 @@ import type { CitySlug, Spot, SpotCategory, SpotStatus } from '../types';
 type StatusFilter = 'all' | SpotStatus;
 type CityFilter = 'all' | CitySlug;
 type CategoryFilter = 'all' | SpotCategory;
-type SortMode = 'recent' | 'name';
+type SortMode = 'recent' | 'name' | 'rating';
 
 const statusFilters: Array<[StatusFilter, string]> = [
   ['all', 'Все'],
@@ -36,8 +36,29 @@ const cityFilters: Array<[CityFilter, string]> = [
   ['moscow', 'МСК']
 ];
 
+const sourceSearchLabels: Record<string, string> = {
+  instagram: 'Instagram инстаграм reel reels',
+  tiktok: 'TikTok тикток',
+  telegram: 'Telegram телеграм',
+  '2gis': '2ГИС 2gis',
+  yandex_maps: 'Яндекс Карты Yandex Maps',
+  web: 'сайт web'
+};
+
 function normalize(value: string) {
   return value.trim().toLowerCase().replace(/ё/g, 'е');
+}
+
+function savedAtTime(value?: string) {
+  if (!value) return 0;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function nextSortMode(current: SortMode): SortMode {
+  if (current === 'recent') return 'name';
+  if (current === 'name') return 'rating';
+  return 'recent';
 }
 
 export function SpotsScreen() {
@@ -72,7 +93,10 @@ export function SpotsScreen() {
           spot.categoryLabel,
           spot.cityLabel,
           spot.note ?? '',
-          spot.sourcePlatform ?? ''
+          spot.sourceTitle ?? '',
+          spot.sourceExcerpt ?? '',
+          spot.sourcePlatform ?? '',
+          spot.sourcePlatform ? sourceSearchLabels[spot.sourcePlatform] ?? '' : ''
         ].join(' '));
 
         if (!haystack.includes(q)) return false;
@@ -85,7 +109,19 @@ export function SpotsScreen() {
       return [...items].sort((a, b) => a.name.localeCompare(b.name, 'ru'));
     }
 
-    return items;
+    if (sortMode === 'rating') {
+      return [...items].sort((a, b) => {
+        if (b.rating !== a.rating) return b.rating - a.rating;
+        return (b.reviewCount ?? 0) - (a.reviewCount ?? 0);
+      });
+    }
+
+    const originalIndex = new Map(savedSpots.map((spot, index) => [spot.id, index]));
+    return [...items].sort((a, b) => {
+      const byDate = savedAtTime(b.savedAt) - savedAtTime(a.savedAt);
+      if (byDate !== 0) return byDate;
+      return (originalIndex.get(a.id) ?? 0) - (originalIndex.get(b.id) ?? 0);
+    });
   }, [
     categoryFilter,
     cityFilter,
@@ -123,14 +159,14 @@ export function SpotsScreen() {
         </View>
 
         <Pressable
-          onPress={() => setSortMode((current) => current === 'recent' ? 'name' : 'recent')}
+          onPress={() => setSortMode(nextSortMode)}
           style={[styles.sortButton, { backgroundColor: surface }]}
         >
           <Text style={[styles.sortIcon, { color: colors.green }]}>
-            {sortMode === 'recent' ? '↕' : 'А'}
+            {sortMode === 'recent' ? '↕' : sortMode === 'name' ? 'А' : '★'}
           </Text>
           <Text style={[styles.sortText, { color: text }]}>
-            {sortMode === 'recent' ? 'Недавние' : 'По имени'}
+            {sortMode === 'recent' ? 'Недавние' : sortMode === 'name' ? 'По имени' : 'Рейтинг'}
           </Text>
         </Pressable>
       </View>
@@ -141,7 +177,7 @@ export function SpotsScreen() {
           value={query}
           onChangeText={setQuery}
           autoCorrect={false}
-          placeholder="Найти в своих спотах"
+          placeholder="Название, заметка или откуда сохранил"
           placeholderTextColor={muted}
           style={[styles.searchInput, { color: text }]}
           returnKeyType="search"
