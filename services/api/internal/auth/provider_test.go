@@ -110,3 +110,31 @@ func TestProviderVerifierRequiresConfiguredAudience(t *testing.T) {
 		t.Fatalf("expected provider-not-configured error, got %v", err)
 	}
 }
+
+
+func TestProviderVerifierRequiresAuthorizedPartyForMultipleAudiences(t *testing.T) {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	verifier := NewProviderVerifier("google-client", "")
+	verifier.cache["google"] = providerKeyCache{
+		keys: map[string]*rsa.PublicKey{
+			"k1": &key.PublicKey,
+		},
+		expiresAt: time.Now().Add(time.Hour),
+	}
+
+	token := makeProviderToken(t, key, "k1", map[string]any{
+		"iss": "https://accounts.google.com",
+		"sub": "subject-123",
+		"aud": []string{"google-client", "other-client"},
+		"azp": "other-client",
+		"exp": time.Now().Add(time.Hour).Unix(),
+	})
+
+	if _, err := verifier.Verify(context.Background(), "google", token, ""); err != ErrInvalidProviderToken {
+		t.Fatalf("expected invalid authorized party, got %v", err)
+	}
+}
