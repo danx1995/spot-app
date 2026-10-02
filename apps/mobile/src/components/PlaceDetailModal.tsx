@@ -1,5 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, useColorScheme, View } from 'react-native';
+
+import { useSpotStore } from '../state/SpotStore';
 import { colors } from '../theme';
 import type { Spot, SpotStatus } from '../types';
 
@@ -17,67 +19,115 @@ const statusCopy: Record<SpotStatus, string> = {
 
 export function PlaceDetailModal({ spot, visible, onClose }: Props) {
   const dark = useColorScheme() === 'dark';
-  const [overrideStatus, setOverrideStatus] = useState<SpotStatus | null>(null);
+  const { getSavedSpot, saveSpot, removeSpot, updateStatus, toggleFavorite } = useSpotStore();
   const text = dark ? colors.white : colors.black;
   const muted = dark ? colors.textSecondaryDark : colors.textSecondaryLight;
   const surface = dark ? colors.darkSurface : colors.white;
 
-  const status = useMemo(() => overrideStatus ?? spot?.status ?? 'want', [overrideStatus, spot?.status]);
-
   if (!spot) return null;
 
-  const primaryLabel = spot.category === 'hotel' && status === 'want'
-    ? 'Хочу остановиться'
-    : statusCopy[status];
+  const saved = getSavedSpot(spot.id);
+  const current = saved ?? spot;
+  const status = saved?.status ?? 'want';
+  const isHotel = current.category === 'hotel';
+
+  function ensureSaved(nextStatus: SpotStatus) {
+    if (saved) {
+      updateStatus(current.id, nextStatus);
+    } else {
+      saveSpot(current, nextStatus);
+    }
+  }
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <View style={[styles.root, { backgroundColor: dark ? colors.black : colors.lightBackground }]}>
         <View style={styles.hero}>
           <View style={styles.heroGlow} />
-          <Text style={styles.heroLetter}>{spot.category === 'hotel' ? 'H' : 'S'}</Text>
+          <Text style={styles.heroLetter}>{isHotel ? 'H' : 'S'}</Text>
           <Pressable onPress={onClose} style={styles.closeButton}>
             <Text style={styles.closeText}>×</Text>
           </Pressable>
         </View>
 
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <Text style={[styles.category, { color: colors.green }]}>{spot.categoryLabel.toUpperCase()}</Text>
-          <Text style={[styles.title, { color: text }]}>{spot.name}</Text>
-          <Text style={[styles.meta, { color: muted }]}>★ {spot.rating.toFixed(1)} · {spot.address}</Text>
+          <Text style={[styles.category, { color: colors.green }]}>{current.categoryLabel.toUpperCase()}</Text>
+          <Text style={[styles.title, { color: text }]}>{current.name}</Text>
+          <Text style={[styles.meta, { color: muted }]}>
+            {current.rating > 0 ? `★ ${current.rating.toFixed(1)} · ` : ''}{current.address}
+          </Text>
 
           <View style={styles.actions}>
             <Pressable
-              onPress={() => setOverrideStatus(status === 'want' ? 'visited' : 'want')}
-              style={styles.primaryButton}
+              onPress={() => {
+                if (!saved) saveSpot(current, 'want');
+              }}
+              style={[styles.primaryButton, saved && styles.primaryButtonSaved]}
             >
-              <Text style={styles.primaryText}>{status === 'visited' ? '✓ Был здесь' : `♥ ${primaryLabel}`}</Text>
+              <Text style={styles.primaryText}>{saved ? '✓ В СПОТ' : isHotel ? '♥ Хочу остановиться' : '♥ Хочу сюда'}</Text>
             </Pressable>
-            <Pressable style={[styles.secondaryButton, { backgroundColor: surface }]}>
-              <Text style={[styles.secondaryText, { color: text }]}>Маршрут</Text>
+
+            <Pressable
+              onPress={() => ensureSaved('visited')}
+              style={[styles.secondaryButton, { backgroundColor: surface }]}
+            >
+              <Text style={[styles.secondaryText, { color: status === 'visited' ? colors.green : text }]}>
+                {status === 'visited' ? '✓ Был' : 'Был здесь'}
+              </Text>
             </Pressable>
           </View>
 
+          {isHotel ? (
+            <Pressable
+              onPress={() => ensureSaved('booked')}
+              style={[styles.fullSecondary, { backgroundColor: surface }]}
+            >
+              <Text style={[styles.secondaryText, { color: status === 'booked' ? colors.booked : text }]}>
+                {status === 'booked' ? '✓ Отель забронирован' : 'Отметить как забронированный'}
+              </Text>
+            </Pressable>
+          ) : null}
+
           <View style={[styles.block, { backgroundColor: surface }]}>
             <Text style={[styles.blockLabel, { color: muted }]}>ПОЧЕМУ СОХРАНЕНО</Text>
-            <Text style={[styles.note, { color: text }]}>{spot.note ?? 'Добавь заметку, чтобы потом вспомнить, почему захотелось сюда попасть.'}</Text>
+            <Text style={[styles.note, { color: text }]}>
+              {current.note ?? 'Добавь заметку, чтобы потом вспомнить, почему захотелось сюда попасть.'}
+            </Text>
           </View>
 
           <View style={[styles.block, { backgroundColor: surface }]}>
             <Text style={[styles.blockLabel, { color: muted }]}>О МЕСТЕ</Text>
             <View style={styles.infoRow}>
               <Text style={[styles.infoKey, { color: muted }]}>Город</Text>
-              <Text style={[styles.infoValue, { color: text }]}>{spot.cityLabel}</Text>
+              <Text style={[styles.infoValue, { color: text }]}>{current.cityLabel}</Text>
             </View>
             <View style={styles.infoRow}>
               <Text style={[styles.infoKey, { color: muted }]}>Адрес</Text>
-              <Text style={[styles.infoValue, { color: text }]}>{spot.address}</Text>
+              <Text style={[styles.infoValue, { color: text }]}>{current.address}</Text>
             </View>
             <View style={styles.infoRow}>
               <Text style={[styles.infoKey, { color: muted }]}>Статус</Text>
-              <Text style={[styles.infoValue, { color: colors.green }]}>{statusCopy[status]}</Text>
+              <Text style={[styles.infoValue, { color: saved ? colors.green : muted }]}>
+                {saved ? statusCopy[status] : 'Не сохранено'}
+              </Text>
             </View>
           </View>
+
+          {saved ? (
+            <View style={styles.manageRow}>
+              <Pressable onPress={() => toggleFavorite(current.id)}>
+                <Text style={[styles.manageText, { color: current.favorite ? colors.green : muted }]}>
+                  {current.favorite ? '♥ Любимое' : '♡ В любимое'}
+                </Text>
+              </Pressable>
+              <Pressable onPress={() => {
+                removeSpot(current.id);
+                onClose();
+              }}>
+                <Text style={[styles.removeText, { color: colors.error }]}>Удалить из СПОТ</Text>
+              </Pressable>
+            </View>
+          ) : null}
         </ScrollView>
       </View>
     </Modal>
@@ -157,6 +207,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 15
   },
+  primaryButtonSaved: {
+    backgroundColor: '#5ADAA2'
+  },
   primaryText: {
     color: colors.black,
     fontSize: 14,
@@ -165,6 +218,14 @@ const styles = StyleSheet.create({
   secondaryButton: {
     minWidth: 105,
     minHeight: 54,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16
+  },
+  fullSecondary: {
+    minHeight: 52,
+    marginTop: 10,
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
@@ -203,5 +264,18 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
     fontWeight: '700'
+  },
+  manageRow: {
+    marginTop: 22,
+    flexDirection: 'row',
+    justifyContent: 'space-between'
+  },
+  manageText: {
+    fontSize: 13,
+    fontWeight: '800'
+  },
+  removeText: {
+    fontSize: 13,
+    fontWeight: '800'
   }
 });
