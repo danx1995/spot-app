@@ -67,6 +67,60 @@ const CITY_LABELS: Record<CitySlug, string> = {
   moscow: 'Москва'
 };
 
+const PERSONALIZED_DISCOVERY_LIMIT = 10;
+
+function personalizedCategoriesFor(
+  interests: DiscoveryInterest[],
+  saved: Spot[]
+): DiscoverCategory[] {
+  const counts = new Map<DiscoverCategory, number>();
+
+  for (const interest of interests) {
+    counts.set(interest, (counts.get(interest) ?? 0) + 100);
+  }
+  for (const spot of saved) {
+    if (!(spot.category in DISCOVERY_QUERIES)) continue;
+    const category = spot.category as DiscoverCategory;
+    counts.set(category, (counts.get(category) ?? 0) + 1);
+  }
+
+  const ranked = (Object.keys(DISCOVERY_QUERIES) as DiscoverCategory[])
+    .sort((a, b) => (counts.get(b) ?? 0) - (counts.get(a) ?? 0));
+
+  return ranked.slice(0, 2);
+}
+
+function rankPersonalizedSpots(
+  spots: Spot[],
+  preferred: DiscoverCategory[]
+) {
+  const order = new Map(preferred.map((category, index) => [category, index]));
+
+  return [...spots]
+    .sort((a, b) => {
+      const aPreference = order.has(a.category as DiscoverCategory)
+        ? 3 - (order.get(a.category as DiscoverCategory) ?? 0)
+        : 0;
+      const bPreference = order.has(b.category as DiscoverCategory)
+        ? 3 - (order.get(b.category as DiscoverCategory) ?? 0)
+        : 0;
+
+      const aScore =
+        a.rating * 2 +
+        Math.log10((a.reviewCount ?? 0) + 1) * 0.6 +
+        aPreference -
+        Math.min(a.distanceMeters / 1000, 10) * 0.08;
+      const bScore =
+        b.rating * 2 +
+        Math.log10((b.reviewCount ?? 0) + 1) * 0.6 +
+        bPreference -
+        Math.min(b.distanceMeters / 1000, 10) * 0.08;
+
+      return bScore - aScore;
+    })
+    .slice(0, PERSONALIZED_DISCOVERY_LIMIT);
+}
+
 const darkMapStyle = [
   { elementType: 'geometry', stylers: [{ color: '#151A17' }] },
   { elementType: 'labels.text.fill', stylers: [{ color: '#8C968F' }] },
@@ -90,6 +144,10 @@ export function MapScreen() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [nearbyOpen, setNearbyOpen] = useState(false);
   const [discoveryOpen, setDiscoveryOpen] = useState(false);
+  const [forYouOpen, setForYouOpen] = useState(false);
+  const [forYouSpots, setForYouSpots] = useState<Spot[]>([]);
+  const [forYouLoading, setForYouLoading] = useState(false);
+  const [forYouError, setForYouError] = useState<string | null>(null);
   const [locationBusy, setLocationBusy] = useState(false);
   const [locationDenied, setLocationDenied] = useState(false);
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
@@ -238,6 +296,9 @@ export function MapScreen() {
     setSelectedSpot(null);
     setNearbyOpen(false);
     setDiscoveryOpen(false);
+    setForYouOpen(false);
+    setForYouSpots([]);
+    setForYouError(null);
     setDiscoveredSpots([]);
     setDiscoverError(null);
     setLastDiscoveryCenter(null);
@@ -277,6 +338,55 @@ export function MapScreen() {
       setLocationDenied(true);
     } finally {
       setLocationBusy(false);
+    }
+  }
+
+  async function discoverForYou() {
+    if (forYouLoading) return;
+
+    setForYouLoading(true);
+    setForYouError(null);
+
+    try {
+      const preferred = personalizedCategoriesFor(interests, citySpots);
+      const center = {
+        latitude: mapRegion.latitude,
+        longitude: mapRegion.longitude
+      };
+
+      const batches = await Promise.all(
+        preferred.map((item) => searchPlaces(
+          DISCOVERY_QUERIES[item],
+          selectedCity,
+          {
+            latitude: center.latitude,
+            longitude: center.longitude,
+            category: item as SpotCategory
+          }
+        ))
+      );
+
+      const savedIDs = new Set(savedSpots.map((spot) => spot.id));
+      const byID = new Map<string, Spot>();
+
+      for (const spot of batches.flat()) {
+        if (savedIDs.has(spot.id)) continue;
+        byID.set(spot.id, spotWithDistance(spot, center));
+      }
+
+      const ranked = rankPersonalizedSpots(Array.from(byID.values()), preferred);
+      setForYouSpots(ranked);
+
+      if (ranked.length === 0) {
+        setForYouError('Пока не нашли новые места под твои интересы в этой области');
+        return;
+      }
+
+      setForYouOpen(true);
+    } catch {
+      setForYouError('Не удалось собрать рекомендации');
+    } finally {
+      setForYouLoading(false);
     }
   }
 
@@ -411,6 +521,19 @@ export function MapScreen() {
         style={styles.filterScroller}
         contentContainerStyle={styles.filters}
       >
+        <Pressable
+          onPress={() => void discoverForYou()}
+          disabled={forYouLoading}
+          style={[styles.forYouChip, forYouLoading && styles.forYouChipBusy]}
+        >
+          {forYouLoading ? (
+            <ActivityIndicator color={colors.black} size="small" />
+          ) : (
+            <Text style={styles.forYouChipIcon}>✦</Text>
+          )}
+          <Text style={styles.forYouChipText}>Для тебя</Text>
+        </Pressable>
+
         {personalizedCategories.map((item) => (
           <CategoryChip
             key={item.id}
@@ -472,6 +595,16 @@ export function MapScreen() {
         </Text>
       </Pressable>
 
+      {forYouError ? (
+        <Pressable
+          onPress={() => setForYouError(null)}
+          style={styles.forYouError}
+        >
+          <Text style={styles.forYouErrorTitle}>Для тебя</Text>
+          <Text style={styles.forYouErrorText}>{forYouError}</Text>
+        </Pressable>
+      ) : null}
+
       {sharedPlaceError ? (
         <Pressable
           onPress={() => setSharedPlaceError(null)}
@@ -494,6 +627,14 @@ export function MapScreen() {
           </Text>
         </View>
       )}
+
+      <DiscoverySheet
+        visible={forYouOpen}
+        spots={forYouSpots}
+        categoryLabel="Для тебя"
+        onClose={() => setForYouOpen(false)}
+        onSelect={focusSpot}
+      />
 
       <DiscoverySheet
         visible={discoveryOpen}
@@ -577,6 +718,29 @@ const styles = StyleSheet.create({
   filters: {
     paddingHorizontal: 20,
     gap: 8
+  },
+  forYouChip: {
+    minHeight: 40,
+    paddingHorizontal: 13,
+    borderRadius: 16,
+    backgroundColor: colors.green,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5
+  },
+  forYouChipBusy: {
+    opacity: 0.75
+  },
+  forYouChipIcon: {
+    color: colors.black,
+    fontSize: 12,
+    fontWeight: '900'
+  },
+  forYouChipText: {
+    color: colors.black,
+    fontSize: 11,
+    fontWeight: '900'
   },
   discoverButton: {
     position: 'absolute',
@@ -675,6 +839,29 @@ const styles = StyleSheet.create({
     color: '#98A39D',
     fontSize: 11,
     marginTop: 2
+  },
+  forYouError: {
+    position: 'absolute',
+    zIndex: 7,
+    left: 18,
+    right: 18,
+    bottom: 205,
+    borderRadius: 18,
+    backgroundColor: 'rgba(11,15,12,0.95)',
+    borderWidth: 1,
+    borderColor: '#19C37D55',
+    padding: 14
+  },
+  forYouErrorTitle: {
+    color: colors.green,
+    fontSize: 12,
+    fontWeight: '900'
+  },
+  forYouErrorText: {
+    marginTop: 3,
+    color: '#A5AEA8',
+    fontSize: 10,
+    lineHeight: 15
   },
   sharedError: {
     position: 'absolute',
