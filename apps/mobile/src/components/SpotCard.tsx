@@ -12,10 +12,11 @@ function formatDistance(meters: number) {
 type Props = {
   spot: Spot;
   compact?: boolean;
+  showCity?: boolean;
   onPress?: () => void;
 };
 
-export function SpotCard({ spot, compact = false, onPress }: Props) {
+export function SpotCard({ spot, compact = false, showCity = false, onPress }: Props) {
   const dark = useColorScheme() === 'dark';
   const card = dark ? colors.darkSurface : colors.white;
   const text = dark ? colors.white : colors.black;
@@ -43,7 +44,7 @@ export function SpotCard({ spot, compact = false, onPress }: Props) {
           <View style={styles.titleArea}>
             <Text numberOfLines={1} style={[styles.name, { color: text }]}>{spot.name}</Text>
             <Text style={[styles.meta, { color: muted }]}>
-              {spot.categoryLabel}{distance ? ` · ${distance}` : ''}
+              {spot.categoryLabel}{showCity ? ` · ${spot.cityLabel}` : ''}{distance ? ` · ${distance}` : ''}
             </Text>
           </View>
           <Text style={[styles.heart, { color: spot.favorite ? colors.green : muted }]}>
