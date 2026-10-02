@@ -281,13 +281,27 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
   const [variation, setVariation] = useState(0);
   const [saved, setSaved] = useState(false);
   const [routeCity, setRouteCity] = useState<CitySlug>(selectedCity);
+  const [transport, setTransport] = useState<RouteTransport>('walking');
+  const [startFromMe, setStartFromMe] = useState(false);
+  const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
+  const [locationBusy, setLocationBusy] = useState(false);
+  const [remoteSummary, setRemoteSummary] = useState<RouteSummary | null>(null);
+  const [routingBusy, setRoutingBusy] = useState(false);
 
   useEffect(() => {
     if (!visible) return;
     setRouteCity(selectedCity);
     setVariation(0);
     setSaved(false);
+    setRemoteSummary(null);
   }, [selectedCity, visible]);
+
+  useEffect(() => {
+    if (!startFromMe || !userLocation) return;
+    if (distanceMeters(userLocation, CITY_CENTERS[routeCity]) > MAX_CITY_START_DISTANCE_METERS) {
+      setStartFromMe(false);
+    }
+  }, [routeCity, startFromMe, userLocation]);
 
   const text = dark ? colors.white : colors.black;
   const muted = dark ? colors.textSecondaryDark : colors.textSecondaryLight;
@@ -295,18 +309,114 @@ export function RoutePlannerModal({ visible, onClose }: Props) {
   const raised = dark ? colors.darkSurfaceRaised : colors.lightMuted;
 
   const option = ROUTE_LENGTHS.find((item) => item.id === length) ?? ROUTE_LENGTHS[1]!;
+  const planBaseTime = useMemo(
+    () => new Date(),
+    [
+      length,
+      routeCity,
+      startFromMe,
+      transport,
+      userLocation?.latitude,
+      userLocation?.longitude,
+      variation,
+      visible
+    ]
+  );
+  const startCoordinate = startFromMe ? userLocation : null;
+
   const eligible = useMemo(
     () => savedSpots.filter((spot) => spot.city === routeCity && spot.status !== 'visited'),
     [routeCity, savedSpots]
   );
   const route = useMemo(
-    () => buildRoute(eligible, interests, option.places, variation),
-    [eligible, interests, option.places, variation]
+    () => buildRoute(
+      eligible,
+      interests,
+      option.places,
+      variation,
+      transport,
+      startCoordinate,
+      planBaseTime
+    ),
+    [
+      eligible,
+      interests,
+      option.places,
+      planBaseTime,
+      startCoordinate,
+      transport,
+      variation
+    ]
   );
-  const totalDistance = useMemo(() => routeDistance(route), [route]);
-  const distanceLabel = totalDistance >= 1000
-    ? `≈ ${(totalDistance / 1000).toFixed(totalDistance >= 10_000 ? 0 : 1)} км между точками`
-    : `≈ ${Math.max(0, totalDistance)} м между точками`;
+
+  const routePoints = useMemo(() => {
+    const points = route.map(spotCoordinates);
+    return startCoordinate ? [startCoordinate, ...points] : points;
+  }, [route, startCoordinate]);
+
+  const fallbackSummary = useMemo(
+    () => localRouteSummary(routePoints, transport),
+    [routePoints, transport]
+  );
+
+  useEffect(() => {
+    let active = true;
+
+    if (!visible || routePoints.length < 2) {
+      setRemoteSummary(null);
+      setRoutingBusy(false);
+      return () => {
+        active = false;
+      };
+    }
+
+    setRemoteSummary(null);
+    setRoutingBusy(true);
+
+    const timer = setTimeout(() => {
+      void getRouteSummary(routePoints, transport)
+        .then((summary) => {
+          if (active) setRemoteSummary(summary);
+        })
+        .finally(() => {
+          if (active) setRoutingBusy(false);
+        });
+    }, 220);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [routePoints, transport, visible]);
+
+  const effectiveSummary = remoteSummary ?? fallbackSummary;
+  const scheduledRoute = useMemo(() => {
+    let elapsedSeconds = 0;
+
+    return route.map((spot, index) => {
+      if (startCoordinate && index === 0) {
+        elapsedSeconds += effectiveSummary?.legs[0]?.durationSeconds ?? 0;
+      } else if (index > 0) {
+        const legIndex = startCoordinate ? index : index - 1;
+        elapsedSeconds += effectiveSummary?.legs[legIndex]?.durationSeconds ?? 0;
+      }
+
+      const arrival = new Date(planBaseTime.getTime() + elapsedSeconds * 1000);
+      const openState = getSpotOpenState(spot, arrival);
+      elapsedSeconds += STOP_DWELL_SECONDS;
+
+      return { spot, arrival, openState };
+    });
+  }, [effectiveSummary, planBaseTime, route, startCoordinate]);
+
+  const transportLabel = transport === 'driving' ? 'На машине' : 'Пешком';
+  const routeSourceLabel = routingBusy
+    ? 'считаем маршрут по улицам…'
+    : remoteSummary?.source === '2gis'
+      ? 'по улицам 2ГИС'
+      : remoteSummary?.source === 'mixed'
+        ? 'частично по улицам 2ГИС'
+        : 'оценка по расстоянию';
 
   function rebuild() {
     setSaved(false);
