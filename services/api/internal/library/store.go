@@ -17,6 +17,8 @@ type Store interface {
 	NearbyPlaces(ctx context.Context, userID string, query NearbyQuery) ([]SavedPlace, error)
 	PatchPlace(ctx context.Context, userID, placeID string, patch PlacePatch) (SavedPlace, error)
 	DeletePlace(ctx context.Context, userID, placeID string) error
+	PublishPlace(ctx context.Context, userID, placeID string) (SharedPlace, error)
+	GetSharedPlace(ctx context.Context, shareID string) (SharedPlace, error)
 
 	CreateCollection(ctx context.Context, userID string, input CreateCollectionInput) (Collection, error)
 	ListCollections(ctx context.Context, userID string) ([]Collection, error)
