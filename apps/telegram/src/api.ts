@@ -162,9 +162,10 @@ export async function searchPlaces(
   query: string,
   city: CitySlug,
   category?: string,
-  coordinates?: RoutePoint
+  coordinates?: RoutePoint,
+  page = 1
 ): Promise<Spot[]> {
-  const params = new URLSearchParams({ q: query, city });
+  const params = new URLSearchParams({ q: query, city, page: String(page) });
   if (category) params.set('category', category);
   if (coordinates) {
     params.set('lat', String(coordinates.latitude));
