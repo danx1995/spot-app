@@ -72,6 +72,10 @@ func main() {
 		log.Printf("WARNING: AUTH_SECRET is not configured; using development-only secret")
 	}
 	tokens := auth.NewTokenService(authSecret, 365*24*time.Hour)
+	providerVerifier := auth.NewProviderVerifier(
+		os.Getenv("GOOGLE_CLIENT_IDS"),
+		os.Getenv("APPLE_CLIENT_IDS"),
+	)
 
 	mux := http.NewServeMux()
 
@@ -86,6 +90,10 @@ func main() {
 			"sync_store": syncStore.Mode(),
 			"library_store":  libraryStore.Mode(),
 			"transfer_store": transferStore.Mode(),
+			"auth_providers": map[string]bool{
+				"google": providerVerifier.Enabled("google"),
+				"apple":  providerVerifier.Enabled("apple"),
+			},
 		})
 	})
 
@@ -214,6 +222,7 @@ func main() {
 	})
 
 	registerProfileRoutes(mux, syncStore, tokens)
+	registerProviderAuthRoutes(mux, syncStore, tokens, providerVerifier)
 	registerAccountTransferRoutes(mux, transferStore, tokens)
 	registerLibraryRoutes(mux, libraryStore, tokens)
 	registerPublicCollectionRoutes(mux, libraryStore)
