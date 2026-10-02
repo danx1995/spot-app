@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB: spot
+      POSTGRES_USER: spot
+      POSTGRES_PASSWORD: spot
+    ports:
+      - "5432:5432"
+    volumes:
+      - spot_pg:/var/lib/postgresql/data
+      - ./database/migrations:/docker-entrypoint-initdb.d:ro
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    ports:
+      - "6379:6379"
+
+volumes:
+  spot_pg:
