@@ -654,6 +654,7 @@ func (s *PostgresStore) CreateCollection(ctx context.Context, userID string, inp
 		&collection.CityLabel,
 		&collection.Visibility,
 		&collection.CoverURL,
+		&routePlanJSON,
 		&collection.CreatedAt,
 		&collection.UpdatedAt,
 	)
@@ -683,6 +684,7 @@ func (s *PostgresStore) ListCollections(ctx context.Context, userID string) ([]C
 			COALESCE(c.name, ''),
 			col.visibility,
 			COALESCE(col.cover_url, ''),
+			COALESCE(col.route_plan::text, '{}'),
 			col.created_at,
 			col.updated_at,
 			COALESCE(
@@ -706,6 +708,7 @@ func (s *PostgresStore) ListCollections(ctx context.Context, userID string) ([]C
 	result := make([]Collection, 0)
 	for rows.Next() {
 		var collection Collection
+		var routePlanJSON string
 		if err := rows.Scan(
 			&collection.ID,
 			&collection.Title,
@@ -714,12 +717,14 @@ func (s *PostgresStore) ListCollections(ctx context.Context, userID string) ([]C
 			&collection.CityLabel,
 			&collection.Visibility,
 			&collection.CoverURL,
+			&routePlanJSON,
 			&collection.CreatedAt,
 			&collection.UpdatedAt,
 			&collection.PlaceIDs,
 		); err != nil {
 			return nil, err
 		}
+		collection.RoutePlan = decodeRoutePlan(routePlanJSON)
 		result = append(result, collection)
 	}
 	return result, rows.Err()
@@ -727,6 +732,7 @@ func (s *PostgresStore) ListCollections(ctx context.Context, userID string) ([]C
 
 func (s *PostgresStore) GetCollection(ctx context.Context, userID, collectionID string) (Collection, error) {
 	var collection Collection
+	var routePlanJSON string
 	err := s.pool.QueryRow(ctx, `
 		SELECT
 			col.public_id,
@@ -736,6 +742,7 @@ func (s *PostgresStore) GetCollection(ctx context.Context, userID, collectionID 
 			COALESCE(c.name, ''),
 			col.visibility,
 			COALESCE(col.cover_url, ''),
+			COALESCE(col.route_plan::text, '{}'),
 			col.created_at,
 			col.updated_at,
 			COALESCE(
@@ -758,6 +765,7 @@ func (s *PostgresStore) GetCollection(ctx context.Context, userID, collectionID 
 		&collection.CityLabel,
 		&collection.Visibility,
 		&collection.CoverURL,
+		&routePlanJSON,
 		&collection.CreatedAt,
 		&collection.UpdatedAt,
 		&collection.PlaceIDs,
@@ -765,12 +773,16 @@ func (s *PostgresStore) GetCollection(ctx context.Context, userID, collectionID 
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Collection{}, ErrNotFound
 	}
+	if err == nil {
+		collection.RoutePlan = decodeRoutePlan(routePlanJSON)
+	}
 	return collection, err
 }
 
 func (s *PostgresStore) GetSharedCollection(ctx context.Context, collectionID string) (SharedCollection, error) {
 	var internalID string
 	var collection Collection
+	var routePlanJSON string
 
 	err := s.pool.QueryRow(ctx, `
 		SELECT
@@ -782,6 +794,7 @@ func (s *PostgresStore) GetSharedCollection(ctx context.Context, collectionID st
 			COALESCE(c.name, ''),
 			col.visibility,
 			COALESCE(col.cover_url, ''),
+			COALESCE(col.route_plan::text, '{}'),
 			col.created_at,
 			col.updated_at
 		FROM collections col
@@ -806,6 +819,7 @@ func (s *PostgresStore) GetSharedCollection(ctx context.Context, collectionID st
 	if err != nil {
 		return SharedCollection{}, err
 	}
+	collection.RoutePlan = decodeRoutePlan(routePlanJSON)
 
 	rows, err := s.pool.Query(ctx, `
 		SELECT
@@ -1209,6 +1223,22 @@ func scanSavedPlace(row rowScanner) (SavedPlace, error) {
 		place.OpeningHours = decodeOpeningHours(openingHoursJSON)
 	}
 	return place, err
+}
+
+func decodeRoutePlan(raw string) *RoutePlan {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || raw == "{}" || raw == "null" {
+		return nil
+	}
+
+	var plan RoutePlan
+	if err := json.Unmarshal([]byte(raw), &plan); err != nil {
+		return nil
+	}
+	if validateRoutePlan(&plan) != nil {
+		return nil
+	}
+	return &plan
 }
 
 func decodeOpeningHours(raw string) *OpeningHours {
