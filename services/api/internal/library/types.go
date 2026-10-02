@@ -2,6 +2,16 @@ package library
 
 import "time"
 
+type TimeRange struct {
+	From string `json:"from,omitempty"`
+	To   string `json:"to,omitempty"`
+}
+
+type OpeningHours struct {
+	Is24x7 bool                   `json:"is_24x7,omitempty"`
+	Days   map[string][]TimeRange `json:"days,omitempty"`
+}
+
 type Place struct {
 	ID            string  `json:"id"`
 	Name          string  `json:"name"`
@@ -12,7 +22,10 @@ type Place struct {
 	Address       string  `json:"address"`
 	Latitude      float64 `json:"lat"`
 	Longitude     float64 `json:"lng"`
-	Rating        float64 `json:"rating"`
+	Rating        float64       `json:"rating"`
+	ReviewCount   int           `json:"review_count,omitempty"`
+	OpeningHours  *OpeningHours `json:"opening_hours,omitempty"`
+	Description   string        `json:"description,omitempty"`
 }
 
 type SavedPlace struct {

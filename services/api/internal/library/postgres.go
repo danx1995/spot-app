@@ -2,6 +2,7 @@ package library
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -46,6 +47,14 @@ func (s *PostgresStore) UpsertPlace(ctx context.Context, userID string, input Sa
 	}
 
 	status := normalizeStatus(input.Status)
+	openingHoursJSON, err := json.Marshal(input.OpeningHours)
+	if err != nil {
+		return SavedPlace{}, ErrInvalidInput
+	}
+	if input.OpeningHours == nil {
+		openingHoursJSON = []byte("{}")
+	}
+
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return SavedPlace{}, err
@@ -74,6 +83,9 @@ func (s *PostgresStore) UpsertPlace(ctx context.Context, userID string, input Sa
 			location,
 			address,
 			rating,
+			rating_count,
+			working_hours,
+			attributes,
 			updated_at
 		)
 		SELECT
@@ -85,6 +97,9 @@ func (s *PostgresStore) UpsertPlace(ctx context.Context, userID string, input Sa
 			ST_SetSRID(ST_Point($6, $5), 4326)::geography,
 			NULLIF(trim($7), ''),
 			NULLIF($8, 0),
+			NULLIF($9, 0),
+			$10::jsonb,
+			jsonb_strip_nulls(jsonb_build_object('description', NULLIF(trim($11), ''))),
 			now()
 		FROM cities c
 		LEFT JOIN category ON true
@@ -96,7 +111,16 @@ func (s *PostgresStore) UpsertPlace(ctx context.Context, userID string, input Sa
 		    normalized_name = EXCLUDED.normalized_name,
 		    location = EXCLUDED.location,
 		    address = EXCLUDED.address,
-		    rating = EXCLUDED.rating,
+		    rating = COALESCE(EXCLUDED.rating, places.rating),
+		    rating_count = GREATEST(
+		      COALESCE(EXCLUDED.rating_count, 0),
+		      COALESCE(places.rating_count, 0)
+		    ),
+		    working_hours = CASE
+		      WHEN EXCLUDED.working_hours <> '{}'::jsonb THEN EXCLUDED.working_hours
+		      ELSE places.working_hours
+		    END,
+		    attributes = places.attributes || EXCLUDED.attributes,
 		    updated_at = now()
 		RETURNING id::text
 	`,
@@ -108,6 +132,9 @@ func (s *PostgresStore) UpsertPlace(ctx context.Context, userID string, input Sa
 		input.Longitude,
 		input.Address,
 		input.Rating,
+		input.ReviewCount,
+		string(openingHoursJSON),
+		input.Description,
 	).Scan(&placeUUID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return SavedPlace{}, ErrInvalidInput
@@ -198,6 +225,9 @@ func (s *PostgresStore) ListPlaces(ctx context.Context, userID string, filters P
 			ST_Y(p.location::geometry),
 			ST_X(p.location::geometry),
 			COALESCE(p.rating::float8, 0),
+			COALESCE(p.rating_count, 0),
+			COALESCE(p.working_hours::text, '{}'),
+			COALESCE(p.attributes->>'description', ''),
 			up.status,
 			COALESCE(up.note, ''),
 			COALESCE(up.source_type, ''),
@@ -262,6 +292,9 @@ func (s *PostgresStore) NearbyPlaces(ctx context.Context, userID string, query N
 			ST_Y(p.location::geometry),
 			ST_X(p.location::geometry),
 			COALESCE(p.rating::float8, 0),
+			COALESCE(p.rating_count, 0),
+			COALESCE(p.working_hours::text, '{}'),
+			COALESCE(p.attributes->>'description', ''),
 			up.status,
 			COALESCE(up.note, ''),
 			COALESCE(up.source_type, ''),
@@ -289,6 +322,7 @@ func (s *PostgresStore) NearbyPlaces(ctx context.Context, userID string, query N
 	result := make([]SavedPlace, 0)
 	for rows.Next() {
 		var place SavedPlace
+		var openingHoursJSON string
 		var distance int
 		if err := rows.Scan(
 			&place.ID,
@@ -301,6 +335,9 @@ func (s *PostgresStore) NearbyPlaces(ctx context.Context, userID string, query N
 			&place.Latitude,
 			&place.Longitude,
 			&place.Rating,
+			&place.ReviewCount,
+			&openingHoursJSON,
+			&place.Description,
 			&place.Status,
 			&place.Note,
 			&place.SourceType,
@@ -313,6 +350,7 @@ func (s *PostgresStore) NearbyPlaces(ctx context.Context, userID string, query N
 		); err != nil {
 			return nil, err
 		}
+		place.OpeningHours = decodeOpeningHours(openingHoursJSON)
 		place.DistanceM = &distance
 		result = append(result, place)
 	}
@@ -637,7 +675,10 @@ func (s *PostgresStore) GetSharedCollection(ctx context.Context, collectionID st
 			COALESCE(p.address, ''),
 			ST_Y(p.location::geometry),
 			ST_X(p.location::geometry),
-			COALESCE(p.rating::float8, 0)
+			COALESCE(p.rating::float8, 0),
+			COALESCE(p.rating_count, 0),
+			COALESCE(p.working_hours::text, '{}'),
+			COALESCE(p.attributes->>'description', '')
 		FROM collection_places cp
 		JOIN places p ON p.id = cp.place_id
 		JOIN cities c ON c.id = p.city_id
@@ -655,6 +696,7 @@ func (s *PostgresStore) GetSharedCollection(ctx context.Context, collectionID st
 
 	for rows.Next() {
 		var place Place
+		var openingHoursJSON string
 		if err := rows.Scan(
 			&place.ID,
 			&place.Name,
@@ -666,9 +708,13 @@ func (s *PostgresStore) GetSharedCollection(ctx context.Context, collectionID st
 			&place.Latitude,
 			&place.Longitude,
 			&place.Rating,
+			&place.ReviewCount,
+			&openingHoursJSON,
+			&place.Description,
 		); err != nil {
 			return SharedCollection{}, err
 		}
+		place.OpeningHours = decodeOpeningHours(openingHoursJSON)
 		places = append(places, place)
 		collection.PlaceIDs = append(collection.PlaceIDs, place.ID)
 	}
@@ -831,6 +877,7 @@ func (s *PostgresStore) SetCollectionPlace(ctx context.Context, userID, collecti
 
 func (s *PostgresStore) getPlace(ctx context.Context, userID, placeID string) (SavedPlace, error) {
 	var place SavedPlace
+	var openingHoursJSON string
 	err := s.pool.QueryRow(ctx, `
 		SELECT
 			p.public_id,
@@ -843,6 +890,9 @@ func (s *PostgresStore) getPlace(ctx context.Context, userID, placeID string) (S
 			ST_Y(p.location::geometry),
 			ST_X(p.location::geometry),
 			COALESCE(p.rating::float8, 0),
+			COALESCE(p.rating_count, 0),
+			COALESCE(p.working_hours::text, '{}'),
+			COALESCE(p.attributes->>'description', ''),
 			up.status,
 			COALESCE(up.note, ''),
 			COALESCE(up.source_type, ''),
@@ -868,6 +918,9 @@ func (s *PostgresStore) getPlace(ctx context.Context, userID, placeID string) (S
 		&place.Latitude,
 		&place.Longitude,
 		&place.Rating,
+		&place.ReviewCount,
+		&openingHoursJSON,
+		&place.Description,
 		&place.Status,
 		&place.Note,
 		&place.SourceType,
@@ -880,7 +933,11 @@ func (s *PostgresStore) getPlace(ctx context.Context, userID, placeID string) (S
 	if errors.Is(err, pgx.ErrNoRows) {
 		return SavedPlace{}, ErrNotFound
 	}
-	return place, err
+	if err != nil {
+		return SavedPlace{}, err
+	}
+	place.OpeningHours = decodeOpeningHours(openingHoursJSON)
+	return place, nil
 }
 
 type rowScanner interface {
@@ -889,6 +946,7 @@ type rowScanner interface {
 
 func scanSavedPlace(row rowScanner) (SavedPlace, error) {
 	var place SavedPlace
+	var openingHoursJSON string
 	err := row.Scan(
 		&place.ID,
 		&place.Name,
@@ -900,6 +958,9 @@ func scanSavedPlace(row rowScanner) (SavedPlace, error) {
 		&place.Latitude,
 		&place.Longitude,
 		&place.Rating,
+		&place.ReviewCount,
+		&openingHoursJSON,
+		&place.Description,
 		&place.Status,
 		&place.Note,
 		&place.SourceType,
@@ -909,7 +970,26 @@ func scanSavedPlace(row rowScanner) (SavedPlace, error) {
 		&place.VisitedAt,
 		&place.UpdatedAt,
 	)
+	if err == nil {
+		place.OpeningHours = decodeOpeningHours(openingHoursJSON)
+	}
 	return place, err
+}
+
+func decodeOpeningHours(raw string) *OpeningHours {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || raw == "{}" || raw == "null" {
+		return nil
+	}
+
+	var hours OpeningHours
+	if err := json.Unmarshal([]byte(raw), &hours); err != nil {
+		return nil
+	}
+	if !hours.Is24x7 && len(hours.Days) == 0 {
+		return nil
+	}
+	return &hours
 }
 
 func (s *PostgresStore) Mode() string { return "postgres" }

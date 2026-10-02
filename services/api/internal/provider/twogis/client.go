@@ -47,7 +47,29 @@ type rubric struct {
 }
 
 type reviews struct {
-	GeneralRating float64 `json:"general_rating"`
+	GeneralRating      float64 `json:"general_rating"`
+	GeneralReviewCount int     `json:"general_review_count"`
+	ReviewCount        int     `json:"review_count"`
+}
+
+type workingHours struct {
+	From string `json:"from"`
+	To   string `json:"to"`
+}
+
+type scheduleDay struct {
+	WorkingHours []workingHours `json:"working_hours"`
+}
+
+type schedule struct {
+	Mon    scheduleDay `json:"Mon"`
+	Tue    scheduleDay `json:"Tue"`
+	Wed    scheduleDay `json:"Wed"`
+	Thu    scheduleDay `json:"Thu"`
+	Fri    scheduleDay `json:"Fri"`
+	Sat    scheduleDay `json:"Sat"`
+	Sun    scheduleDay `json:"Sun"`
+	Is24x7 bool        `json:"is_24x7"`
 }
 
 type item struct {
@@ -57,6 +79,8 @@ type item struct {
 	Point       *point   `json:"point"`
 	Rubrics     []rubric `json:"rubrics"`
 	Reviews     *reviews `json:"reviews"`
+	Schedule    *schedule `json:"schedule"`
+	Description string    `json:"description"`
 }
 
 type response struct {
@@ -86,7 +110,7 @@ func (c *Client) Search(ctx context.Context, query, city string) ([]catalog.Plac
 	params.Set("q", query)
 	params.Set("location", fmt.Sprintf("%.6f,%.6f", lon, lat))
 	params.Set("type", "branch")
-	params.Set("fields", "items.point,items.rubrics,items.reviews")
+	params.Set("fields", "items.point,items.rubrics,items.reviews,items.schedule,items.description")
 	params.Set("page_size", "10")
 	params.Set("key", c.apiKey)
 
@@ -123,7 +147,7 @@ func (c *Client) LookupByID(ctx context.Context, providerID, city string) (catal
 
 	params := url.Values{}
 	params.Set("id", providerID)
-	params.Set("fields", "items.point,items.rubrics,items.reviews")
+	params.Set("fields", "items.point,items.rubrics,items.reviews,items.schedule,items.description")
 	params.Set("key", c.apiKey)
 
 	payload, err := c.get(ctx, endpoint+"/byid", params)
@@ -175,8 +199,18 @@ func normalizeItem(it item, city, cityLabel string) (catalog.Place, bool) {
 
 	category, categoryLabel := categoryFromRubrics(it.Rubrics)
 	rating := 0.0
-	if it.Reviews != nil && it.Reviews.GeneralRating >= 0 && it.Reviews.GeneralRating <= 5 {
-		rating = it.Reviews.GeneralRating
+	reviewCount := 0
+	if it.Reviews != nil {
+		if it.Reviews.GeneralRating >= 0 && it.Reviews.GeneralRating <= 5 {
+			rating = it.Reviews.GeneralRating
+		}
+		reviewCount = it.Reviews.GeneralReviewCount
+		if it.Reviews.ReviewCount > reviewCount {
+			reviewCount = it.Reviews.ReviewCount
+		}
+		if reviewCount < 0 {
+			reviewCount = 0
+		}
 	}
 
 	return catalog.Place{
@@ -190,8 +224,51 @@ func normalizeItem(it item, city, cityLabel string) (catalog.Place, bool) {
 		Latitude:       it.Point.Lat,
 		Longitude:      it.Point.Lon,
 		Rating:         rating,
+		ReviewCount:    reviewCount,
+		OpeningHours:   normalizeSchedule(it.Schedule),
+		Description:    strings.TrimSpace(it.Description),
 		DistanceMeters: 0,
 	}, true
+}
+
+func normalizeSchedule(value *schedule) *catalog.OpeningHours {
+	if value == nil {
+		return nil
+	}
+
+	days := map[string]scheduleDay{
+		"mon": value.Mon,
+		"tue": value.Tue,
+		"wed": value.Wed,
+		"thu": value.Thu,
+		"fri": value.Fri,
+		"sat": value.Sat,
+		"sun": value.Sun,
+	}
+
+	out := &catalog.OpeningHours{
+		Is24x7: value.Is24x7,
+		Days:   make(map[string][]catalog.TimeRange),
+	}
+
+	for day, source := range days {
+		for _, interval := range source.WorkingHours {
+			from := strings.TrimSpace(interval.From)
+			to := strings.TrimSpace(interval.To)
+			if from == "" && to == "" {
+				continue
+			}
+			out.Days[day] = append(out.Days[day], catalog.TimeRange{
+				From: from,
+				To:   to,
+			})
+		}
+	}
+
+	if !out.Is24x7 && len(out.Days) == 0 {
+		return nil
+	}
+	return out
 }
 
 func cityCenter(city string) (lon, lat float64, label string, ok bool) {

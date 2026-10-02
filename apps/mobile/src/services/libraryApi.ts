@@ -1,5 +1,5 @@
 import { appConfig } from '../config';
-import type { CitySlug, Spot, SpotCategory } from '../types';
+import type { CitySlug, Spot, SpotCategory, SpotOpeningHours } from '../types';
 import { ensureGuestSession, resetGuestSession } from './cloudSync';
 
 async function patchShared(collectionID: string, token: string) {
@@ -51,6 +51,12 @@ type PublicApiPlace = {
   lat: number;
   lng: number;
   rating: number;
+  review_count?: number;
+  opening_hours?: {
+    is_24x7?: boolean;
+    days?: SpotOpeningHours['days'];
+  };
+  description?: string;
 };
 
 type PublicApiCollection = {
@@ -103,6 +109,12 @@ export async function getSharedCollection(collectionID: string): Promise<SharedC
     longitude: place.lng,
     distanceMeters: 0,
     rating: place.rating,
+    reviewCount: place.review_count,
+    openingHours: place.opening_hours ? {
+      is24x7: place.opening_hours.is_24x7,
+      days: place.opening_hours.days
+    } : undefined,
+    description: place.description?.trim() || undefined,
     status: 'want'
   }));
 

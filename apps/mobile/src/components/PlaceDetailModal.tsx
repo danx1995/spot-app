@@ -15,6 +15,7 @@ import {
 import { useSpotStore } from '../state/SpotStore';
 import { colors } from '../theme';
 import type { Spot, SpotStatus } from '../types';
+import { getSpotOpenState, getTodayHoursLabel } from '../utils/openingHours';
 
 type Props = {
   spot: Spot | null;
@@ -36,6 +37,15 @@ const statusCopy: Record<SpotStatus, string> = {
   visited: 'Был здесь',
   booked: 'Забронировано'
 };
+
+function reviewsLabel(count: number) {
+  const mod100 = count % 100;
+  const mod10 = count % 10;
+  if (mod100 >= 11 && mod100 <= 14) return 'отзывов';
+  if (mod10 === 1) return 'отзыв';
+  if (mod10 >= 2 && mod10 <= 4) return 'отзыва';
+  return 'отзывов';
+}
 
 export function PlaceDetailModal({ spot, visible, onClose }: Props) {
   const dark = useColorScheme() === 'dark';
@@ -69,6 +79,8 @@ export function PlaceDetailModal({ spot, visible, onClose }: Props) {
 
   const status = saved?.status ?? 'want';
   const isHotel = activeSpot.category === 'hotel';
+  const openState = getSpotOpenState(activeSpot);
+  const todayHours = getTodayHoursLabel(activeSpot);
 
   function ensureSaved(nextStatus: SpotStatus) {
     if (saved) {
@@ -125,8 +137,27 @@ export function PlaceDetailModal({ spot, visible, onClose }: Props) {
           <Text style={[styles.category, { color: colors.green }]}>{activeSpot.categoryLabel.toUpperCase()}</Text>
           <Text style={[styles.title, { color: text }]}>{activeSpot.name}</Text>
           <Text style={[styles.meta, { color: muted }]}>
-            {activeSpot.rating > 0 ? `★ ${activeSpot.rating.toFixed(1)} · ` : ''}{activeSpot.address}
+            {activeSpot.rating > 0 ? `★ ${activeSpot.rating.toFixed(1)}` : ''}
+            {activeSpot.rating > 0 && activeSpot.reviewCount
+              ? ` · ${activeSpot.reviewCount} ${reviewsLabel(activeSpot.reviewCount)}`
+              : ''}
+            {activeSpot.rating > 0 ? ' · ' : ''}{activeSpot.address}
           </Text>
+
+          {openState.kind !== 'unknown' ? (
+            <View style={styles.openBadge}>
+              <View style={[
+                styles.openBadgeDot,
+                { backgroundColor: openState.kind === 'open' ? colors.green : muted }
+              ]} />
+              <Text style={[
+                styles.openBadgeText,
+                { color: openState.kind === 'open' ? colors.green : muted }
+              ]}>
+                {openState.label}
+              </Text>
+            </View>
+          ) : null}
 
           <View style={styles.actions}>
             <Pressable
@@ -219,6 +250,13 @@ export function PlaceDetailModal({ spot, visible, onClose }: Props) {
             )}
           </View>
 
+          {activeSpot.description ? (
+            <View style={[styles.block, { backgroundColor: surface }]}>
+              <Text style={[styles.blockLabel, { color: muted }]}>ОПИСАНИЕ</Text>
+              <Text style={[styles.description, { color: text }]}>{activeSpot.description}</Text>
+            </View>
+          ) : null}
+
           {activeSpot.sourceUrl ? (
             <Pressable
               onPress={() => void Linking.openURL(activeSpot.sourceUrl as string)}
@@ -269,6 +307,17 @@ export function PlaceDetailModal({ spot, visible, onClose }: Props) {
               <Text style={[styles.infoKey, { color: muted }]}>Адрес</Text>
               <Text style={[styles.infoValue, { color: text }]}>{activeSpot.address}</Text>
             </View>
+            {todayHours ? (
+              <View style={styles.infoRow}>
+                <Text style={[styles.infoKey, { color: muted }]}>Сегодня</Text>
+                <Text style={[
+                  styles.infoValue,
+                  { color: openState.kind === 'open' ? colors.green : text }
+                ]}>
+                  {todayHours}
+                </Text>
+              </View>
+            ) : null}
             {activeSpot.distanceMeters > 0 ? (
               <View style={styles.infoRow}>
                 <Text style={[styles.infoKey, { color: muted }]}>От тебя</Text>
@@ -367,10 +416,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20
   },
+  openBadge: {
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7
+  },
+  openBadgeDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4
+  },
+  openBadgeText: {
+    fontSize: 12,
+    fontWeight: '900'
+  },
   actions: {
     flexDirection: 'row',
     gap: 10,
-    marginTop: 22
+    marginTop: 20
   },
   primaryButton: {
     flex: 1,
@@ -433,6 +497,12 @@ const styles = StyleSheet.create({
     marginTop: 9,
     fontSize: 16,
     lineHeight: 23,
+    fontWeight: '600'
+  },
+  description: {
+    marginTop: 9,
+    fontSize: 14,
+    lineHeight: 21,
     fontWeight: '600'
   },
   noteInput: {

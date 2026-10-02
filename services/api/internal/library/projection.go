@@ -5,12 +5,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 )
 
 type cloudState struct {
 	SavedSpots  []cloudSpot       `json:"saved_spots"`
 	Collections []cloudCollection `json:"collections"`
+}
+
+type cloudOpeningHours struct {
+	Is24x7 bool                   `json:"is24x7"`
+	Days   map[string][]TimeRange `json:"days"`
 }
 
 type cloudSpot struct {
@@ -23,8 +29,11 @@ type cloudSpot struct {
 	Address        string  `json:"address"`
 	Latitude       float64 `json:"latitude"`
 	Longitude      float64 `json:"longitude"`
-	Rating         float64 `json:"rating"`
-	Status         string  `json:"status"`
+	Rating         float64       `json:"rating"`
+	ReviewCount    int           `json:"reviewCount"`
+	OpeningHours   *cloudOpeningHours `json:"openingHours"`
+	Description    string        `json:"description"`
+	Status         string        `json:"status"`
 	Favorite       bool    `json:"favorite"`
 	Note           string  `json:"note"`
 	SourceURL      string  `json:"sourceUrl"`
@@ -71,7 +80,7 @@ func ApplyCloudDelta(
 
 	for id, place := range after.places {
 		old, exists := before.places[id]
-		if exists && old == place {
+		if exists && reflect.DeepEqual(old, place) {
 			continue
 		}
 		if _, err := store.UpsertPlace(ctx, userID, place); err != nil {
@@ -223,6 +232,25 @@ func decodeCloudState(raw json.RawMessage, allowEmpty bool) (normalizedCloudStat
 	return state, nil
 }
 
+func normalizeCloudOpeningHours(value *cloudOpeningHours) *OpeningHours {
+	if value == nil {
+		return nil
+	}
+
+	days := make(map[string][]TimeRange, len(value.Days))
+	for day, ranges := range value.Days {
+		days[day] = append([]TimeRange(nil), ranges...)
+	}
+
+	if !value.Is24x7 && len(days) == 0 {
+		return nil
+	}
+	return &OpeningHours{
+		Is24x7: value.Is24x7,
+		Days:   days,
+	}
+}
+
 func normalizeCloudSpot(item cloudSpot) SavePlaceInput {
 	category := strings.TrimSpace(item.Category)
 	if category == "" {
@@ -245,6 +273,9 @@ func normalizeCloudSpot(item cloudSpot) SavePlaceInput {
 			Latitude:      item.Latitude,
 			Longitude:     item.Longitude,
 			Rating:        item.Rating,
+			ReviewCount:   item.ReviewCount,
+			OpeningHours:  normalizeCloudOpeningHours(item.OpeningHours),
+			Description:   strings.TrimSpace(item.Description),
 		},
 		Status:     item.Status,
 		Note:       strings.TrimSpace(item.Note),

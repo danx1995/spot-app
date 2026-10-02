@@ -3,7 +3,7 @@ declare const __DEV__: boolean;
 import { appConfig } from '../config';
 import { spots as fallbackSpots } from '../data/mock';
 import { ensureGuestSession } from './cloudSync';
-import type { CitySlug, Spot, SpotCategory } from '../types';
+import type { CitySlug, Spot, SpotCategory, SpotOpeningHours } from '../types';
 
 type ApiPlace = {
   id: string;
@@ -16,6 +16,12 @@ type ApiPlace = {
   lat: number;
   lng: number;
   rating: number;
+  review_count?: number;
+  opening_hours?: {
+    is_24x7?: boolean;
+    days?: SpotOpeningHours['days'];
+  };
+  description?: string;
   distance_meters?: number;
 };
 
@@ -43,6 +49,12 @@ function fromApiPlace(place: ApiPlace): Spot {
     longitude: place.lng,
     distanceMeters: place.distance_meters ?? 0,
     rating: place.rating,
+    reviewCount: place.review_count,
+    openingHours: place.opening_hours ? {
+      is24x7: place.opening_hours.is_24x7,
+      days: place.opening_hours.days
+    } : undefined,
+    description: place.description?.trim() || undefined,
     status: 'want'
   };
 }
