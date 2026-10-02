@@ -2,7 +2,10 @@
   "expo": {
     "name": "СПОТ",
     "slug": "spot",
-    "scheme": "spot",
+    "scheme": [
+      "spot",
+      "app.spot.mobile"
+    ],
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
@@ -27,11 +30,13 @@
             "text/*"
           ]
         }
-      ]
+      ],
+      "expo-apple-authentication"
     ],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "app.spot.mobile"
+      "bundleIdentifier": "app.spot.mobile",
+      "usesAppleSignIn": true
     },
     "android": {
       "package": "app.spot.mobile"

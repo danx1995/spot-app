@@ -105,6 +105,7 @@ type SpotStoreValue = {
   setInterests: (interests: DiscoveryInterest[]) => void;
   syncNow: () => Promise<void>;
   adoptSession: (session: GuestSession) => Promise<void>;
+  adoptSessionAndMerge: (session: GuestSession) => Promise<void>;
   isSaved: (id: string) => boolean;
   getSavedSpot: (id: string) => Spot | undefined;
   saveSpot: (spot: Spot, status?: SpotStatus) => void;
@@ -408,6 +409,79 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
     }
   }, [applyCloudPayload]);
 
+  const adoptSessionAndMerge = useCallback(async (session: GuestSession) => {
+    for (let attempt = 0; syncingRef.current && attempt < 100; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    if (syncingRef.current) {
+      throw new Error('sync in progress');
+    }
+
+    const local = snapshotRef.current;
+    syncingRef.current = true;
+    pendingSyncRef.current = false;
+    setSyncStatus('syncing');
+
+    try {
+      await replaceGuestSession(session);
+      const remote = await getCloudState(session.token);
+
+      let merged: CloudStatePayload = isCloudPayload(remote.state)
+        ? {
+            selected_city: local.selectedCity,
+            saved_spots: mergeByID(remote.state.saved_spots, local.savedSpots),
+            collections: mergeByID(remote.state.collections, local.collections),
+            interests: local.interests.length > 0
+              ? local.interests
+              : normalizeInterests(remote.state.interests)
+          }
+        : {
+            selected_city: local.selectedCity,
+            saved_spots: local.savedSpots,
+            collections: local.collections,
+            interests: local.interests
+          };
+
+      let revision = remote.revision;
+
+      try {
+        const saved = await putCloudState(session.token, revision, merged);
+        revision = saved.revision;
+      } catch (error) {
+        if (!(error instanceof CloudConflictError) || !isCloudPayload(error.envelope.state)) {
+          throw error;
+        }
+
+        merged = {
+          selected_city: merged.selected_city,
+          saved_spots: mergeByID(error.envelope.state.saved_spots, merged.saved_spots),
+          collections: mergeByID(error.envelope.state.collections, merged.collections),
+          interests: merged.interests?.length
+            ? merged.interests
+            : normalizeInterests(error.envelope.state.interests)
+        };
+
+        const saved = await putCloudState(
+          session.token,
+          error.envelope.revision,
+          merged
+        );
+        revision = saved.revision;
+      }
+
+      cloudRevisionRef.current = revision;
+      cloudReadyRef.current = true;
+      applyCloudPayload(merged);
+      setLastSyncedAt(new Date().toISOString());
+      setSyncStatus('synced');
+    } catch (error) {
+      setSyncStatus('offline');
+      throw error;
+    } finally {
+      syncingRef.current = false;
+    }
+  }, [applyCloudPayload]);
+
   useEffect(() => {
     if (!hydrated) return;
     void syncNow();
@@ -663,6 +737,7 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
     setInterests,
     syncNow,
     adoptSession,
+    adoptSessionAndMerge,
     isSaved,
     getSavedSpot,
     saveSpot,
@@ -688,6 +763,7 @@ export function SpotStoreProvider({ children }: { children: React.ReactNode }) {
     setInterests,
     syncNow,
     adoptSession,
+    adoptSessionAndMerge,
     isSaved,
     getSavedSpot,
     saveSpot,

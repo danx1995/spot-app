@@ -12,6 +12,7 @@ import {
   View
 } from 'react-native';
 
+import { AccountIdentityModal } from '../components/AccountIdentityModal';
 import { ProfileTransferModal } from '../components/ProfileTransferModal';
 import { VisitHistoryModal } from '../components/VisitHistoryModal';
 import {
@@ -83,6 +84,7 @@ function initials(name: string) {
 export function ProfileScreen() {
   const dark = useColorScheme() === 'dark';
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
   const [interestsOpen, setInterestsOpen] = useState(false);
   const [themeOpen, setThemeOpen] = useState(false);
@@ -286,15 +288,27 @@ export function ProfileScreen() {
             </Text>
             <Text style={[styles.accountSubtitle, { color: muted }]}>
               {profile?.is_guest === false
-                ? 'Твои споты и подборки привязаны к постоянному аккаунту.'
-                : 'Имя и библиотека сохраняются на сервере. Следующий шаг — подключение входа через Apple и Google без потери текущих данных.'}
+                ? (profile.email
+                    ? 'Профиль можно восстановить через подключённый вход · ' + profile.email
+                    : 'Твои споты и подборки привязаны к постоянному аккаунту.')
+                : 'Подключи Apple или Google к текущей карте — споты и подборки останутся на месте.'}
             </Text>
             {profileError ? (
               <Text style={styles.profileError}>{profileError}</Text>
             ) : null}
-            <Pressable onPress={() => setTransferOpen(true)} style={styles.transferButton}>
-              <Text style={styles.transferButtonText}>Перенести профиль</Text>
-            </Pressable>
+            <View style={styles.accountActions}>
+              <Pressable onPress={() => setAccountOpen(true)} style={styles.accountButton}>
+                <Text style={styles.accountButtonText}>
+                  {profile?.is_guest === false ? 'Способы входа' : 'Защитить аккаунт'}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setTransferOpen(true)}
+                style={[styles.transferButton, { backgroundColor: raised }]}
+              >
+                <Text style={[styles.transferButtonText, { color: text }]}>Перенести</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
 
@@ -373,6 +387,21 @@ export function ProfileScreen() {
       <VisitHistoryModal
         visible={historyOpen}
         onClose={() => setHistoryOpen(false)}
+      />
+
+      <AccountIdentityModal
+        profile={profile}
+        visible={accountOpen}
+        onClose={() => setAccountOpen(false)}
+        onProfile={(nextProfile) => {
+          setProfile(nextProfile);
+          setDraftName(nextProfile.display_name ?? '');
+          setProfileError(null);
+
+          const nextTheme = nextProfile.theme ?? themePreference;
+          setThemePreferenceState(nextTheme);
+          void setThemePreference(nextTheme);
+        }}
       />
 
       <ProfileTransferModal
@@ -663,18 +692,34 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800'
   },
-  transferButton: {
-    alignSelf: 'flex-start',
-    minHeight: 38,
-    marginTop: 10,
+  accountActions: {
+    marginTop: 11,
+    flexDirection: 'row',
+    gap: 8
+  },
+  accountButton: {
+    flex: 1.35,
+    minHeight: 42,
     paddingHorizontal: 13,
     borderRadius: 14,
     backgroundColor: colors.green,
     alignItems: 'center',
     justifyContent: 'center'
   },
-  transferButtonText: {
+  accountButtonText: {
     color: colors.black,
+    fontSize: 11,
+    fontWeight: '900'
+  },
+  transferButton: {
+    flex: 1,
+    minHeight: 42,
+    paddingHorizontal: 13,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  transferButtonText: {
     fontSize: 11,
     fontWeight: '900'
   },
