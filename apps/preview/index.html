@@ -161,6 +161,7 @@
     .collection-card h3{font-size:14px;margin:0}.collection-card p{font-size:10px;color:var(--muted);margin:4px 0 0}
     .profile-head{padding:54px 20px 18px;text-align:center}.avatar{width:82px;height:82px;border-radius:50%;background:var(--green);color:var(--black);font-size:26px;font-weight:950;display:grid;place-items:center;margin:0 auto}.profile-name{font-size:27px;font-weight:950;margin-top:13px}.profile-city{color:var(--muted);font-size:11px;margin-top:6px}.stats{margin:0 20px;display:grid;grid-template-columns:repeat(3,1fr);background:var(--surface);border-radius:24px;padding:17px 0}.stat{text-align:center;border-left:1px solid var(--line)}.stat:first-child{border-left:0}.stat b{font-size:19px}.stat span{display:block;color:var(--muted);font-size:9px;margin-top:3px}
     .account{margin:12px 20px;padding:15px;border-radius:23px;background:var(--surface);display:flex;gap:12px}.account-icon{width:48px;height:48px;border-radius:17px;background:#173528;color:var(--green);display:grid;place-items:center;font-size:19px}.account h3{font-size:13px;margin:1px 0 0}.account p{font-size:10px;color:var(--muted);line-height:1.5;margin:4px 0 0}
+    .identity-hero{margin:4px 18px 0;padding:22px;border-radius:23px;background:var(--surface);text-align:center}.identity-heart{width:58px;height:58px;border-radius:21px;background:var(--green);color:var(--black);display:grid;place-items:center;margin:0 auto;font-size:25px;font-weight:950}.identity-hero h3{font-size:19px;margin:13px 0 0}.identity-hero p{font-size:9px;line-height:1.55;color:var(--muted);margin:6px auto 0;max-width:290px}.identity-label{margin:20px 20px 8px;color:var(--muted);font-size:8px;font-weight:950;letter-spacing:.12em}.identity-providers{display:grid;gap:8px;padding:0 18px}.identity-provider{min-height:52px;border-radius:16px;display:flex;align-items:center;padding:0 15px;gap:10px;font-size:11px;font-weight:900;cursor:pointer}.identity-provider.google{background:#fff;color:#202124;border:1px solid #DADCE0}.identity-provider.apple{background:#fff;color:#000}.identity-provider .mark{width:28px;height:28px;border-radius:14px;display:grid;place-items:center;font-size:16px;font-weight:950}.identity-provider.google .mark{color:#4285F4}.identity-provider .arrow{margin-left:auto;opacity:.45}.identity-privacy{margin:14px 18px 22px;padding:13px;border-radius:17px;background:var(--raised);color:var(--muted);font-size:8px;line-height:1.5}.identity-privacy b{display:block;color:var(--text);font-size:9px;margin-bottom:3px}
     .menu{margin:12px 20px;background:var(--surface);border-radius:23px;overflow:hidden}.menu-row{min-height:54px;padding:0 16px;display:flex;align-items:center;border-top:1px solid var(--line);font-size:12px;font-weight:750}.menu-row:first-child{border-top:0}.menu-row span{margin-left:auto;color:var(--muted);font-size:10px}
     .bottom-nav{position:absolute;z-index:20;left:10px;right:10px;bottom:9px;height:72px;border-radius:25px;background:rgba(18,24,20,.97);border:1px solid rgba(255,255,255,.07);display:grid;grid-template-columns:1fr 1fr 74px 1fr 1fr;align-items:center;padding:0 8px;box-shadow:0 15px 40px rgba(0,0,0,.36)}
     .nav-item{background:transparent;color:#78857E;display:grid;place-items:center;gap:3px;font-size:9px;font-weight:850;cursor:pointer}.nav-item .ico{font-size:18px}.nav-item.active{color:var(--green)}
@@ -296,7 +297,7 @@
               <button class="menu-row" data-toast="Синхронизация выполнена">Облачная синхронизация <span>Синхронизировано ›</span></button>
               <button class="menu-row" data-toast="Одноразовый код действует 10 минут">Перенести профиль <span>Открыть ›</span></button>
               <button class="menu-row" data-toast="История посещённых мест">История посещений <span>7 ›</span></button>
-              <button class="menu-row" data-toast="Apple / Google backend уже подготовлен">Аккаунт <span>Скоро ›</span></button>
+              <button class="menu-row" id="previewAccountBtn">Аккаунт <span id="previewAccountValue">Подключить ›</span></button>
               <button class="menu-row" id="previewResetRecommendations">Скрытые рекомендации <span id="previewHiddenCount">2 ›</span></button>
               <button class="menu-row" id="showOnboardingProfile">Onboarding <span>Посмотреть ›</span></button>
               <button class="menu-row" id="themeBtn">Тема приложения <span id="themeValue">Системная ›</span></button>
@@ -371,6 +372,29 @@
               <button class="ob-back" data-ob-back>Назад</button>
             </div>
           </section>
+        </div>
+
+        <div class="overlay" id="accountOverlay">
+          <div class="sheet">
+            <div class="sheet-head">
+              <button class="sheet-close" data-close="accountOverlay">×</button>
+              <div><div class="sheet-title">Защитить свой СПОТ</div><div class="sheet-sub">без новой пустой карты</div></div>
+              <div></div>
+            </div>
+            <div class="sheet-scroll">
+              <div class="identity-hero">
+                <div class="identity-heart">♥</div>
+                <h3>Споты останутся твоими</h3>
+                <p>Apple или Google подключаются к текущему гостевому профилю. Если аккаунт уже существует, СПОТ предложит объединить библиотеки.</p>
+              </div>
+              <div class="identity-label">СПОСОБ ВХОДА</div>
+              <div class="identity-providers">
+                <button class="identity-provider google" data-preview-provider="Google"><span class="mark">G</span><span>Продолжить с Google</span><span class="arrow">›</span></button>
+                <button class="identity-provider apple" data-preview-provider="Apple"><span class="mark">●</span><span>Продолжить с Apple</span><span class="arrow">›</span></button>
+              </div>
+              <div class="identity-privacy"><b>Что получает СПОТ</b>Только подтверждённый идентификатор и, если провайдер отдаёт их, email и имя. Пароль Apple или Google приложение не получает и не хранит.</div>
+            </div>
+          </div>
         </div>
 
         <div class="overlay" id="themeOverlay">
@@ -736,6 +760,7 @@
     const searchOverlay=document.getElementById('searchOverlay');
     const forYouOverlay=document.getElementById('forYouOverlay');
     const themeOverlay=document.getElementById('themeOverlay');
+    const accountOverlay=document.getElementById('accountOverlay');
     const placeOverlay=document.getElementById('placeOverlay');
     const addOverlay=document.getElementById('addOverlay');
     const routeOverlay=document.getElementById('routeOverlay');
@@ -772,6 +797,22 @@
       showOnboardingStep(0);
       onboardingPreview.classList.add('open');
     }
+
+    document.getElementById('previewAccountBtn').addEventListener('click',()=>openOverlay(accountOverlay));
+    document.querySelectorAll('[data-preview-provider]').forEach(button=>button.addEventListener('click',()=>{
+      const provider=button.dataset.previewProvider;
+      closeOverlay(accountOverlay);
+      document.getElementById('previewAccountValue').textContent='Подключён ›';
+      const profileCity=document.querySelector('[data-screen="profile"] .profile-city');
+      if(profileCity) profileCity.textContent='Санкт-Петербург · аккаунт подключён';
+      const accountIcon=document.querySelector('[data-screen="profile"] .account-icon');
+      if(accountIcon) accountIcon.textContent='✓';
+      const accountTitle=document.querySelector('[data-screen="profile"] .account h3');
+      if(accountTitle) accountTitle.textContent='Профиль защищён аккаунтом';
+      const accountText=document.querySelector('[data-screen="profile"] .account p');
+      if(accountText) accountText.textContent='Споты и подборки привязаны к постоянному аккаунту.';
+      showToast(provider+' подключён · библиотека сохранена');
+    }));
 
     document.getElementById('previewResetRecommendations').addEventListener('click',()=>{
       document.querySelectorAll('[data-for-you-item].removed').forEach(item=>item.classList.remove('removed'));
