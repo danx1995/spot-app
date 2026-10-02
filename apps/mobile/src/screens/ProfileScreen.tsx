@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -21,6 +22,10 @@ import {
 import { useSpotStore, type SyncStatus } from '../state/SpotStore';
 import { colors } from '../theme';
 import type { DiscoveryInterest } from '../types';
+import {
+  clearDismissedRecommendations,
+  getDismissedRecommendationIDs
+} from '../utils/recommendationFeedback';
 
 const interestOptions: Array<{ id: DiscoveryInterest; label: string; icon: string }> = [
   { id: 'restaurant', label: 'Еда', icon: '🍽' },
@@ -55,6 +60,7 @@ export function ProfileScreen() {
   const [draftName, setDraftName] = useState('');
   const [savingName, setSavingName] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const [dismissedRecommendationCount, setDismissedRecommendationCount] = useState(0);
 
   const {
     savedSpots,
@@ -95,6 +101,18 @@ export function ProfileScreen() {
     };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+
+    void getDismissedRecommendationIDs().then((ids) => {
+      if (active) setDismissedRecommendationCount(ids.length);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const visited = useMemo(
     () => savedSpots.filter((spot) => spot.status === 'visited').length,
     [savedSpots]
@@ -113,6 +131,26 @@ export function ProfileScreen() {
     setDraftName(profile?.display_name ?? '');
     setProfileError(null);
     setEditorOpen(true);
+  }
+
+  function resetRecommendationFeedback() {
+    if (dismissedRecommendationCount === 0) return;
+
+    Alert.alert(
+      'Показывать скрытые рекомендации снова?',
+      'СПОТ забудет отметки «Не моё» на этом устройстве. Сохранённые места и интересы не изменятся.',
+      [
+        { text: 'Отмена', style: 'cancel' },
+        {
+          text: 'Сбросить',
+          onPress: () => {
+            void clearDismissedRecommendations().then(() => {
+              setDismissedRecommendationCount(0);
+            });
+          }
+        }
+      ]
+    );
   }
 
   async function saveName() {
@@ -225,6 +263,18 @@ export function ProfileScreen() {
             <Text style={[styles.menuText, { color: text }]}>Интересы</Text>
             <Text style={[styles.menuValue, { color: muted }]}>
               {interests.length > 0 ? interests.length : 'Не выбраны'}
+            </Text>
+            <Text style={[styles.chevron, { color: muted }]}>›</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={resetRecommendationFeedback}
+            disabled={dismissedRecommendationCount === 0}
+            style={[styles.menuRow, dismissedRecommendationCount === 0 && styles.menuRowDisabled]}
+          >
+            <Text style={[styles.menuText, { color: text }]}>Скрытые рекомендации</Text>
+            <Text style={[styles.menuValue, { color: muted }]}>
+              {dismissedRecommendationCount > 0 ? dismissedRecommendationCount : 'Нет'}
             </Text>
             <Text style={[styles.chevron, { color: muted }]}>›</Text>
           </Pressable>
@@ -547,6 +597,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#77807A33'
+  },
+  menuRowDisabled: {
+    opacity: 0.55
   },
   menuText: {
     flex: 1,
