@@ -11,6 +11,9 @@ export type IconName =
   | 'bar'
   | 'hotel'
   | 'culture'
+  | 'entertainment'
+  | 'shop'
+  | 'park'
   | 'route'
   | 'search'
   | 'chevron'
@@ -103,6 +106,24 @@ export function SpotIcon({
       {name === 'culture' ? (
         <>
           <path {...common} d="m3 9 9-5 9 5M4.5 9h15M6 9v8M10 9v8M14 9v8M18 9v8M4 17h16M3 20h18" />
+        </>
+      ) : null}
+      {name === 'entertainment' ? (
+        <>
+          <path {...common} d="M4 7.5h16v4a2 2 0 0 0 0 4v4H4v-4a2 2 0 0 0 0-4v-4Z" />
+          <path {...common} d="M9 8v11M15 8v11" />
+        </>
+      ) : null}
+      {name === 'shop' ? (
+        <>
+          <path {...common} d="M5 8h14l-1 12H6L5 8Z" />
+          <path {...common} d="M9 9V6a3 3 0 0 1 6 0v3" />
+        </>
+      ) : null}
+      {name === 'park' ? (
+        <>
+          <path {...common} d="M12 3c-3.2 2-5 4.4-5 7a5 5 0 0 0 10 0c0-2.6-1.8-5-5-7Z" />
+          <path {...common} d="M12 10v11M8 21h8" />
         </>
       ) : null}
       {name === 'route' ? (
