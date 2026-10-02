@@ -1,6 +1,6 @@
 # СПОТ
 
-Мобильное приложение — личная карта мест, куда хочется попасть.
+Личная карта мест, куда хочется попасть. Основной клиент теперь развивается как **Telegram Mini App**; нативный Expo-клиент остаётся в репозитории как дополнительный клиент/резервный канал.
 
 Стартовый рынок: Москва и Санкт-Петербург.
 
@@ -29,11 +29,22 @@
 - сохранять источник места и дальше развивать автоматическое определение через resolver/AI.
 
 ## Структура
-- apps/mobile — React Native / Expo приложение
+- apps/telegram — основной Telegram Mini App (HTML/CSS/JS, Telegram WebApp API)
+- apps/mobile — дополнительный React Native / Expo клиент
+- apps/preview — визуальный web-preview
 - services/api — Go API
 - database/migrations — PostgreSQL + PostGIS
 - packages — общие пакеты
 - infra — инфраструктура и deploy
+
+## Telegram Mini App
+Telegram-клиент открывается внутри Telegram и не требует публикации в App Store/Google Play. Он использует Telegram WebApp API для темы, safe-area, BackButton и haptic feedback, а серверную сессию получает только после проверки raw `Telegram.WebApp.initData`.
+
+На API доступен `POST /api/v1/auth/telegram`. Сервер валидирует HMAC-SHA-256 подпись через `TELEGRAM_BOT_TOKEN`, проверяет свежесть `auth_date`, использует Telegram user ID как identity subject и затем выдаёт обычный SPOT bearer token. При первом запуске создаётся профиль, при следующих — открывается тот же пользователь и его облачная библиотека.
+
+Клиент уже переносит ключевой цикл продукта: onboarding → карта/поиск → сохранение → статусы → импорт ссылок → подборки → профиль/интересы. Production-вход вне Telegram отключён; для локального браузерного preview есть явный `SPOT_ALLOW_BROWSER_GUEST=true`.
+
+Инструкция по созданию бота и deploy: `apps/telegram/TELEGRAM_SETUP.md`.
 
 ## Бренд
 Основной цвет: #19C37D  
