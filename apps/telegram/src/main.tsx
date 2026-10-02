@@ -345,7 +345,7 @@ function App() {
           : next
         );
         const mixedCatalog = query.trim() === '' && !category;
-        setCanLoadMore(next.length > 0 && (mixedCatalog ? page < 40 : next.length >= 50));
+        setCanLoadMore(next.length > 0 && (mixedCatalog ? page < 40 : page < 50));
         setSearchPage(page);
       }
     } catch {
