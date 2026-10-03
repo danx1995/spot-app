@@ -147,6 +147,7 @@ function App() {
   const [search, setSearch] = useState('');
   const [searchResults, setSearchResults] = useState<Spot[]>([]);
   const [searching, setSearching] = useState(false);
+  const [searchAttempted, setSearchAttempted] = useState(false);
   const [searchPage, setSearchPage] = useState(1);
   const [canLoadMore, setCanLoadMore] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string>('');
@@ -155,6 +156,7 @@ function App() {
   const [importing, setImporting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [routePlannerOpen, setRoutePlannerOpen] = useState(false);
+  const [cityPickerOpen, setCityPickerOpen] = useState(false);
   const [selectedSpot, setSelectedSpot] = useState<Spot | null>(null);
   const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
   const hydrated = useRef(false);
@@ -165,6 +167,15 @@ function App() {
   const user = tg?.initDataUnsafe?.user;
   const city = cloud.selected_city;
   const cityName = city === 'spb' ? 'Санкт-Петербург' : 'Москва';
+  const screenKicker = tab === 'map'
+    ? 'ГОРОДСКОЙ КАТАЛОГ'
+    : tab === 'spots'
+      ? 'ЛИЧНАЯ БИБЛИОТЕКА'
+      : tab === 'add'
+        ? 'БЫСТРОЕ СОХРАНЕНИЕ'
+        : tab === 'collections'
+          ? 'МОИ ПОДБОРКИ'
+          : 'ТВОЙ СПОТ';
 
   useEffect(() => {
     tg?.ready();
@@ -257,6 +268,22 @@ function App() {
     setTab(next);
   }
 
+  function selectCity(nextCity: CitySlug) {
+    haptic();
+    setSearchResults([]);
+    setSearchAttempted(false);
+    setSearch('');
+    setActiveCategory('');
+    setSearchPage(1);
+    setCanLoadMore(false);
+    catalogLoadedForCity.current = null;
+    updateCloud((current) => ({
+      ...current,
+      selected_city: nextCity
+    }));
+    setCityPickerOpen(false);
+  }
+
   function saveSpot(spot: Spot) {
     updateCloud((current) => {
       if (current.saved_spots.some((item) => item.id === spot.id)) return current;
@@ -320,6 +347,7 @@ function App() {
   ) {
     if (!session && !demoMode) return;
     setSearching(true);
+    setSearchAttempted(true);
 
     try {
       if (demoMode) {
@@ -395,6 +423,8 @@ function App() {
 
   const favoriteCount = cloud.saved_spots.filter((spot) => spot.favorite).length;
   const visitedCount = cloud.saved_spots.filter((spot) => spot.status === 'visited').length;
+  const savedInCity = cloud.saved_spots.filter((spot) => spot.city === city);
+  const mapSpots = searchAttempted ? searchResults : savedInCity;
 
   if (booting) {
     return (
@@ -423,22 +453,14 @@ function App() {
     <div className="app-shell">
       <header className="topbar">
         <div>
-          <div className="kicker"><SpotIcon name="heart" size={10} strokeWidth={2.2} /> ЛИЧНАЯ БИБЛИОТЕКА</div>
+          <div className="kicker"><SpotIcon name={tab === 'map' ? 'sparkles' : 'heart'} size={10} strokeWidth={2.2} /> {screenKicker}</div>
           <h1>{tab === 'map' ? 'Карта' : tab === 'spots' ? 'Мои споты' : tab === 'add' ? 'Добавить' : tab === 'collections' ? 'Подборки' : 'Профиль'}</h1>
         </div>
         <button
           className="city-pill"
           onClick={() => {
-            setSearchResults([]);
-            setSearch('');
-            setActiveCategory('');
-            setSearchPage(1);
-            setCanLoadMore(false);
-            catalogLoadedForCity.current = null;
-            updateCloud((current) => ({
-              ...current,
-              selected_city: current.selected_city === 'spb' ? 'moscow' : 'spb'
-            }));
+            haptic();
+            setCityPickerOpen(true);
           }}
         >
           <span>{city === 'spb' ? 'СПБ' : 'МСК'}</span>
@@ -460,7 +482,7 @@ function App() {
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') void runSearch();
                 }}
-                placeholder="Название места"
+                placeholder="Ресторан, бар или место"
               />
               <button aria-label="Поиск" onClick={() => void runSearch()}>
                 {searching ? <span className="search-loader" /> : <SpotIcon name="search" size={20} strokeWidth={2.1} />}
@@ -492,22 +514,41 @@ function App() {
             <div className="map-panel real-map">
               <SpotMap
                 city={city}
-                spots={searchResults.length ? searchResults : cloud.saved_spots.filter((spot) => spot.city === city)}
+                spots={mapSpots}
                 onSelect={setSelectedSpot}
               />
               <div className="map-status">
                 <span>{cityName.toUpperCase()}</span>
-                <b>{searchResults.length ? searchResults.length + ' найдено' : cloud.saved_spots.filter((spot) => spot.city === city).length + ' сохранено'}</b>
+                <b>{searching && searchResults.length === 0
+                  ? 'Ищем места…'
+                  : searchAttempted
+                    ? searchResults.length + ' в каталоге'
+                    : savedInCity.length + ' сохранено'}</b>
               </div>
             </div>
 
-            <SpotList
-              spots={searchResults.length ? searchResults : cloud.saved_spots.filter((spot) => spot.city === city).slice(0, 6)}
-              saved={cloud.saved_spots}
-              onSave={saveSpot}
-              onUpdate={updateSpot}
-              onOpen={setSelectedSpot}
-            />
+            {searching && searchResults.length === 0 ? (
+              <CatalogSkeleton />
+            ) : searchAttempted && searchResults.length === 0 ? (
+              <CatalogEmpty
+                query={search}
+                category={activeCategory}
+                onReset={() => {
+                  setSearch('');
+                  setActiveCategory('');
+                  setSearchPage(1);
+                  void runSearch('', '', 1, false);
+                }}
+              />
+            ) : (
+              <SpotList
+                spots={(searchAttempted ? searchResults : savedInCity).slice(0, searchAttempted ? undefined : 6)}
+                saved={cloud.saved_spots}
+                onSave={saveSpot}
+                onUpdate={updateSpot}
+                onOpen={setSelectedSpot}
+              />
+            )}
             {searchResults.length > 0 && canLoadMore ? (
               <button className="load-more" disabled={searching} onClick={() => void loadMorePlaces()}>
                 <span>{searching ? 'Загружаем…' : 'Показать ещё места'}</span>
@@ -540,7 +581,7 @@ function App() {
             </button>
 
             <SpotList spots={visibleSpots} saved={cloud.saved_spots} onSave={saveSpot} onUpdate={updateSpot} onOpen={setSelectedSpot} />
-            {visibleSpots.length === 0 ? <Empty text="Здесь пока нет спотов" /> : null}
+            {visibleSpots.length === 0 ? <SpotsEmpty onDiscover={() => switchTab('map')} /> : null}
           </section>
         ) : null}
 
@@ -618,7 +659,7 @@ function App() {
             </div>
 
             <div className="menu">
-              <button onClick={() => updateCloud((current) => ({ ...current, selected_city: current.selected_city === 'spb' ? 'moscow' : 'spb' }))}>
+              <button onClick={() => setCityPickerOpen(true)}>
                 <span>Город</span><strong>{cityName} ›</strong>
               </button>
               <button onClick={() => setToast('Интересы синхронизируются с рекомендациями')}>
@@ -636,6 +677,15 @@ function App() {
           </section>
         ) : null}
       </main>
+
+      {cityPickerOpen ? (
+        <CityPicker
+          city={city}
+          saved={cloud.saved_spots}
+          onClose={() => setCityPickerOpen(false)}
+          onSelect={selectCity}
+        />
+      ) : null}
 
       {routePlannerOpen ? (
         <RoutePlanner
@@ -695,6 +745,119 @@ function App() {
       </nav>
 
       {toast ? <div className="toast">{toast}</div> : null}
+    </div>
+  );
+}
+
+function CityPicker({
+  city,
+  saved,
+  onClose,
+  onSelect
+}: {
+  city: CitySlug;
+  saved: Spot[];
+  onClose: () => void;
+  onSelect: (city: CitySlug) => void;
+}) {
+  const options: Array<{ id: CitySlug; name: string; code: string; caption: string }> = [
+    { id: 'spb', name: 'Санкт-Петербург', code: 'СПБ', caption: 'Рестораны, бары, культура и места города' },
+    { id: 'moscow', name: 'Москва', code: 'МСК', caption: 'Большой каталог заведений и городских мест' }
+  ];
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="detail-sheet city-sheet" onClick={(event) => event.stopPropagation()}>
+        <div className="detail-handle" />
+        <div className="detail-head">
+          <div>
+            <span>ГОРОД СПОТ</span>
+            <h2>Куда идём?</h2>
+            <p>Каталог и личная карта переключаются вместе.</p>
+          </div>
+          <button onClick={onClose}>×</button>
+        </div>
+
+        <div className="city-options">
+          {options.map((option) => {
+            const active = city === option.id;
+            const count = saved.filter((spot) => spot.city === option.id).length;
+            return (
+              <button
+                key={option.id}
+                className={active ? 'city-option active' : 'city-option'}
+                onClick={() => onSelect(option.id)}
+              >
+                <span className="city-code">{option.code}</span>
+                <span className="city-option-copy">
+                  <b>{option.name}</b>
+                  <small>{option.caption}</small>
+                  <em>{count} сохранено</em>
+                </span>
+                <span className="city-check">{active ? '✓' : <SpotIcon name="chevron" size={17} />}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SpotsEmpty({ onDiscover }: { onDiscover: () => void }) {
+  return (
+    <div className="empty premium-empty spots-empty">
+      <span><SpotIcon name="heart" size={27} strokeWidth={1.8} /></span>
+      <b>Твоя карта начинается с первого места</b>
+      <small>Открой каталог Петербурга или Москвы и сохрани то, куда хочется попасть.</small>
+      <button onClick={onDiscover}>
+        <SpotIcon name="sparkles" size={15} />
+        Смотреть каталог
+      </button>
+    </div>
+  );
+}
+
+function CatalogEmpty({
+  query,
+  category,
+  onReset
+}: {
+  query: string;
+  category: string;
+  onReset: () => void;
+}) {
+  const categoryLabel = categories.find(([id]) => id === category)?.[2];
+  return (
+    <div className="catalog-empty">
+      <span><SpotIcon name="search" size={24} /></span>
+      <b>Ничего не нашли</b>
+      <p>
+        {query.trim()
+          ? 'Попробуй другое название или открой весь каталог.'
+          : categoryLabel
+            ? 'В этой категории пока нет результатов.'
+            : 'Каталог временно не вернул места.'}
+      </p>
+      <button onClick={onReset}>Сбросить фильтры</button>
+    </div>
+  );
+}
+
+function CatalogSkeleton() {
+  return (
+    <div className="catalog-skeleton" aria-hidden="true">
+      {[0, 1, 2].map((item) => (
+        <div className="skeleton-card" key={item}>
+          <div className="skeleton-thumb shimmer" />
+          <div className="skeleton-copy">
+            <span className="shimmer" />
+            <b className="shimmer" />
+            <i className="shimmer" />
+          </div>
+          <div className="skeleton-action shimmer" />
+        </div>
+      ))}
     </div>
   );
 }
