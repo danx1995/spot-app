@@ -16,6 +16,7 @@ import (
 	"github.com/danx1995/spot-app/services/api/internal/accounttransfer"
 	"github.com/danx1995/spot-app/services/api/internal/auth"
 	"github.com/danx1995/spot-app/services/api/internal/catalog"
+	"github.com/danx1995/spot-app/services/api/internal/catalogstore"
 	"github.com/danx1995/spot-app/services/api/internal/cloud"
 	"github.com/danx1995/spot-app/services/api/internal/importer"
 	"github.com/danx1995/spot-app/services/api/internal/library"
@@ -50,17 +51,20 @@ type linkImportRequest struct {
 func main() {
 	ctx := context.Background()
 
-	twoGIS := twogis.New(os.Getenv("TWO_GIS_API_KEY"))
-	placesResolver := resolver.New(twoGIS)
-	linkImporter := importer.New(twoGIS, placesResolver)
-	routeService := routing.New(twoGIS)
-
 	databaseURL := os.Getenv("DATABASE_URL")
 	if strings.TrimSpace(databaseURL) != "" {
 		if err := migrations.Run(ctx, databaseURL); err != nil {
 			log.Fatalf("database migrations failed: %v", err)
 		}
 	}
+
+	catalogStore := catalogstore.NewStore(ctx, databaseURL)
+	defer catalogStore.Close()
+
+	twoGIS := twogis.New(os.Getenv("TWO_GIS_API_KEY"))
+	placesResolver := resolver.NewWithStore(twoGIS, catalogStore)
+	linkImporter := importer.New(twoGIS, placesResolver)
+	routeService := routing.New(twoGIS)
 
 	syncStore := cloud.NewStore(ctx, databaseURL)
 	defer syncStore.Close()
@@ -94,6 +98,7 @@ func main() {
 				"2gis": twoGIS.Enabled(),
 			},
 			"sync_store": syncStore.Mode(),
+			"catalog_store": catalogStore.Mode(),
 			"library_store":  libraryStore.Mode(),
 			"transfer_store": transferStore.Mode(),
 			"auth_providers": map[string]bool{
@@ -305,7 +310,11 @@ func main() {
 			return
 		}
 
-		place, ok := catalog.FindPlace(id)
+		place, ok, err := placesResolver.Find(r.Context(), id)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to load place")
+			return
+		}
 		if !ok {
 			writeError(w, http.StatusNotFound, "place not found")
 			return
@@ -331,7 +340,7 @@ func main() {
 		MaxHeaderBytes:    1 << 20,
 	}
 
-	log.Printf("SPOT API listening on :%s (sync=%s, library=%s, transfer=%s)", port, syncStore.Mode(), libraryStore.Mode(), transferStore.Mode())
+	log.Printf("SPOT API listening on :%s (sync=%s, catalog=%s, library=%s, transfer=%s)", port, syncStore.Mode(), catalogStore.Mode(), libraryStore.Mode(), transferStore.Mode())
 
 	serverErrors := make(chan error, 1)
 	go func() {
