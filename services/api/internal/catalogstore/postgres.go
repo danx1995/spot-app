@@ -187,6 +187,7 @@ func (s *PostgresStore) Search(ctx context.Context, query, city, category string
 		ORDER BY
 			COALESCE(p.rating, 0) DESC,
 			COALESCE(p.rating_count, 0) DESC,
+			COALESCE((p.provider_data->>'confidence')::double precision, 0) DESC,
 			p.name ASC,
 			p.public_id ASC
 		LIMIT $4 OFFSET $5
@@ -214,6 +215,93 @@ func (s *PostgresStore) Search(ctx context.Context, query, city, category string
 			&place.ReviewCount,
 			&openingJSON,
 			&place.Description,
+		); err != nil {
+			return nil, err
+		}
+		place.OpeningHours = decodeOpeningHours(openingJSON)
+		result = append(result, place)
+	}
+	return result, rows.Err()
+}
+
+
+func (s *PostgresStore) SearchAt(ctx context.Context, query, city, category string, lat, lng float64, page, pageSize int) ([]catalog.Place, error) {
+	page, pageSize = normalizePage(page, pageSize)
+	offset := (page - 1) * pageSize
+	q := strings.ToLower(strings.TrimSpace(query))
+
+	rows, err := s.pool.Query(ctx, `
+		SELECT
+			p.public_id,
+			p.name,
+			COALESCE(cat.slug, 'other'),
+			COALESCE(cat.name, 'Другое'),
+			c.slug,
+			c.name,
+			COALESCE(p.address, ''),
+			p.latitude,
+			p.longitude,
+			COALESCE(p.rating::float8, 0),
+			COALESCE(p.rating_count, 0),
+			COALESCE(p.working_hours::text, '{}'),
+			COALESCE(p.attributes->>'description', ''),
+			ROUND(
+				6371000 * 2 * ASIN(
+					SQRT(
+						LEAST(
+							1.0,
+							POWER(SIN(RADIANS(p.latitude - $4) / 2), 2) +
+							COS(RADIANS($4)) * COS(RADIANS(p.latitude)) *
+							POWER(SIN(RADIANS(p.longitude - $5) / 2), 2)
+						)
+					)
+				)
+			)::int AS distance_meters
+		FROM places p
+		JOIN cities c ON c.id = p.city_id
+		LEFT JOIN categories cat ON cat.id = p.category_id
+		WHERE p.is_active = true
+		  AND ($1 = '' OR c.slug = $1)
+		  AND ($2 = '' OR COALESCE(cat.slug, 'other') = $2)
+		  AND (
+		    $3 = ''
+		    OR p.normalized_name LIKE '%' || $3 || '%'
+		    OR lower(COALESCE(p.address, '')) LIKE '%' || $3 || '%'
+		    OR lower(COALESCE(cat.name, '')) LIKE '%' || $3 || '%'
+		  )
+		ORDER BY
+			distance_meters ASC,
+			COALESCE(p.rating, 0) DESC,
+			COALESCE(p.rating_count, 0) DESC,
+			COALESCE((p.provider_data->>'confidence')::double precision, 0) DESC,
+			p.name ASC,
+			p.public_id ASC
+		LIMIT $6 OFFSET $7
+	`, city, category, q, lat, lng, pageSize, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make([]catalog.Place, 0, pageSize)
+	for rows.Next() {
+		var place catalog.Place
+		var openingJSON string
+		if err := rows.Scan(
+			&place.ID,
+			&place.Name,
+			&place.Category,
+			&place.CategoryLabel,
+			&place.City,
+			&place.CityLabel,
+			&place.Address,
+			&place.Latitude,
+			&place.Longitude,
+			&place.Rating,
+			&place.ReviewCount,
+			&openingJSON,
+			&place.Description,
+			&place.DistanceMeters,
 		); err != nil {
 			return nil, err
 		}
