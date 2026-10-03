@@ -62,7 +62,7 @@ func main() {
 	defer catalogStore.Close()
 
 	twoGIS := twogis.New(os.Getenv("TWO_GIS_API_KEY"))
-	placesResolver := resolver.NewWithStore(twoGIS, catalogStore)
+	placesResolver := resolver.NewWithStore(nil, catalogStore)
 	linkImporter := importer.New(twoGIS, placesResolver)
 	routeService := routing.New(twoGIS)
 
@@ -94,8 +94,12 @@ func main() {
 			"status": "ok",
 			"service": "spot-api",
 			"time": time.Now().UTC(),
-			"places_provider": map[string]bool{
-				"2gis": twoGIS.Enabled(),
+			"places_catalog": map[string]any{
+				"source": "overture",
+				"store":  catalogStore.Mode(),
+			},
+			"optional_providers": map[string]bool{
+				"2gis_routing_and_link_resolution": twoGIS.Enabled(),
 			},
 			"sync_store": syncStore.Mode(),
 			"catalog_store": catalogStore.Mode(),
