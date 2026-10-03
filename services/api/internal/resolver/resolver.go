@@ -158,7 +158,7 @@ func (r *Resolver) SearchAtPage(
 	}
 	stored := []catalog.Place{}
 	if r.store != nil {
-		if cachedPlaces, storeErr := r.store.Search(ctx, query, city, category, page, 20); storeErr == nil {
+		if cachedPlaces, storeErr := r.store.SearchAt(ctx, query, city, category, lat, lon, page, 20); storeErr == nil {
 			stored = cachedPlaces
 		}
 	}
