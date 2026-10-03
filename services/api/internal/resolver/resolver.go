@@ -8,6 +8,7 @@ import (
 	"golang.org/x/sync/singleflight"
 
 	"github.com/danx1995/spot-app/services/api/internal/catalog"
+	"github.com/danx1995/spot-app/services/api/internal/catalogstore"
 	"github.com/danx1995/spot-app/services/api/internal/provider/twogis"
 )
 
@@ -18,15 +19,34 @@ const (
 
 type Resolver struct {
 	twoGIS *twogis.Client
+	store  catalogstore.Store
 	cache  *searchCache
 	group  singleflight.Group
 }
 
 func New(twoGIS *twogis.Client) *Resolver {
+	return NewWithStore(twoGIS, catalogstore.NewMemoryStore())
+}
+
+func NewWithStore(twoGIS *twogis.Client, store catalogstore.Store) *Resolver {
+	if store == nil {
+		store = catalogstore.NewMemoryStore()
+	}
 	return &Resolver{
 		twoGIS: twoGIS,
+		store:  store,
 		cache:  newSearchCache(defaultSearchCacheTTL, defaultSearchCacheMax),
 	}
+}
+
+func (r *Resolver) Find(ctx context.Context, id string) (catalog.Place, bool, error) {
+	if place, ok := catalog.FindPlace(id); ok {
+		return place, true, nil
+	}
+	if r.store == nil {
+		return catalog.Place{}, false, nil
+	}
+	return r.store.Find(ctx, id)
 }
 
 func (r *Resolver) Search(ctx context.Context, query, city, category string) ([]catalog.Place, error) {
@@ -54,12 +74,19 @@ func (r *Resolver) SearchPage(
 		}
 	}
 
-	local := catalog.SearchPlaces(query, city, category)
-	if remoteQuery == "" || len(local) >= 5 || r.twoGIS == nil || !r.twoGIS.Enabled() {
-		if page > 1 {
-			return nil, nil
+	builtIn := []catalog.Place{}
+	if page == 1 {
+		builtIn = catalog.SearchPlaces(query, city, category)
+	}
+	stored := []catalog.Place{}
+	if r.store != nil {
+		if cachedPlaces, storeErr := r.store.Search(ctx, query, city, category, page, 20); storeErr == nil {
+			stored = cachedPlaces
 		}
-		return local, nil
+	}
+	base := mergeSearchPlaces(builtIn, stored, category)
+	if remoteQuery == "" || r.twoGIS == nil || !r.twoGIS.Enabled() {
+		return base, nil
 	}
 
 	key := searchPageKey(remoteQuery, city, category, page)
@@ -74,18 +101,14 @@ func (r *Resolver) SearchPage(
 
 		remote, remoteErr := r.twoGIS.SearchPage(ctx, remoteQuery, city, providerPage)
 		if remoteErr != nil {
-			if page > 1 {
-				return []catalog.Place{}, nil
-			}
-			return local, nil
+			return base, nil
 		}
 
-		var out []catalog.Place
-		if page == 1 {
-			out = mergeSearchPlaces(local, remote, category)
-		} else {
-			out = filterSearchPlaces(remote, category)
+		if r.store != nil {
+			_ = r.store.Upsert(ctx, remote)
 		}
+
+		out := mergeSearchPlaces(base, remote, category)
 		if len(out) > 50 {
 			out = out[:50]
 		}
@@ -129,12 +152,19 @@ func (r *Resolver) SearchAtPage(
 		}
 	}
 
-	local := catalog.SearchPlaces(query, city, category)
-	if remoteQuery == "" || r.twoGIS == nil || !r.twoGIS.Enabled() {
-		if page > 1 {
-			return nil, nil
+	builtIn := []catalog.Place{}
+	if page == 1 {
+		builtIn = catalog.SearchPlaces(query, city, category)
+	}
+	stored := []catalog.Place{}
+	if r.store != nil {
+		if cachedPlaces, storeErr := r.store.Search(ctx, query, city, category, page, 20); storeErr == nil {
+			stored = cachedPlaces
 		}
-		return local, nil
+	}
+	base := mergeSearchPlaces(builtIn, stored, category)
+	if remoteQuery == "" || r.twoGIS == nil || !r.twoGIS.Enabled() {
+		return base, nil
 	}
 
 	key := searchAtPageKey(remoteQuery, city, category, lat, lon, page)
@@ -149,16 +179,14 @@ func (r *Resolver) SearchAtPage(
 
 		remote, remoteErr := r.twoGIS.SearchAtPage(ctx, remoteQuery, city, lat, lon, providerPage)
 		if remoteErr != nil {
-			if page > 1 {
-				return []catalog.Place{}, nil
-			}
-			return local, nil
+			return base, nil
 		}
 
-		out := filterSearchPlaces(remote, category)
-		if len(out) == 0 && page == 1 {
-			out = local
+		if r.store != nil {
+			_ = r.store.Upsert(ctx, remote)
 		}
+
+		out := mergeSearchPlaces(base, remote, category)
 		if len(out) > 50 {
 			out = out[:50]
 		}
@@ -236,8 +264,8 @@ func mergeSearchPlaces(local, remote []catalog.Place, category string) []catalog
 		appendPlace(place)
 	}
 
-	if len(out) > 20 {
-		out = out[:20]
+	if len(out) > 50 {
+		out = out[:50]
 	}
 	return out
 }
