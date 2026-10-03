@@ -164,53 +164,58 @@ def classify(props: dict[str, Any]) -> tuple[str, str] | None:
     if not values:
         return None
 
-    joined = " ".join(values)
+    value_set = set(values)
 
-    def has(*needles: str) -> bool:
-        return any(needle in joined for needle in needles)
+    def matches(*tokens: str) -> bool:
+        for value in value_set:
+            for token in tokens:
+                if value == token or value.endswith("_" + token):
+                    return True
+        return False
 
-    if has("coffee_shop", "coffeehouse", "coffee_roaster", "coffee"):
+    if matches("coffee_shop", "coffeehouse", "coffee_roaster"):
         return "coffee", CATEGORY_LABELS["coffee"]
 
-    if has(
-        "bar", "pub", "wine_bar", "cocktail", "beer_garden", "brewery",
+    if matches(
+        "bar", "pub", "wine_bar", "cocktail_bar", "beer_garden", "brewery",
         "taproom", "nightclub"
     ):
         return "bar", CATEGORY_LABELS["bar"]
 
-    if has("hotel", "hostel", "motel", "lodging", "guest_house", "bed_and_breakfast", "resort"):
+    if matches("hotel", "hostel", "motel", "lodging", "guest_house", "bed_and_breakfast", "resort"):
         return "hotel", CATEGORY_LABELS["hotel"]
 
-    if has(
+    if matches(
         "museum", "art_gallery", "gallery", "theater", "theatre", "opera",
-        "concert_hall", "library", "cultural", "historic_site", "monument",
+        "concert_hall", "library", "cultural_center", "historic_site", "monument",
         "memorial"
     ):
         return "culture", CATEGORY_LABELS["culture"]
 
-    if has(
-        "cinema", "movie_theater", "bowling", "escape_room", "amusement",
+    if matches(
+        "cinema", "movie_theater", "bowling", "escape_room", "amusement_park",
         "arcade", "karaoke", "entertainment", "zoo", "aquarium", "water_park",
         "theme_park", "sports_center", "fitness_center", "spa"
     ):
         return "entertainment", CATEGORY_LABELS["entertainment"]
 
-    if has(
-        "shop", "store", "retail", "shopping", "market", "supermarket", "mall",
-        "boutique", "bookstore", "clothing", "jewelry", "electronics", "florist"
+    if matches(
+        "shop", "store", "retail", "shopping_center", "market", "supermarket", "mall",
+        "boutique", "bookstore", "clothing_store", "jewelry_store", "electronics_store",
+        "florist"
     ):
         return "shop", CATEGORY_LABELS["shop"]
 
-    if has(
+    if matches(
         "park", "garden", "viewpoint", "observation_deck", "landmark", "attraction",
-        "tourist_attraction", "natural", "beach", "square", "plaza", "promenade"
+        "tourist_attraction", "natural_feature", "beach", "square", "plaza", "promenade"
     ):
         return "park", CATEGORY_LABELS["park"]
 
-    if has(
+    if matches(
         "restaurant", "food_and_drink", "casual_eatery", "fast_food", "bakery",
-        "pastry", "dessert", "ice_cream", "pizzeria", "food_court", "deli",
-        "cafe", "tearoom", "tea_house"
+        "pastry_shop", "dessert_shop", "ice_cream_shop", "pizzeria", "food_court",
+        "deli", "cafe", "tearoom", "tea_house"
     ):
         return "restaurant", CATEGORY_LABELS["restaurant"]
 
