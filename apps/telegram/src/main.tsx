@@ -147,6 +147,7 @@ function App() {
   const [search, setSearch] = useState('');
   const [searchResults, setSearchResults] = useState<Spot[]>([]);
   const [searching, setSearching] = useState(false);
+  const [searchAttempted, setSearchAttempted] = useState(false);
   const [searchPage, setSearchPage] = useState(1);
   const [canLoadMore, setCanLoadMore] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string>('');
@@ -270,6 +271,7 @@ function App() {
   function selectCity(nextCity: CitySlug) {
     haptic();
     setSearchResults([]);
+    setSearchAttempted(false);
     setSearch('');
     setActiveCategory('');
     setSearchPage(1);
@@ -345,6 +347,7 @@ function App() {
   ) {
     if (!session && !demoMode) return;
     setSearching(true);
+    setSearchAttempted(true);
 
     try {
       if (demoMode) {
@@ -420,6 +423,8 @@ function App() {
 
   const favoriteCount = cloud.saved_spots.filter((spot) => spot.favorite).length;
   const visitedCount = cloud.saved_spots.filter((spot) => spot.status === 'visited').length;
+  const savedInCity = cloud.saved_spots.filter((spot) => spot.city === city);
+  const mapSpots = searchAttempted ? searchResults : savedInCity;
 
   if (booting) {
     return (
@@ -509,24 +514,35 @@ function App() {
             <div className="map-panel real-map">
               <SpotMap
                 city={city}
-                spots={searchResults.length ? searchResults : cloud.saved_spots.filter((spot) => spot.city === city)}
+                spots={mapSpots}
                 onSelect={setSelectedSpot}
               />
               <div className="map-status">
                 <span>{cityName.toUpperCase()}</span>
                 <b>{searching && searchResults.length === 0
                   ? 'Ищем места…'
-                  : searchResults.length
+                  : searchAttempted
                     ? searchResults.length + ' в каталоге'
-                    : cloud.saved_spots.filter((spot) => spot.city === city).length + ' сохранено'}</b>
+                    : savedInCity.length + ' сохранено'}</b>
               </div>
             </div>
 
             {searching && searchResults.length === 0 ? (
               <CatalogSkeleton />
+            ) : searchAttempted && searchResults.length === 0 ? (
+              <CatalogEmpty
+                query={search}
+                category={activeCategory}
+                onReset={() => {
+                  setSearch('');
+                  setActiveCategory('');
+                  setSearchPage(1);
+                  void runSearch('', '', 1, false);
+                }}
+              />
             ) : (
               <SpotList
-                spots={searchResults.length ? searchResults : cloud.saved_spots.filter((spot) => spot.city === city).slice(0, 6)}
+                spots={(searchAttempted ? searchResults : savedInCity).slice(0, searchAttempted ? undefined : 6)}
                 saved={cloud.saved_spots}
                 onSave={saveSpot}
                 onUpdate={updateSpot}
@@ -565,7 +581,7 @@ function App() {
             </button>
 
             <SpotList spots={visibleSpots} saved={cloud.saved_spots} onSave={saveSpot} onUpdate={updateSpot} onOpen={setSelectedSpot} />
-            {visibleSpots.length === 0 ? <Empty text="Здесь пока нет спотов" /> : null}
+            {visibleSpots.length === 0 ? <SpotsEmpty onDiscover={() => switchTab('map')} /> : null}
           </section>
         ) : null}
 
@@ -784,6 +800,46 @@ function CityPicker({
           })}
         </div>
       </div>
+    </div>
+  );
+}
+
+function SpotsEmpty({ onDiscover }: { onDiscover: () => void }) {
+  return (
+    <div className="empty premium-empty spots-empty">
+      <span><SpotIcon name="heart" size={27} strokeWidth={1.8} /></span>
+      <b>Твоя карта начинается с первого места</b>
+      <small>Открой каталог Петербурга или Москвы и сохрани то, куда хочется попасть.</small>
+      <button onClick={onDiscover}>
+        <SpotIcon name="sparkles" size={15} />
+        Смотреть каталог
+      </button>
+    </div>
+  );
+}
+
+function CatalogEmpty({
+  query,
+  category,
+  onReset
+}: {
+  query: string;
+  category: string;
+  onReset: () => void;
+}) {
+  const categoryLabel = categories.find(([id]) => id === category)?.[2];
+  return (
+    <div className="catalog-empty">
+      <span><SpotIcon name="search" size={24} /></span>
+      <b>Ничего не нашли</b>
+      <p>
+        {query.trim()
+          ? 'Попробуй другое название или открой весь каталог.'
+          : categoryLabel
+            ? 'В этой категории пока нет результатов.'
+            : 'Каталог временно не вернул места.'}
+      </p>
+      <button onClick={onReset}>Сбросить фильтры</button>
     </div>
   );
 }
