@@ -89,3 +89,26 @@ func TestMemoryStorePaginatesByRating(t *testing.T) {
 		t.Fatalf("unexpected page2: %#v", page2)
 	}
 }
+
+func TestMemoryStoreSearchAtRanksNearest(t *testing.T) {
+	store := NewMemoryStore()
+	ctx := context.Background()
+
+	if err := store.Upsert(ctx, []catalog.Place{
+		{ID: "near", Name: "Near", City: "spb", Category: "coffee", Latitude: 59.9387, Longitude: 30.3142},
+		{ID: "far", Name: "Far", City: "spb", Category: "coffee", Latitude: 59.99, Longitude: 30.40},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := store.SearchAt(ctx, "", "spb", "coffee", 59.9386, 30.3141, 1, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0].ID != "near" || got[0].DistanceMeters <= 0 {
+		t.Fatalf("unexpected proximity search result: %#v", got)
+	}
+	if got[1].DistanceMeters <= got[0].DistanceMeters {
+		t.Fatalf("distance order is not ascending: %#v", got)
+	}
+}
